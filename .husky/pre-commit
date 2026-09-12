@@ -1,0 +1,2 @@
+node scripts/bump-version.js
+git add package.json client/package.json server/package.json package-lock.json client/package-lock.json server/package-lock.json README.md bci/package.json bci/package-lock.json bci/ui/package.json bci/ui/package-lock.json

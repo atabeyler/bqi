@@ -1,0 +1,209 @@
+name: Android Release
+
+# Builds the sideload APK (client/dist bundled into the Capacitor Android
+# project) and publishes it as a GitHub Release asset -- never to Google
+# Play, per this app's closed institutional distribution requirement (see
+# mobile/README.md). Signing is opt-in, same pattern as
+# desktop-release.yml's CSC_LINK/CSC_KEY_PASSWORD: once the four
+# ANDROID_KEYSTORE_* secrets below are set (Settings -> Secrets and
+# variables -> Actions), the release APK is signed with the project's
+# self-signed keystore; unset, the build still runs and produces an
+# unsigned APK for manual signing later.
+#
+# The APK is attached to the SAME versioned GitHub Release as the Windows
+# installer (tag v<version>, read from the root package.json -- kept in
+# sync across package.json/client/server by scripts/bump-version.js on
+# every commit) rather than a separate tag, so both
+# installers for a given app version live in one place. Whichever workflow
+# (this one or desktop-release.yml) runs first for a given version creates
+# that draft release; the other one finds it by tag and adds its asset.
+#
+# Fires automatically on every push to main (unfiltered by path -- every
+# commit bumps the app version via scripts/bump-version.js, so every commit
+# is a distinct release and gets its own APK, whether or not it touched
+# mobile/client code), or on a manual "Run workflow" click.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      allow_unsigned:
+        description: 'Publish an unsigned APK anyway (only for a deliberate test build -- never for an official version)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Verify version consistency across package.json files
+        run: node scripts/check-version-consistency.js
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build the web bundle
+        working-directory: client
+        run: npm run build
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Sync web bundle into the Android project
+        working-directory: mobile
+        run: npx cap sync android
+
+      # Runs unconditionally -- the secrets context isn't available in a
+      # step-level `if:` (GitHub rejects the whole workflow file at parse
+      # time if it is: "Unrecognized named-value: 'secrets'"), so the
+      # opt-in behavior is implemented in the shell script itself instead.
+      - name: Restore signing keystore
+        working-directory: mobile/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No ANDROID_KEYSTORE_BASE64 secret set -- building an unsigned APK."
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > bqi-release.jks
+          cat > keystore.properties <<EOF
+          storeFile=bqi-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          echo "SIGNED=true" >> "$GITHUB_ENV"
+
+      # Android requires every release of an app to be signed with the same
+      # key to be installable as an update -- an unsigned APK published as
+      # an "official" release here would be a dead end the moment signing
+      # is later configured. Every automatic trigger (push) requires
+      # signing; only a deliberate manual workflow_dispatch with
+      # allow_unsigned=true can skip it. Local `assembleDebug`/`assembleRelease`
+      # runs (outside this workflow) are never affected by this check.
+      - name: Require code signing for automatic/official releases
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.allow_unsigned != 'true'
+        run: |
+          if [ "$SIGNED" != "true" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 (and friends) are not set -- refusing to publish an unsigned APK as an official release."
+            echo "See mobile/README.md's 'Signing' section, or re-run this workflow manually via workflow_dispatch with allow_unsigned=true for a deliberate unsigned test build."
+            exit 1
+          fi
+
+      - name: Build release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease
+
+      - name: Rename APK to match the app version
+        working-directory: mobile/android/app/build/outputs/apk/release
+        run: |
+          VERSION=$(node -p "require('${{ github.workspace }}/package.json').version")
+          mv app-release.apk "BQI-$VERSION.apk"
+          echo "APK_NAME=BQI-$VERSION.apk" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+
+      # Uses raw REST calls against the GitHub API (curl + the auto-provided
+      # GITHUB_TOKEN) instead of a third-party marketplace action, so this
+      # step works regardless of the repository's "Allow select actions"
+      # policy for non-GitHub actions. Finds-or-creates the release for
+      # tag v<version> -- the same tag electron-builder's GitHub publisher
+      # uses for the Windows installer -- so both artifacts end up as
+      # assets on one release instead of two separate ones.
+      #
+      # draft MUST be false: GitHub's "get release by tag" lookup (used
+      # below to find an already-created release before creating a new
+      # one) does not return draft releases -- a draft's tag isn't a real
+      # git ref until it's published. A draft here would make this
+      # find-or-create race with desktop-release.yml's publish step
+      # (package.json's build.publish also needs draft:false for the same
+      # reason): whichever runs second would fail to find the first one's
+      # draft and create a duplicate, orphaned, publicly-invisible release
+      # instead of attaching its asset to the shared one.
+      - name: Publish to GitHub Releases
+        working-directory: mobile/android/app/build/outputs/apk/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          find_release() {
+            HTTP_CODE=$(curl -s -o release.json -w '%{http_code}' \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+            [ "$HTTP_CODE" = "200" ] && jq -r .id release.json
+          }
+
+          RELEASE_ID=$(find_release || true)
+
+          if [ -z "$RELEASE_ID" ]; then
+            CREATE_HTTP_CODE=$(curl -s -o create.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/releases" \
+              -d "$(printf '{"tag_name":"%s","name":"%s","target_commitish":"%s","draft":false,"generate_release_notes":true}' "$TAG" "$TAG" "${{ github.sha }}")")
+
+            if [ "$CREATE_HTTP_CODE" = "201" ]; then
+              RELEASE_ID=$(jq -r .id create.json)
+            else
+              # desktop-release.yml races this same find-or-create for the same tag on
+              # every push -- a 422 here almost always means it won the race and just
+              # published the release a moment ago. Poll for it instead of failing.
+              echo "Release creation returned $CREATE_HTTP_CODE (likely a concurrent create by desktop-release.yml) -- polling for the release instead."
+              for attempt in 1 2 3 4 5; do
+                sleep 3
+                RELEASE_ID=$(find_release || true)
+                [ -n "$RELEASE_ID" ] && break
+              done
+            fi
+          fi
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::Could not find or create a release for tag $TAG"
+            cat create.json 2>/dev/null || true
+            exit 1
+          fi
+
+          # Re-runs should be idempotent: GitHub rejects a same-name upload,
+          # so delete any previous APK asset before re-uploading it.
+          EXISTING_ID=$(jq -r --arg name "$APK_NAME" '.assets[]? | select(.name == $name) | .id' release.json)
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing asset $APK_NAME (id $EXISTING_ID) before re-upload."
+            curl -s -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/releases/assets/$EXISTING_ID" > /dev/null
+          fi
+
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$APK_NAME" \
+            --data-binary "@$APK_NAME"

@@ -1,0 +1,22 @@
+# gitleaks false positives, one fingerprint per line (see `gitleaks detect`
+# output for the exact fingerprint format: <file>:<rule-id>:<line>).
+# Verified false positive: an Android Virtual Device system-image id
+# ("avd-api34-x86_64-v1"), not a credential -- matches generic-api-key only
+# because of its "api"/hyphenated-token shape.
+.github/workflows/android-emulator-test.yml:generic-api-key:104
+
+# Verified false positive: BCI's .env.example ships BCI_JWT_SECRET= (empty --
+# a placeholder for the operator to fill in) directly above
+# BCI_JWT_TTL_SECONDS=14400; gitleaks' generic-api-key rule matches the
+# adjacent numeric line, not a real secret.
+bci/.env.example:generic-api-key:14
+
+# Verified false positives: bci/test/aiDlp.test.js deliberately contains
+# fake AWS-access-key-shaped, API-key-shaped, and PEM-private-key-shaped
+# strings as *input* fixtures for redactForExternalAi()'s own unit tests --
+# the whole point of the test is proving these get redacted before ever
+# reaching an external AI provider. None are real credentials.
+bci/test/aiDlp.test.js:aws-access-token:6
+bci/test/aiDlp.test.js:aws-access-token:7
+bci/test/aiDlp.test.js:generic-api-key:16
+bci/test/aiDlp.test.js:private-key:20

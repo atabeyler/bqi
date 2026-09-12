@@ -1,0 +1,28 @@
+# BCI Native nuclei template (BCI-WEB family). Bundled locally rather than
+# relying on the community nuclei-templates repository: this environment's
+# network policy blocks the GitHub API call `nuclei -update-templates` makes,
+# and more importantly, a Sovereign/air-gapped BCI deployment (spec section
+# 52) can never depend on fetching templates from the internet at scan time.
+# Real "BCI-WEB-*" rule families (spec section 17) land as more of these.
+id: bci-web-missing-hsts
+
+info:
+  name: Missing Strict-Transport-Security header
+  author: bci
+  severity: info
+  description: >
+    Passive check: flags a response with no Strict-Transport-Security
+    header. This is a raw observation only -- BCI's Normalization/
+    Correlation/Risk layers (M6+) decide what it's actually worth.
+  tags: bci-web,misconfig
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "Strict-Transport-Security"

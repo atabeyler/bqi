@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+
+# Offline Intelligence Bundle signing keys and backups -- generated locally
+# by scripts/generate-bundle-keys.js / backup.sh, never committed.
+*.pem
+backups/
+*.dump

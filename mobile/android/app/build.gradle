@@ -1,0 +1,140 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android' // for the LocalLLM plugin's Kotlin sources (src/main/java/.../localllm/)
+
+import groovy.json.JsonSlurper
+
+// Release signing: same free-tier approach as the desktop app's self-signed
+// Authenticode cert (see desktop/README.md's code-signing section) -- a
+// self-signed Android keystore, never a CA-issued one, since this app is
+// sideloaded for closed institutional distribution and never published to
+// Google Play. keystore.properties itself is never committed (see
+// mobile/android/.gitignore); CI populates it from repo secrets before this
+// build runs (see .github/workflows/android-release.yml). A local checkout
+// without the file still builds an unsigned release APK.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+def hasSigningConfig = keystorePropertiesFile.exists()
+if (hasSigningConfig) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def rootPackageJson = new JsonSlurper().parse(rootProject.file('../../package.json'))
+def appVersionName = rootPackageJson.version as String
+def versionMatch = appVersionName =~ /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/
+if (!versionMatch.matches()) {
+    throw new GradleException("Invalid app version in root package.json: ${appVersionName}")
+}
+def appVersionCode =
+        (versionMatch[0][1] as Integer) * 1000000 +
+        (versionMatch[0][2] as Integer) * 10000 +
+        (versionMatch[0][3] as Integer)
+
+android {
+    namespace = "com.boldas.bqi"
+    compileSdk = rootProject.ext.compileSdkVersion
+    // Local Android Local AI native library (LocalLLM Capacitor plugin --
+    // see app/src/main/java/.../localllm/ and app/src/main/cpp/). Requires
+    // the NDK to be installed (Android Studio -> SDK Manager -> SDK Tools
+    // -> NDK (side by side)); ndkVersion pins which one Gradle downloads/
+    // uses if not already present. CMake 3.22.1+ is bundled with recent
+    // NDK installs.
+    ndkVersion "27.0.12077973"
+    defaultConfig {
+        applicationId "com.boldas.bqi"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+        // arm64-v8a only, deliberately: llama.cpp's CPU inference needs
+        // 64-bit NEON to be fast enough to be usable at all on a phone;
+        // armeabi-v7a support would roughly double native build/test
+        // surface for a tier of device this feature already excludes via
+        // the RAM floor in modelSpec.js (a device old/weak enough to still
+        // be 32-bit-only Android is very unlikely to also clear the 3 GB+
+        // RAM floor). x86_64 is included for the emulator.
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared"
+                cppFlags "-O3"
+            }
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+    // capacitor.build.gradle (generated, applied below, DO NOT EDIT) already
+    // pins compileOptions to Java 21 and is applied after this block so it
+    // wins over any sourceCompatibility set here -- match Kotlin's target to
+    // that instead of fighting it with a second compileOptions block.
+    kotlinOptions {
+        jvmTarget = "21"
+    }
+    if (hasSigningConfig) {
+        signingConfigs {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // Passkey/WebAuthn native bridge (PasskeyPlugin.kt, see that file's
+    // comment). credentials-play-services-auth backs Credential Manager
+    // with Google Play services on devices below Android 14, which
+    // otherwise has no built-in Credential Manager provider at all.
+    implementation "androidx.credentials:credentials:$androidxCredentialsVersion"
+    implementation "androidx.credentials:credentials-play-services-auth:$androidxCredentialsVersion"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinxCoroutinesVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

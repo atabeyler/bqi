@@ -1,0 +1,23 @@
+[
+  {
+    "template-id": "bci-web-missing-hsts",
+    "info": {
+      "name": "Missing Strict-Transport-Security header",
+      "author": ["bci"],
+      "tags": ["bci-web", "misconfig"],
+      "description": "Passive check: flags a response with no Strict-Transport-Security header.",
+      "severity": "info"
+    },
+    "type": "http",
+    "host": "127.0.0.1",
+    "port": "40091",
+    "scheme": "http",
+    "url": "http://127.0.0.1:40091",
+    "matched-at": "http://127.0.0.1:40091",
+    "request": "GET / HTTP/1.1\r\nHost: 127.0.0.1:40091\r\nAuthorization: Bearer super-secret-token\r\nAccept: */*\r\n\r\n",
+    "response": "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nSet-Cookie: session=abc123\r\n\r\nok",
+    "ip": "127.0.0.1",
+    "timestamp": "2026-09-04T16:47:57.895633844Z",
+    "matcher-status": true
+  }
+]

@@ -1,0 +1,23 @@
+name: Version Gate
+
+on:
+  push:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify synchronized package versions
+        run: node scripts/check-version-consistency.js
+      - name: Require a higher version on every pushed commit
+        run: node scripts/check-version-bump.js

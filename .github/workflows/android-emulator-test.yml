@@ -1,0 +1,187 @@
+name: Android Emulator Test
+
+# Runs the real, on-device instrumented test
+# (LocalLLMInferenceInstrumentedTest) against an actual Android emulator --
+# the one thing android-release.yml's cross-compiled build has never
+# verified: that the native llama.cpp JNI bridge really loads a model and
+# produces real text, not just that it compiles.
+#
+# Deliberately a separate workflow from android-release.yml, not a job
+# added to it: this is slow (emulator boot + a ~469MB model download +
+# CPU-only inference can plausibly take several minutes) and purely
+# informational -- it must never block or gate the release pipeline, which
+# stays exactly as it was. This workflow builds a debug APK/test APK; no
+# keystore/signing is involved.
+#
+# Runs on push to main, same trigger as the other workflows, so a broken
+# native path is caught automatically without anyone needing to remember to
+# run it by hand. It can also be run on demand via workflow_dispatch.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+# Explicit least-privilege default -- this job only builds/runs a debug test
+# APK on an emulator, it never pushes commits or publishes anything.
+permissions:
+  contents: read
+
+jobs:
+  instrumented-test:
+    runs-on: ubuntu-latest
+    # Generous ceiling for emulator boot + a real model download + on-device
+    # inference; this is not a normal build job and is not meant to be fast.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # ubuntu-latest's default free disk space (~14GB after preinstalled
+      # tooling) isn't enough headroom for the Android SDK's build-tools +
+      # platform + emulator + a fresh x86_64 system image on top of the
+      # runner's other preinstalled toolchains -- observed failing with
+      # "No space left on device" while sdkmanager installed the system
+      # image (the emulator then never boots, so the later Terminate
+      # Emulator step also fails trying to reach a port nothing is
+      # listening on). Removing large preinstalled toolchains this job never
+      # uses (.NET, Haskell/GHC, the Boost headers, and the extra
+      # $AGENT_TOOLSDIRECTORY Node/Python/etc. versions) frees real space
+      # without touching anything this job's own steps depend on.
+      - name: Free disk space for the Android SDK/emulator
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune -af || true
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build the web bundle
+        working-directory: client
+        run: npm run build
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Sync web bundle into the Android project
+        working-directory: mobile
+        run: npx cap sync android
+
+      # GitHub-hosted Linux runners can run hardware-accelerated emulators,
+      # but /dev/kvm needs to be made group-accessible first -- the
+      # documented reactivecircus/android-emulator-runner setup step for
+      # ubuntu-latest runners.
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Speeds up repeat runs by reusing a previously booted AVD image/
+      # snapshot instead of creating one from scratch every time.
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-api34-x86_64-v1
+
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          # x86_64 to match the exact ABI android-release.yml already
+          # builds for the emulator (see app/build.gradle's abiFilters
+          # comment); arm64-v8a hardware isn't available on a standard
+          # GitHub-hosted runner.
+          ram-size: 4096M
+          heap-size: 512M
+          # Well above deviceCapability.js/modelSpec.js's own 3GB RAM floor
+          # for this feature (that floor is about the *device*'s total RAM,
+          # not the emulator's disk, but the same "give it real headroom"
+          # reasoning applies) -- the ~469MB model download plus the
+          # emulator's own system image need real room on top of that.
+          disk-size: 8192M
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "AVD created and snapshot cached."
+
+      - name: Run LocalLLM instrumented test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8192M
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: mobile/android
+          # Scoped to :app only (not a whole-project `connectedDebugAndroidTest`,
+          # which also matches the bundled Capacitor plugin subprojects'
+          # same-named task and, on the first real run of this workflow,
+          # failed there with "Unknown command-line option '--tests'" -- that
+          # option isn't universally supported across every subproject's
+          # instrumentation task). Filtered to the one new test class via
+          # AGP's own instrumentation-runner-argument mechanism instead of
+          # Gradle's generic --tests, which is the documented, always-
+          # supported way to filter an AGP connected-test task by class.
+          #
+          # logcat is captured for the whole run's duration in the
+          # background (a native crash inside the JNI bridge in particular
+          # tends to show up there, not in Gradle's own JUnit report) and
+          # written into the working directory so it's picked up by the
+          # artifact-upload step below regardless of whether the test
+          # passed or failed. The emulator process itself is torn down by
+          # the action right after this script exits, so logcat has to be
+          # captured here, inside the same step, not afterwards.
+          script: |
+            adb logcat -c
+            adb logcat > logcat.txt &
+            LOGCAT_PID=$!
+            set +e
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.boldas.bqi.localllm.LocalLLMInferenceInstrumentedTest
+            GRADLE_EXIT_CODE=$?
+            set -e
+            kill "$LOGCAT_PID" || true
+            exit $GRADLE_EXIT_CODE
+
+      # Makes a failure diagnosable from the Actions UI without needing to
+      # reproduce it locally -- Gradle's own instrumented-test HTML/XML
+      # report plus the full device logcat captured above (native crashes
+      # in particular often show up only in logcat, not in the JUnit
+      # report itself).
+      - name: Upload test results and logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-test-results
+          path: |
+            mobile/android/app/build/reports/androidTests/connected/**
+            mobile/android/app/build/outputs/androidTest-results/connected/**
+            mobile/android/logcat.txt
+          if-no-files-found: warn
+          retention-days: 14

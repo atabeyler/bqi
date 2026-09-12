@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  item 25: excludes the downloaded local-LLM model files (client/src/mobile/
+  localAI/modelManager.js's MODELS_SUBDIR = 'bqi-models', under
+  Directory.Data == context.filesDir, matching LocalLLMPlugin.kt's own
+  File(context.filesDir, modelPath) confinement) from Android's legacy
+  Auto Backup (API below 31; android:fullBackupContent references this file).
+  A multi-gigabyte GGUF model has no business in a user's backup: it is
+  re-downloadable and re-verified by sha256 on demand, and silently
+  including it would balloon backup size/quota for no benefit. See
+  data_extraction_rules.xml for the Android 12+ equivalent.
+-->
+<full-backup-content>
+    <exclude domain="file" path="bqi-models/" />
+</full-backup-content>

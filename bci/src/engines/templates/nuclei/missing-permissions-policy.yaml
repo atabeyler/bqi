@@ -1,0 +1,19 @@
+id: bci-web-missing-permissions-policy
+
+info:
+  name: Missing Permissions-Policy header
+  author: bci
+  severity: info
+  description: The response does not advertise a Permissions-Policy header.
+  tags: bci-web,misconfig
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "Permissions-Policy"

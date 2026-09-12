@@ -1,0 +1,50 @@
+name: Real Elliptic AML Benchmark
+
+on:
+  push:
+    branches:
+      - experiment/constrained-adaptive-threshold
+      - experiment/elliptic-graph-features
+    paths:
+      - '.github/workflows/elliptic-benchmark.yml'
+      - 'server/src/benchmarks/**'
+      - 'server/scripts/run-elliptic-benchmark.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download official Elliptic transaction data
+        working-directory: server
+        run: |
+          set -euo pipefail
+          mkdir -p data/elliptic
+          base='https://data.pyg.org/datasets/elliptic'
+          for f in elliptic_txs_features.csv elliptic_txs_classes.csv elliptic_txs_edgelist.csv; do
+            curl --fail --location --retry 3 --retry-delay 5 "$base/$f.zip" -o "/tmp/$f.zip"
+            unzip -o "/tmp/$f.zip" -d data/elliptic
+          done
+          test -s data/elliptic/elliptic_txs_features.csv
+          test -s data/elliptic/elliptic_txs_classes.csv
+          test -s data/elliptic/elliptic_txs_edgelist.csv
+      - name: Run blind temporal benchmark (temporal rolling gate)
+        working-directory: server
+        run: |
+          set -euo pipefail
+          node scripts/run-elliptic-benchmark.js data/elliptic | tee elliptic-benchmark-results.json
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: elliptic-aml-benchmark-results
+          path: server/elliptic-benchmark-results.json
+          if-no-files-found: error
+          retention-days: 30

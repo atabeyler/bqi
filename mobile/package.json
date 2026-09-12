@@ -1,0 +1,25 @@
+{
+  "name": "bqi-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BQI Android app shell (Capacitor) — wraps client/dist, adds offline SQLite sync via the same /api/sync backend the desktop app uses.",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "build:apk": "cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor-community/file-opener": "^8.0.1",
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/share": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "typescript": "^5.7.3"
+  }
+}

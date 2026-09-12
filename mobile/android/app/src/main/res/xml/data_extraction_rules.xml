@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  item 25: Android 12+ (API 31+) equivalent of backup_rules.xml. Covers
+  both cloud backup and the on-device "Copy your data" transfer flow (a
+  Wi-Fi/cable phone-to-phone migration, not gated by the same size/quota
+  limits as cloud backup, but still no reason to carry a multi-gigabyte
+  re-downloadable model file across).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="bqi-models/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="bqi-models/" />
+    </device-transfer>
+</data-extraction-rules>

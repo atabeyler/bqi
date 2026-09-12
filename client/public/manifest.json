@@ -1,0 +1,35 @@
+{
+  "name": "BQI · Bold Quantum Intelligence",
+  "short_name": "BQI",
+  "description": "Quantum-powered decision intelligence platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "icons": [
+    {
+      "src": "/bqi-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/bqi-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/bqi-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/bqi-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

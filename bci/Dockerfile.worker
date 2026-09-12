@@ -1,0 +1,91 @@
+# BCI worker image: runs src/worker.js (the scan/data plane) separately from
+# the API image (Dockerfile, the control plane) -- spec section 6 requires
+# these isolated so a compromised/crashed worker is never a compromise of
+# BCI Core. Installs the M5 engine adapters' binaries using each project's
+# own documented method.
+#
+# Pinned, not @latest: nuclei/v3@v3.11.1's go.mod requires go >= 1.26, newer
+# than this image's go 1.24. GitHub Actions' setup-go defaults GOTOOLCHAIN
+# to "auto" (ci.yml's bci job relies on exactly this to transparently fetch
+# a newer toolchain for trivy), but the plain golang:1.24-bookworm image
+# defaults it to "local" -- no automatic toolchain download -- so the same
+# install fails outright here with "requires go >= 1.26 (running go 1.24.x;
+# GOTOOLCHAIN=local)" even with the version pinned. Reproduced on a real
+# Northflank build of this exact Dockerfile. Setting GOTOOLCHAIN=auto
+# restores the GitHub-Actions-equivalent behavior: go transparently
+# downloads and uses go1.26.x for this one install step, same as ci.yml's
+# job already does for trivy.
+FROM golang:1.24-bookworm AS engines
+# Go's checksum service has intermittently reset HTTP/2 streams on hosted
+# builders. Use HTTP/1.1 for module downloads and retry boundedly so a
+# transient registry connection cannot fail (or indefinitely stall) a release.
+ENV GOTOOLCHAIN=auto GODEBUG=http2client=0
+
+# osv-scanner, nuclei, naabu: all Apache-2.0/MIT, official `go install` path
+# per each project's own README.
+RUN apt-get update && apt-get install -y --no-install-recommends git libpcap-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+    install_with_retry() { \
+      module="$1"; attempt=1; \
+      until go install "$module"; do \
+        if [ "$attempt" -ge 3 ]; then echo "go install failed after $attempt attempts: $module" >&2; return 1; fi; \
+        attempt=$((attempt + 1)); sleep $((attempt * 5)); \
+      done; \
+    }; \
+    install_with_retry github.com/google/osv-scanner/cmd/osv-scanner@v1.9.2; \
+    install_with_retry github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1; \
+    install_with_retry github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.6.1
+
+# Trivy's go.mod requires the jsonv2 stdlib experiment; see
+# aquasecurity/trivy's own install docs for the current recommended method.
+RUN set -eu; \
+    attempt=1; \
+    until GOEXPERIMENT=jsonv2 go install github.com/aquasecurity/trivy/cmd/trivy@v0.74.0; do \
+      if [ "$attempt" -ge 3 ]; then echo "trivy go install failed after $attempt attempts" >&2; exit 1; fi; \
+      attempt=$((attempt + 1)); sleep $((attempt * 5)); \
+    done
+
+# Verify all four binaries actually landed in GOBIN before the final stage's
+# COPY --from tries to read them. A real Northflank build of this Dockerfile
+# hit "COPY --from=engines ... /root/go/bin/trivy: not found" with the
+# preceding install steps all reporting success (DONE, no error) -- this ls
+# check proved the real cause: the official golang Docker images set
+# GOPATH=/go (not the Go-default $HOME/go=/root/go), so `go install` was
+# writing every binary to /go/bin the whole time and /root/go/bin never
+# existed at all. Fixed by pointing both this check and the COPY below at
+# /go/bin instead.
+RUN ls -la /go/bin/osv-scanner /go/bin/nuclei /go/bin/naabu /go/bin/trivy
+
+# Official ProjectDiscovery templates are deployment material, not fetched
+# or silently updated at scan time. The immutable release tag makes every
+# report reproducible while bundled BCI templates remain available too.
+ARG NUCLEI_TEMPLATES_VERSION=v10.4.8
+RUN git clone --depth 1 --branch "${NUCLEI_TEMPLATES_VERSION}" \
+    https://github.com/projectdiscovery/nuclei-templates.git /opt/nuclei-templates \
+    && rm -rf /opt/nuclei-templates/.git
+
+FROM node:22-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+# --ignore-installed: bookworm-slim ships a system PyJWT via apt/dist-packages
+# that pip can't cleanly uninstall -- same issue documented in the root
+# Dockerfile for the quantum subprocess's pip install.
+RUN pip3 install --break-system-packages --ignore-installed --no-cache-dir semgrep
+
+COPY --from=engines /go/bin/osv-scanner /go/bin/nuclei /go/bin/naabu /go/bin/trivy /usr/local/bin/
+COPY --from=engines /opt/nuclei-templates /opt/nuclei-templates
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY src/ src/
+
+RUN chown -R node:node /app
+USER node
+
+ENV NODE_ENV=production
+ENV BCI_NUCLEI_TEMPLATES_DIR=/opt/nuclei-templates
+CMD ["node", "src/worker.js"]

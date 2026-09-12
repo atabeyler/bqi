@@ -1,0 +1,31 @@
+﻿node_modules/
+client/node_modules/
+server/node_modules/
+client/dist/
+*.log
+.env
+server/.env
+__pycache__/
+*.pyc
+
+# Desktop (Electron) — electron-builder output, never committed.
+release/
+desktop/node_modules/
+
+# Code signing material — private keys/certs are handed to CSC_LINK/
+# CSC_KEY_PASSWORD as CI secrets or local env vars, never as repo files.
+*.pfx
+*.p12
+*.pem
+*.key
+credentials*
+secrets*
+.env.local
+client/.env
+client/.env.local
+mobile/.env
+mobile/.env.local
+
+# Elliptic AML benchmark dataset — fetched on demand via `npm run fetch:elliptic`,
+# licensed data, never committed (features CSV alone is ~650MB).
+server/data/elliptic/

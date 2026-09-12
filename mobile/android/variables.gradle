@@ -1,0 +1,21 @@
+ext {
+    minSdkVersion = 24
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    coreSplashScreenVersion = '1.2.0'
+    androidxWebkitVersion = '1.14.0'
+    // Passkey/WebAuthn native bridge (PasskeyPlugin.kt) -- Jetpack
+    // Credential Manager, plus the Play-services-backed provider for
+    // devices below Android 14's built-in Credential Manager framework.
+    androidxCredentialsVersion = '1.5.0'
+    kotlinxCoroutinesVersion = '1.9.0'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+}

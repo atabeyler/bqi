@@ -1,0 +1,318 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Explicit least-privilege default -- none of these jobs push commits,
+# create releases, or otherwise need write access; without this the
+# workflow runs with the repo's default token permissions, which can be
+# read-write depending on org settings.
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-version-consistency.js
+      - run: node scripts/check-i18n.js
+      - run: node scripts/check-locales.js
+
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        run: npm ci
+      - name: Install root dependencies (for desktop/testHelpers.js, used by sync.e2e.test.js)
+        working-directory: .
+        run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: Validate quantum script syntax
+        run: python3 -m py_compile quantum/scenario_quantum.py quantum/fraud_detection.py quantum/fraud_detection_13q.py quantum/portfolio_optimizer.py quantum/_ibm_backend.py quantum/_reproducibility.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/quantum/requirements.txt
+      - name: Install quantum dependencies
+        run: pip install -r quantum/requirements.txt
+      - name: Quantum worker smoke test
+        run: python3 quantum/smoke_test.py
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  # BOLD Cyber Intelligence (BCI) -- an independent product living under
+  # bci/, never previously covered by this workflow. Runs the real engine
+  # adapters (Trivy/OSV-Scanner/Semgrep/Nuclei/naabu) and real SSH host-key
+  # discovery against a real local sshd, not mocks -- an engine that can't
+  # be installed here reports OFFLINE/SKIPPED via its own health check
+  # rather than failing the job (see src/engines/registry.js).
+  bci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bci
+          POSTGRES_PASSWORD: bci
+          POSTGRES_DB: bci_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BCI_DATABASE_URL: postgres://bci:bci@localhost:5432/bci_test
+      BCI_JWT_SECRET: ci-test-secret-not-for-production
+      BCI_NUCLEI_TEMPLATES_DIR: /tmp/nuclei-templates
+    defaults:
+      run:
+        working-directory: bci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bci/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install scanner engines (real binaries, not mocks)
+        # Pinned, not @latest: trivy's go.mod now requires go >= 1.26.3, which
+        # triggers Go's automatic toolchain download (GOTOOLCHAIN=auto) --
+        # that auto-downloaded golang.org/toolchain@go1.26.8 build does not
+        # ship encoding/json/v2 or encoding/json/jsontext (Go's newer JSON
+        # API, still gated behind GOEXPERIMENT=jsonv2) enabled by default,
+        # which trivy's own dependency tree now imports, so an unpinned
+        # `@latest` install fails outright. Reproduced and fixed locally:
+        # GOEXPERIMENT=jsonv2 scoped to just the trivy install (the other
+        # three resolve an older toolchain that doesn't even recognize
+        # "jsonv2" as a valid experiment name, so it can't be set globally
+        # for this whole step). Pinning all four also avoids the exact
+        # class of "worked yesterday, breaks today" failure this was.
+        run: |
+          set -euo pipefail
+          export GODEBUG=http2client=0
+          go_install_with_retry() {
+            local module="$1" experiment="${2:-}" attempt=1
+            until GOEXPERIMENT="$experiment" go install "$module"; do
+              if [[ "$attempt" -ge 3 ]]; then
+                echo "go install failed after $attempt attempts: $module" >&2
+                return 1
+              fi
+              attempt=$((attempt + 1))
+              sleep $((attempt * 5))
+            done
+          }
+          go_install_with_retry github.com/aquasecurity/trivy/cmd/trivy@v0.74.0 jsonv2
+          go_install_with_retry github.com/google/osv-scanner/cmd/osv-scanner@v1.9.2
+          go_install_with_retry github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1
+          go_install_with_retry github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.6.1
+          pip install semgrep -r quantum/requirements.txt
+          NUCLEI_TEMPLATES_VERSION="$(node --input-type=module -e 'import("./src/engines/executionProfiles.js").then((m) => process.stdout.write(m.NUCLEI_TEMPLATES_VERSION))')"
+          git clone --depth 1 --branch "$NUCLEI_TEMPLATES_VERSION" https://github.com/projectdiscovery/nuclei-templates.git "$BCI_NUCLEI_TEMPLATES_DIR"
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      - name: Install OpenSSH server/client (for real SSH crypto discovery tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client openssh-server
+          sudo mkdir -p /run/sshd
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run migrate
+      - run: npm test
+
+  bci-ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bci/ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bci/ui/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm test
+      - run: npm run build
+
+  bci-worker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the real deployment worker image
+        run: docker build --file bci/Dockerfile.worker --tag bci-worker:ci bci
+      - name: Verify every runtime binary in the built image
+        run: |
+          docker run --rm --entrypoint sh bci-worker:ci -c '
+            set -eu
+            curl --version
+            trivy --version
+            semgrep --version
+            osv-scanner --version
+            nuclei -version
+            naabu -version
+          '
+
+  bci-api-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the real deployment API image
+        run: docker build --file bci/Dockerfile --tag bci-api:ci bci
+      - name: Verify BCI quantum runtimes in the built image
+        run: |
+          docker run --rm --entrypoint python3 bci-api:ci -c '
+          import qiskit_aer
+          import qiskit_ibm_runtime
+          from qiskit_aer import AerSimulator
+          assert AerSimulator() is not None
+          '
+
+  # Secret scanning + dependency/SBOM reporting (BQI-015). Kept separate from
+  # server/client/desktop above so a finding here never blocks those from
+  # reporting their own pass/fail independently.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Blocking: a real secret committed to the repo is a hard stop, not
+      # advisory debt. Runs the open-source gitleaks CLI binary directly
+      # (not the gitleaks-action wrapper, which has had org/license-gating
+      # history unrelated to the underlying OSS scanner) against the
+      # checked-out working tree. Verified clean against this repo as of
+      # this commit, with one confirmed false positive (an Android emulator
+      # system-image id, not a credential) allowlisted in .gitleaksignore --
+      # see that file's comment for the exact fingerprint and why.
+      - name: Secret scan (gitleaks)
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --no-git -v
+
+      # Advisory only, never blocking: this repo currently carries several
+      # pre-existing high/critical transitive-dependency findings with no
+      # available fix yet (e.g. xlsx's prototype-pollution/ReDoS advisories,
+      # GHSA-4r6h-8v6p-xvw6 / GHSA-5pgg-2g8v-p4x9 -- no upstream patch
+      # exists as of this workflow being added). Gating CI on `npm audit`
+      # today would permanently red the build over debt this task didn't
+      # introduce and can't unilaterally resolve (replacing xlsx is a
+      # separate, larger effort). This still surfaces every run's findings
+      # in the log for operators to track, without blocking merges.
+      - name: Dependency vulnerability scan (npm audit, informational)
+        continue-on-error: true
+        run: |
+          for dir in . server client; do
+            echo "::group::npm audit ($dir)"
+            (cd "$dir" && npm audit --audit-level=high) || true
+            echo "::endgroup::"
+          done
+
+      # SBOM generation (CycloneDX), one per npm workspace -- purely
+      # additive, never blocking (continue-on-error + `|| true` per
+      # invocation: a transient npx/registry hiccup on the runner must
+      # never fail the build over a reporting artifact). Published as a
+      # build artifact so a deployment/compliance process can pull the
+      # exact dependency manifest for a given commit without re-resolving
+      # it later.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate SBOMs (CycloneDX)
+        continue-on-error: true
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom-root.json . || echo "::warning::root SBOM generation failed, continuing"
+          (cd server && npx --yes @cyclonedx/cyclonedx-npm --output-format JSON --output-file ../sbom-server.json .) || echo "::warning::server SBOM generation failed, continuing"
+          (cd client && npx --yes @cyclonedx/cyclonedx-npm --output-format JSON --output-file ../sbom-client.json .) || echo "::warning::client SBOM generation failed, continuing"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom
+          path: sbom-*.json
+          retention-days: 90
+          if-no-files-found: warn
+
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx vitest run desktop
+
+  elliptic-benchmark:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/experiment/constrained-adaptive-threshold' || github.ref == 'refs/heads/experiment/elliptic-graph-features')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download official Elliptic transaction data
+        working-directory: server
+        run: |
+          set -euo pipefail
+          mkdir -p data/elliptic
+          base='https://data.pyg.org/datasets/elliptic'
+          for f in elliptic_txs_features.csv elliptic_txs_classes.csv elliptic_txs_edgelist.csv; do
+            curl --fail --location --retry 3 --retry-delay 5 "$base/$f.zip" -o "/tmp/$f.zip"
+            unzip -o "/tmp/$f.zip" -d data/elliptic
+          done
+      - name: Run blind temporal benchmark
+        working-directory: server
+        run: node scripts/run-elliptic-benchmark.js data/elliptic | tee elliptic-benchmark-results.json
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: elliptic-aml-benchmark-results
+          path: server/elliptic-benchmark-results.json
+          if-no-files-found: error
+          retention-days: 30

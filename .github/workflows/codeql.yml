@@ -1,0 +1,52 @@
+name: CodeQL
+
+# Static analysis (SAST, BQI-015). This private repository does not currently
+# have GitHub Code Scanning enabled, so uploading SARIF to the Security tab
+# returns HTTP 403. The analysis still runs in full and its SARIF is retained
+# as a workflow artifact. Once Code Scanning is enabled, `upload` can be
+# changed from `never` to `always` to publish the same results as alerts.
+# Findings do not fail the workflow; analysis/configuration errors do. No `paths`/
+# `paths-ignore` filter is configured, so the single javascript-typescript
+# language scan covers the ENTIRE checked-out tree -- server/, client/, and
+# bci/ (both the API and its bci/ui frontend) alike -- on every push to any
+# branch (matching ci.yml's own push trigger, since this repo's normal
+# workflow is a direct push rather than a PR) and weekly on a schedule, so
+# drift between dependency updates still gets re-scanned even with no code
+# changes.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+
+      - name: Analyze JavaScript and TypeScript
+        id: codeql
+        uses: github/codeql-action/analyze@v4
+        with:
+          upload: never
+          upload-database: false
+
+      - name: Retain CodeQL SARIF
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif-${{ github.sha }}
+          path: ${{ steps.codeql.outputs.sarif-output }}
+          if-no-files-found: warn
+          retention-days: 14

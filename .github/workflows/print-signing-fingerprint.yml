@@ -1,0 +1,40 @@
+name: Print Android signing fingerprint
+
+# Manual-dispatch only, never on push -- this exists purely so the SHA-256
+# certificate fingerprint of the release signing keystore (needed for
+# ANDROID_PASSKEY_CERT_FINGERPRINTS, see README.md's "Passkey Login
+# (Android)" section and server/src/routes/wellKnown.js) can be read off
+# without anyone needing local access to the keystore file/password
+# themselves -- the same ANDROID_KEYSTORE_BASE64/ANDROID_KEYSTORE_PASSWORD/
+# ANDROID_KEY_ALIAS repo secrets android-release.yml already uses to sign
+# release builds are reused here read-only. The fingerprint printed is not
+# sensitive (a public certificate hash, not a private key) so it is safe to
+# appear in this run's log.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  print-fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode keystore and print its SHA-256 fingerprint
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is not set -- nothing to print."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/signing.jks
+          # Print full output plus a highlighted SHA256 line -- keytool's
+          # "Certificate fingerprints:" block layout (which hashes it lists,
+          # in what order) varies across JDK versions, so grep for the
+          # SHA256 line specifically instead of assuming a fixed offset from
+          # a header line.
+          keytool -list -v -keystore /tmp/signing.jks -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD"
+          echo "----- SHA256 -----"
+          keytool -list -v -keystore /tmp/signing.jks -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" \
+            | grep -i 'sha256'
+          rm -f /tmp/signing.jks

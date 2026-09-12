@@ -1,0 +1,301 @@
+name: Desktop Release
+
+# Builds installers for all three desktop OSes, each on its native runner
+# (electron-builder's NSIS target needs wine on Linux even for an unsigned
+# Windows build, and a real dmg/AppImage can only be produced on macOS/Linux
+# respectively -- see desktop/README.md) and publishes them all to the same
+# GitHub Release. Uploading is done with our own curl calls (see
+# prepare-release and the "Upload installer assets" step below), not
+# electron-builder's built-in --publish: its GitHub publisher looks up the
+# release via GET /repos/{owner}/{repo}/releases (list) rather than the
+# "get release by tag" endpoint, and that list endpoint has been observed to
+# never reflect a release that "get by tag" confirms exists moments after
+# creation -- see prepare-release's history for the failed attempts to wait
+# it out. No custom secret is needed for the upload: GITHUB_TOKEN is
+# provided automatically by Actions and is scoped to this repository, which
+# is all a release-asset upload needs.
+#
+# Only the Windows installer is code-signed (see the "Require code signing"
+# step below) -- macOS and Linux builds are published unsigned/ad-hoc
+# (build.mac.identity: null in package.json), same tradeoff as the
+# self-signed Windows certificate but without even that: macOS Gatekeeper
+# and most Linux desktops will still warn on first launch. See
+# desktop/README.md's "Releases & auto-update" section.
+#
+# Fires automatically on every push to main (unfiltered by path -- every
+# commit bumps the app version via scripts/bump-version.js, so every commit
+# is a distinct release and gets its own installers, whether or not it
+# touched desktop code), on a `desktop-v*` tag, or on a manual "Run
+# workflow" click.
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      allow_unsigned:
+        description: 'Publish an unsigned Windows installer anyway (only for a deliberate test build -- never for an official version)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Finds or creates the shared GitHub Release for this version's tag,
+  # once, before the three platform builds below start -- otherwise all
+  # three would race to create it themselves and two would fail. Uses the
+  # "get release by tag" endpoint exclusively (not the "list releases"
+  # endpoint -- see the workflow-level comment above for why that one
+  # isn't trustworthy here). draft MUST be false -- this same tag is also
+  # looked up by android-release.yml, and a draft release isn't visible by
+  # tag until it's published.
+  prepare-release:
+    runs-on: ubuntu-latest
+    # AQ security review (P0-05): every push to main used to become a public
+    # production release with no human review -- a typo-fix commit was
+    # indistinguishable from a deliberate release. Referencing this
+    # environment doesn't change behavior BY ITSELF (an environment with no
+    # protection rules configured behaves exactly like not having one) --
+    # it's the hook the repo owner needs to attach a required-reviewers rule
+    # to (Settings > Environments > production-release > required reviewers),
+    # a one-time manual step GitHub doesn't expose through workflow YAML.
+    # Once that's set, this job (and everything after it, including the
+    # actual build-and-publish matrix below) pauses for approval before a
+    # release is created/made public.
+    environment: production-release
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      # true when this tag's Windows desktop assets were already fully
+      # published by an earlier run -- see the "Find or create" step below
+      # for why this specifically guards against overwriting a shipped
+      # release (2026-08-31 incident: a same-day commit that didn't bump
+      # package.json's version reused the still-open v3.2.9 tag, and the
+      # upload step's delete-then-reupload idempotency -- meant for a
+      # deliberate workflow_dispatch re-run of *that same* build -- silently
+      # replaced the already-published v3.2.9 installer/blockmap/latest.yml
+      # with bytes from an unrelated commit).
+      already_published: ${{ steps.find_or_create.outputs.already_published }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: info
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Find or create the shared GitHub Release
+        id: find_or_create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.info.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          find_release() {
+            HTTP_CODE=$(curl -s -o release.json -w '%{http_code}' \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+            [ "$HTTP_CODE" = "200" ]
+          }
+
+          # latest.yml is uploaded last in the per-platform upload step
+          # below (after the .exe and .exe.blockmap), so its presence is a
+          # reliable "this tag's Windows publish already ran to completion"
+          # signal -- a release that only got partway through a previous
+          # run (or was just created a few lines above) won't have it yet,
+          # and workflow_dispatch is exempted from the resulting guard
+          # entirely (see build-and-publish's `if:` below), so a deliberate
+          # manual re-run/repair of the *same* version can still complete.
+          release_already_published() {
+            jq -e '.assets[]? | select(.name == "latest.yml")' release.json > /dev/null 2>&1
+          }
+
+          if find_release; then
+            echo "Release $TAG already exists."
+            if release_already_published; then
+              echo "Windows assets for $TAG are already published -- flagging for build-and-publish to skip on a plain push."
+              echo "already_published=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "already_published=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          CREATE_HTTP_CODE=$(curl -s -o create.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases" \
+            -d "$(printf '{"tag_name":"%s","name":"%s","target_commitish":"%s","draft":false,"generate_release_notes":true}' "$TAG" "$TAG" "${{ github.sha }}")")
+
+          if [ "$CREATE_HTTP_CODE" = "201" ]; then
+            echo "Created release $TAG."
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A concurrent creator (android-release.yml, racing this same tag
+          # on the same push) may have won in between our lookup and our
+          # create. Poll for it instead of failing.
+          echo "Release creation returned $CREATE_HTTP_CODE (likely a concurrent create by android-release.yml) -- polling for the release instead."
+          for attempt in 1 2 3 4 5; do
+            sleep 3
+            if find_release; then
+              # This is the release *this exact push* just raced to create,
+              # so it cannot have Windows assets yet.
+              echo "already_published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          echo "::error::Could not find or create a release for tag $TAG"
+          cat create.json 2>/dev/null || true
+          exit 1
+
+  build-and-publish:
+    needs: prepare-release
+    # Skip entirely on a plain push whose version tag was already fully
+    # published (see prepare-release's `already_published` output) -- that
+    # combination only happens when a commit reached main without bumping
+    # package.json's version (Version Gate should have already failed that
+    # push separately, but it has no authority to stop this workflow; this
+    # is the guard that actually protects already-shipped release assets).
+    # workflow_dispatch is exempted so a deliberate manual re-run can still
+    # repair/complete a partially-published version.
+    if: needs.prepare-release.outputs.already_published != 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Verify version consistency across package.json files
+        run: node scripts/check-version-consistency.js
+
+      # electron-builder signs automatically once CSC_LINK/CSC_KEY_PASSWORD
+      # are set as repo secrets and silently builds unsigned when they're
+      # not -- fine for a local `npm run dist:win` dev build, but this is
+      # the path that publishes an "official" GitHub Release, so an
+      # accidental unsigned publish here is exactly what installs
+      # SmartScreen-flagged onto every user's machine. Every automatic
+      # trigger (push) requires signing; only a deliberate manual
+      # workflow_dispatch with allow_unsigned=true can skip it. Only applies
+      # to the Windows build -- macOS/Linux are always unsigned (see the
+      # workflow-level comment above), so there's nothing to require there.
+      - name: Require code signing for automatic/official Windows releases
+        if: matrix.platform == 'win' && (github.event_name != 'workflow_dispatch' || github.event.inputs.allow_unsigned != 'true')
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if [ -z "$CSC_LINK" ] || [ -z "$CSC_KEY_PASSWORD" ]; then
+            echo "::error::CSC_LINK/CSC_KEY_PASSWORD are not set -- refusing to publish an unsigned Windows installer as an official release."
+            echo "See desktop/README.md's 'Code signing' section to generate and register a certificate,"
+            echo "or re-run this workflow manually via workflow_dispatch with allow_unsigned=true for a deliberate unsigned test build."
+            exit 1
+          fi
+
+      # Builds only -- no publishing. electron-builder's own GitHub
+      # publisher is what hit the 422 race documented above, so this
+      # workflow uploads the built installer(s) itself instead (next
+      # step), against the release prepare-release already confirmed
+      # exists via "get by tag". `--publish never` is required, not just
+      # the absence of `--publish always`: electron-builder detects CI
+      # and tries a publish-related GitHub lookup by default whenever it
+      # thinks it's running in CI, regardless of the CLI flag being
+      # omitted -- and since this step deliberately has no GH_TOKEN (the
+      # upload step below is the only place that needs one), that lookup
+      # fails immediately with "GitHub Personal Access Token is not set".
+      - name: Build the installer for this platform
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.platform }} --publish never
+        env:
+          CSC_LINK: ${{ matrix.platform == 'win' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.CSC_KEY_PASSWORD || '' }}
+
+      - name: Upload installer assets to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+          # Also grabs each installer's differential-update companions --
+          # electron-builder writes both of these into release/ regardless
+          # of --publish never (confirmed from a real build log: "building
+          # block map blockMapFile=release\...exe.blockmap"), but the old
+          # glob here only ever matched the installer itself, so
+          # electron-updater's generic feed (server/src/routes/version.js's
+          # /generic/*) had nothing to serve and every update check failed
+          # silently. latest.yml only exists on the win job (electron-
+          # builder writes latest-mac.yml/latest-linux.yml for the other
+          # two); nullglob below means a pattern that matches nothing on a
+          # given platform is simply skipped, not an error.
+          GLOB: ${{ matrix.platform == 'win' && 'release/*.exe release/*.exe.blockmap release/latest.yml' || matrix.platform == 'mac' && 'release/*.dmg release/*.dmg.blockmap release/latest-mac.yml' || 'release/*.AppImage release/*.AppImage.blockmap release/latest-linux.yml' }}
+        run: |
+          set -euo pipefail
+
+          echo "Contents of release/ after build:"
+          ls -la release/ || true
+
+          HTTP_CODE=$(curl -s -o release.json -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Release $TAG not found (HTTP $HTTP_CODE) -- prepare-release should have created it."
+            exit 1
+          fi
+          RELEASE_ID=$(jq -r .id release.json)
+
+          shopt -s nullglob
+          FILES=($GLOB)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "::error::No files matched $GLOB in release/ -- build step may not have produced an installer."
+            exit 1
+          fi
+
+          for FILE in "${FILES[@]}"; do
+            NAME=$(basename "$FILE")
+
+            # Delete a same-named asset first (idempotent re-runs, e.g. a
+            # manual workflow_dispatch re-run of an already-published
+            # version) -- GitHub rejects a same-name upload otherwise.
+            EXISTING_ID=$(jq -r --arg name "$NAME" '.assets[]? | select(.name == $name) | .id' release.json)
+            if [ -n "$EXISTING_ID" ]; then
+              echo "Deleting existing asset $NAME (id $EXISTING_ID) before re-upload."
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$REPO/releases/assets/$EXISTING_ID" > /dev/null
+            fi
+
+            echo "Uploading $NAME..."
+            curl -sf -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$NAME" \
+              --data-binary "@$FILE"
+          done

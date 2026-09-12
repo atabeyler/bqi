@@ -1,0 +1,7 @@
+# Shell scripts (husky hooks in particular) must stay LF -- core.autocrlf=true
+# on a Windows checkout otherwise rewrites them to CRLF, and a CRLF-terminated
+# command line breaks `sh -e` invocation (git-for-windows' hook runner failed
+# with a garbled "env: unknown option" error until this was added), silently
+# disabling the pre-commit version-bump hook on Windows.
+.husky/* text eol=lf
+*.sh text eol=lf

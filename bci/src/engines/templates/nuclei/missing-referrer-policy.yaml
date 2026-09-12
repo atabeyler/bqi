@@ -1,0 +1,19 @@
+id: bci-web-missing-referrer-policy
+
+info:
+  name: Missing Referrer-Policy header
+  author: bci
+  severity: info
+  description: The response does not advertise a Referrer-Policy header.
+  tags: bci-web,misconfig
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "Referrer-Policy"

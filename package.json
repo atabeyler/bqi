@@ -1,0 +1,126 @@
+{
+  "name": "bqi",
+  "version": "3.3.46",
+  "type": "module",
+  "description": "BQI — Bold Quantum Intelligence",
+  "author": "Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.",
+  "private": true,
+  "main": "desktop/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/atabeyler/bqi.git"
+  },
+  "scripts": {
+    "build": "cd client && npm install && npm run build && cd ..",
+    "start": "npm start --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "desktop": "electron .",
+    "desktop:dev": "concurrently -k \"npm run dev:client\" \"wait-on http://localhost:5173 && cross-env BQI_DESKTOP_DEV=1 electron .\"",
+    "test:desktop": "vitest run desktop",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "release:win": "npm run build && electron-builder --win --publish always",
+    "release:mac": "npm run build && electron-builder --mac --publish always",
+    "release:linux": "npm run build && electron-builder --linux --publish always",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "build": {
+    "appId": "com.boldas.bqi",
+    "productName": "BQI",
+    "copyright": "Copyright © Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.",
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop/build"
+    },
+    "files": [
+      "desktop/**/*",
+      "client/dist/**/*",
+      "!desktop/**/*.test.js",
+      "!desktop/**/*.md"
+    ],
+    "extraResources": [],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*",
+      "**/node_modules/bcrypt/**/*",
+      "**/node_modules/node-llama-cpp/**/*",
+      "**/node_modules/@node-llama-cpp/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/build/icon.ico",
+      "artifactName": "BQI-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BQI"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "desktop/build/icon-mac.png",
+      "category": "public.app-category.business",
+      "artifactName": "BQI-${version}-${arch}.${ext}",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/build/icon-mac.png",
+      "category": "Office",
+      "artifactName": "BQI-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "atabeyler",
+      "repo": "bqi",
+      "releaseType": "release"
+    }
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "concurrently": "^9.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "husky": "^9.1.7",
+    "vitest": "^4.1.10",
+    "wait-on": "^8.0.4"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^11.10.0",
+    "builder-util-runtime": "^9.7.0",
+    "electron-updater": "^6.8.9"
+  },
+  "optionalDependencies": {
+    "node-llama-cpp": "^3.20.0"
+  }
+}

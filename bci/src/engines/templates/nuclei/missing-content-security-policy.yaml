@@ -1,0 +1,19 @@
+id: bci-web-missing-content-security-policy
+
+info:
+  name: Missing Content-Security-Policy header
+  author: bci
+  severity: info
+  description: The response does not advertise a Content-Security-Policy header.
+  tags: bci-web,misconfig
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "Content-Security-Policy"

@@ -1,0 +1,19 @@
+id: bci-web-missing-content-type-options
+
+info:
+  name: Missing X-Content-Type-Options header
+  author: bci
+  severity: info
+  description: The response does not advertise an X-Content-Type-Options header.
+  tags: bci-web,misconfig
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        part: header
+        negative: true
+        words:
+          - "X-Content-Type-Options"
