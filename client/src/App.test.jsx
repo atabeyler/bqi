@@ -45,6 +45,12 @@ beforeEach(() => {
 });
 
 describe('App', () => {
+  it('shows the global BQI splash in an ordinary browser tab', () => {
+    resolveCurrentUser.mockResolvedValue(null);
+    renderApp('/');
+    expect(screen.getByText('splash-stub')).toBeInTheDocument();
+  });
+
   it('does not stack the global BQI splash before the BCI route splash', async () => {
     window.Capacitor = { isNativePlatform: () => true };
     resolveCurrentUser.mockResolvedValue({ userCode: 'ADMIN', isAdmin: true });

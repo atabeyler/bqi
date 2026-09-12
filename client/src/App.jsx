@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage.jsx';
 import GlobalVoiceAssistant from './components/GlobalVoiceAssistant.jsx';
@@ -35,33 +35,18 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const ButtonShowcasePage = lazy(() => import('./pages/ButtonShowcasePage.jsx'));
 const CyberAnalysisPage = lazy(() => import('./pages/CyberAnalysisPage.jsx'));
 
-// The branded launch screen belongs to installed/native app shells, not a
-// normal browser tab. BQI ships in three such forms:
-//   - Electron desktop: uses a native splash window in desktop/main.js.
-//   - Capacitor Android: the native bridge exposes window.Capacitor.
-//   - Installed browser PWA: display-mode is standalone (plus iOS legacy).
-// Do not rely on display-mode alone: Capacitor and Electron are not PWAs and
-// therefore legitimately report it as false.
-const isInstalledApp = () => {
-  const isCapacitor = Boolean(
-    window.Capacitor?.isNativePlatform?.() ||
-    (window.Capacitor?.getPlatform?.() && window.Capacitor.getPlatform() !== 'web')
-  );
-  const isStandalonePwa =
-    window.matchMedia?.('(display-mode: standalone)')?.matches ||
-    window.navigator.standalone === true;
-
-  return isCapacitor || isStandalonePwa;
-};
-
 export default function App() {
   // undefined = still resolving who's logged in (web asks the server, since
   // the session lives in an httpOnly cookie no client JS can read; native
   // resolves this synchronously from its own stored JWT -- see
   // resolveCurrentUser()); null = confirmed logged out.
-  const [user, setUser] = useState(undefined);
-  const [showSplash] = useState(isInstalledApp);
   const location = useLocation();
+  const [user, setUser] = useState(undefined);
+  // Every client surface, including an ordinary browser tab, gets the same
+  // deterministic three-second branded launch. The dedicated BCI route owns
+  // its own splash and is excluded so the two animations never stack.
+  const [showSplash, setShowSplash] = useState(() => location.pathname !== '/cyber-analysis');
+  const finishGlobalSplash = useCallback(() => setShowSplash(false), []);
   const showGlobalSplash = showSplash && location.pathname !== '/cyber-analysis';
   const { lang } = useLang();
 
@@ -153,7 +138,7 @@ export default function App() {
   if (user === undefined) {
     return (
       <>
-        {showGlobalSplash && <SplashScreen />}
+        {showGlobalSplash && <SplashScreen onComplete={finishGlobalSplash} />}
         <LoadingFallback />
       </>
     );
@@ -161,7 +146,7 @@ export default function App() {
 
   return (
     <>
-      {showGlobalSplash && <SplashScreen />}
+      {showGlobalSplash && <SplashScreen onComplete={finishGlobalSplash} />}
       <UpdateBanner />
       {user && <IdleLogoutGuard onIdleLogout={() => { fullLogout(); setUser(null); }} />}
       <Suspense fallback={<LoadingFallback />}>
