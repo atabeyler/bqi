@@ -138,7 +138,7 @@ export default function LoginPage({ onLogin }) {
           setJWT(r.jwt);
           registerNativeSession(r.jwt, password);
           setStage(STAGES.APPROVED);
-          setTimeout(() => onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: false }), 1500);
+          setTimeout(() => onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: false, exp: r.exp }), 1500);
         } else if (r.status === 'expired' || r.status === 'not_found') {
           clearInterval(pollRef.current);
           setStage(STAGES.EXPIRED);
@@ -214,7 +214,7 @@ export default function LoginPage({ onLogin }) {
       if (r.status === 'approved' && r.jwt) {
         setJWT(r.jwt);
         registerNativeSession(r.jwt, password);
-        onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: r.isAdmin });
+        onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: r.isAdmin, exp: r.exp });
         return;
       }
       setToken(r.token);
@@ -265,7 +265,7 @@ export default function LoginPage({ onLogin }) {
       // password-hash check still requires at least one password login to
       // ever succeed offline, same as before.
       registerNativeSession(r.jwt);
-      onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: r.isAdmin });
+      onLogin({ userCode: r.userCode, nickname: r.nickname, role: r.role, isAdmin: r.isAdmin, exp: r.exp });
     } catch (err) {
       // A user cancelling the OS biometric prompt (or having no matching
       // authenticator on this device) surfaces as a WebAuthnError from

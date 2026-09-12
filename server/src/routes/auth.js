@@ -194,8 +194,9 @@ router.post('/login-request', publicActionLimiter, async (req, res) => {
         JWT_SECRET,
         { expiresIn: '4h' }
       );
+      const { exp } = jwt.decode(jwtToken);
       setAuthCookie(res, jwtToken, 4 * 60 * 60 * 1000);
-      return res.json({ status: 'approved', jwt: jwtToken, userCode: user.user_code, nickname: user.nickname, isAdmin: true, role: ROLES.ADMIN });
+      return res.json({ status: 'approved', jwt: jwtToken, userCode: user.user_code, nickname: user.nickname, isAdmin: true, role: ROLES.ADMIN, exp });
     }
 
     const token = uuid();
@@ -336,8 +337,9 @@ router.get('/check/:token', async (req, res) => {
     }
 
     const jwtToken = jwt.sign({ userCode: t.user_code, nickname, role, isAdmin }, JWT_SECRET, { expiresIn: '2h' });
+    const { exp } = jwt.decode(jwtToken);
     setAuthCookie(res, jwtToken, 2 * 60 * 60 * 1000);
-    res.json({ status: 'approved', jwt: jwtToken, userCode: t.user_code, nickname, role, isAdmin });
+    res.json({ status: 'approved', jwt: jwtToken, userCode: t.user_code, nickname, role, isAdmin, exp });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

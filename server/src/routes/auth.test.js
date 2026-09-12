@@ -229,6 +229,7 @@ describe('POST /api/auth/login-request', () => {
     expect(res.body.status).toBe('approved');
     expect(res.body.jwt).toBeTruthy();
     const decoded = jwt.verify(res.body.jwt, JWT_SECRET);
+    expect(res.body.exp).toBe(decoded.exp);
     expect(decoded.isAdmin).toBe(true);
   });
 
@@ -322,7 +323,9 @@ describe('GET /api/auth/check/:token', () => {
     const app = buildApp();
     const res = await request(app).get('/api/auth/check/tok-6');
     expect(res.body.status).toBe('approved');
-    expect(jwt.verify(res.body.jwt, JWT_SECRET).userCode).toBe('U6');
+    const decoded = jwt.verify(res.body.jwt, JWT_SECRET);
+    expect(decoded.userCode).toBe('U6');
+    expect(res.body.exp).toBe(decoded.exp);
   });
 
   it('blocks a user who was blocked after requesting login but before it was approved', async () => {

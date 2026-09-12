@@ -73,7 +73,7 @@ describe('LoginPage passkey mode', () => {
   });
 
   it('logs the user in directly on a successful passkey ceremony (no mail-approval wait)', async () => {
-    loginWithPasskeyMock.mockResolvedValue({ status: 'approved', jwt: 'jwt-1', userCode: 'U1', nickname: 'BOLD-001', role: 'analyst', isAdmin: false });
+    loginWithPasskeyMock.mockResolvedValue({ status: 'approved', jwt: 'jwt-1', userCode: 'U1', nickname: 'BOLD-001', role: 'analyst', isAdmin: false, exp: 1770000000 });
     const onLogin = renderLogin();
 
     fireEvent.click(await screen.findByText('Secure Sign-In with Passkey'));
@@ -82,7 +82,7 @@ describe('LoginPage passkey mode', () => {
 
     await waitFor(() => expect(loginWithPasskeyMock).toHaveBeenCalledWith('U1'));
     await waitFor(() => expect(setJWTMock).toHaveBeenCalledWith('jwt-1'));
-    expect(onLogin).toHaveBeenCalledWith({ userCode: 'U1', nickname: 'BOLD-001', role: 'analyst', isAdmin: false });
+    expect(onLogin).toHaveBeenCalledWith({ userCode: 'U1', nickname: 'BOLD-001', role: 'analyst', isAdmin: false, exp: 1770000000 });
   });
 
   it('registers this device for offline login on a native app after a successful passkey ceremony, same as password login', async () => {

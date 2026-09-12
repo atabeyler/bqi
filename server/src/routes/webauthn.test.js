@@ -414,6 +414,7 @@ describe('POST /api/webauthn/login/verify', () => {
     const decoded = jwt.verify(res.body.jwt, JWT_SECRET);
     expect(decoded.userCode).toBe('U1');
     expect(decoded.role).toBe('analyst');
+    expect(res.body.exp).toBe(decoded.exp);
     expect(credentials.get(1).counter).toBe(5);
     expect(logAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ user_code: 'U1' }), 'webauthn_login', 'U1', expect.any(Object));
   });

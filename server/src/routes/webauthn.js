@@ -335,6 +335,7 @@ router.post('/login/verify', publicActionLimiter, async (req, res) => {
       JWT_SECRET,
       { expiresIn }
     );
+    const { exp } = jwt.decode(jwtToken);
     setAuthCookie(res, jwtToken, (user.is_admin ? 4 : 2) * 60 * 60 * 1000);
 
     await logAuditEvent(user, 'webauthn_login', user.user_code, { deviceName: credRow.device_name });
@@ -346,6 +347,7 @@ router.post('/login/verify', publicActionLimiter, async (req, res) => {
       nickname: user.nickname,
       isAdmin: !!user.is_admin,
       role,
+      exp,
     });
   } catch (err) {
     logger.error({ err }, '[WebAuthn] login/verify failed');
