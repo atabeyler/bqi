@@ -1,6 +1,6 @@
 # BCI — BOLD Cyber Intelligence Platform
 
-![Version](https://img.shields.io/badge/version-0.1.48-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-0.1.84-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Autonomous Cyber Security Discovery & Decision-Support Engine**
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -19,10 +19,11 @@ separate license.
 
 ## At a Glance
 
-- **8 real scanning/validation engines** across three intrusiveness tiers
+- **9 real scanning/validation engines** across three intrusiveness tiers
   (PASSIVE / SAFE_ACTIVE / RESTRICTED) — SCA, SAST, secrets, IaC, network
   discovery, web/API vulnerability templates, adaptive fuzzing, intrusive
-  protocol/behavior validation, and load/resilience testing. See
+  protocol/behavior validation, load/resilience testing, and normalized
+  cloud/security-posture ingestion through BCI Posture Intelligence. See
   [Hybrid Engine Adapters](#m5--hybrid-engine-adapters) below.
 - **RBAC + deny-by-default authorization scopes** — six roles
   (viewer/analyst/operator/security_admin/auditor/system_admin), every
@@ -496,9 +497,9 @@ separate license.
   shows BCI's own Security/Coverage scores and findings — "BCI Vulnerability
   Analysis"/"BCI Risk Analysis" language, never the third-party scanner
   names underneath (spec section 56)
-- Full BQI regression run after this change: server 538/538, client
-  589/589, both green; `server/tsc --noEmit` and both projects' `eslint`
-  clean
+- The BQI server/client regression, lint, typecheck, and production-build
+  gates cover this integration in CI; the workflow result for the current
+  commit is the authoritative verification record.
 
 **M15 — Standalone BCI UI**
 - A minimal but real React frontend under `bci/ui/` (its own Vite app,
@@ -762,38 +763,35 @@ case, patch-order reason text, converging-path centrality scoring, and the
 never-propose-an-endpoint guarantee), all read-only endpoints gated at
 `finding:view`.
 
-**260/260 total BCI tests green** (an earlier, isolated `engines.test.js`
-timeout under system load was confirmed as pre-existing flakiness by
-rerunning that file alone, clean both before and after this change), no
-BQI files touched.
+The BCI test, lint, typecheck, and UI-build gates run in CI. Exact test
+counts are intentionally not frozen in this document because the suite grows
+with the platform; the workflow result for the current commit is authoritative.
 
 ## Current status (feature-status framework: IMPLEMENTED / EXPERIMENTAL / PLANNED / DISABLED)
 
-The counts above are per-section, as-of-that-commit deltas (this file is
-written incrementally, milestone by milestone). Current verification state
-and required gates are recorded below:
+Historical per-section test deltas are implementation notes, not the current
+suite total. Current verification state and required gates are recorded below:
 
-- The preceding branch baseline recorded **294/294 BCI tests green**. The
-  dynamic-capability change adds registry/planner/normalization coverage; its
-  database-backed suite is run by CI with PostgreSQL 16. The database-free BCI
-  checks and **9/9 bci/ui tests** can also run locally. BCI/UI lint, BCI
-  typecheck, and the `bci/ui` production build remain required gates.
+- The dynamic-capability registry/planner/normalization coverage and the
+  database-backed suite run in CI with PostgreSQL 16. Database-free BCI and
+  `bci/ui` tests can also run locally. BCI/UI lint, BCI typecheck, and the
+  `bci/ui` production build remain required gates.
 - **IBM Quantum: EXPERIMENTAL — LIVE QPU VALIDATION PENDING.** Every other
   provider (classical, quantum-inspired, local simulator) is IMPLEMENTED
   and independently sufficient — this status does not block using BCI
-- **PLANNED, not implemented**: SSH/code-signing/JWT crypto discovery are
-  IMPLEMENTED (see Post-Quantum Security Engine above); still PLANNED are
-  closer BQI Quantum Gateway convergence beyond the read-only path
-  already verified, and a dedicated CBOM/Quantum Intelligence deep-link UI
-  beyond the existing Quantum & PQC page
+- **IMPLEMENTED**: TLS/SSH/code-signing/JWT crypto discovery (see the
+  Post-Quantum Security Engine above).
+- **PLANNED**: closer BQI Quantum Gateway convergence beyond the verified
+  read-only path, and a dedicated CBOM/Quantum Intelligence deep-link UI
+  beyond the existing Quantum & PQC page.
 - **CI**: `.github/workflows/ci.yml` runs `bci` and `bci-ui` jobs (real
   Postgres, real scanner engines, real SSH server, lint/typecheck/test/
   build) on every push; `security` job (gitleaks secret scan + informational
   `npm audit` + SBOM generation) and `codeql.yml` (SAST) both cover the
   whole repository tree, `bci/` included
-- **BQI regression**: server 544/544 tests + lint + typecheck green,
-  client 589/589 tests + lint green, production build clean — no
-  BQI source file has been modified by any BCI work on this branch
+- **BQI regression**: server/client tests, lint, server typecheck, and the
+  client production build are required CI gates. Consult the current commit's
+  workflow run for exact counts and results.
 
 ## Dynamic Capability Architecture
 

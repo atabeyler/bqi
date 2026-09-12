@@ -59,7 +59,7 @@ console.log(`Version bumped: ${rootPkg.version} -> ${nextVersion}`);
 
 // BCI's own independent release line -- bumped every commit too, but
 // starting from BCI's own current version, not BQI's.
-function bumpIndependent(pkgRelPath, lockRelPath) {
+function bumpIndependent(pkgRelPath, lockRelPath, readmeRelPath = null) {
   const pkgPath = path.join(root, pkgRelPath);
   if (!existsSync(pkgPath)) return;
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
@@ -77,8 +77,20 @@ function bumpIndependent(pkgRelPath, lockRelPath) {
     writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
   }
 
+  if (readmeRelPath) {
+    const independentReadmePath = path.join(root, readmeRelPath);
+    if (existsSync(independentReadmePath)) {
+      const readme = readFileSync(independentReadmePath, 'utf-8');
+      const updated = readme.replace(
+        /version-\d+\.\d+\.\d+-blue/,
+        `version-${next}-blue`
+      );
+      writeFileSync(independentReadmePath, updated);
+    }
+  }
+
   console.log(`Version bumped (${pkgRelPath}): ${previous} -> ${next}`);
 }
 
-bumpIndependent('bci/package.json', 'bci/package-lock.json');
+bumpIndependent('bci/package.json', 'bci/package-lock.json', 'bci/README.md');
 bumpIndependent('bci/ui/package.json', 'bci/ui/package-lock.json');

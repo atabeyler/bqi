@@ -1,4 +1,4 @@
-# BCI UI — M15 Standalone Frontend
+# BCI UI — Standalone Frontend
 
 A minimal but real, working React frontend for the BCI API — not a mockup.
 Every page is wired to a live endpoint and every button does what it says
@@ -21,7 +21,9 @@ proves the pattern end to end so those areas can be added the same way.
   (finding:verify-gated)
 - **Reports** — generate any of the four report types (report:export-gated)
   and view one, including its integrity status (`integrityValid`)
-- **Engines** — health table + a manual health-check trigger (system:manage-gated)
+- **Engines** — health table for all nine registered adapters, including
+  BCI Posture Intelligence, plus a manual health-check trigger
+  (system:manage-gated)
 - **Quantum & PQC** — Quantum Compute Gateway provider health, the org's
   quantum execution policy (system:manage-gated to edit), a Remediation
   Optimizer trigger with its benchmark verdict (finding:update-gated),
@@ -34,6 +36,15 @@ proves the pattern end to end so those areas can be added the same way.
   Deliberately never shows a "Quantum Powered Security" style claim — only
   genuinely measured provider health, benchmark verdicts, and discovery
   results
+- **Decision Intelligence** — evidence-backed security graph paths, digital
+  twin patch simulation, deterministic remediation priorities, and
+  defensive-control placement; this is analysis only and never performs
+  automatic exploitation or remediation
+- **Controlled Proof of Impact** — `system:manage`-gated, non-destructive
+  validation of eligible scanner evidence, including live-engine coverage,
+  deterministic proof status, history/archive controls, exports, and an
+  explicitly timed public-visibility proof when a supported provider is
+  configured
 
 RBAC is enforced server-side as always (M2) — the UI only hides actions a
 user's token doesn't carry the permission for; every button still goes

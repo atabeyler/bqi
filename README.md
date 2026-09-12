@@ -1,6 +1,6 @@
 # BQI
 
-![Version](https://img.shields.io/badge/version-3.3.48-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-3.3.49-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Quantum-Based National Decision Support System**  
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -106,6 +106,22 @@ This project sits at the intersection of applied AI, decision intelligence, and 
 - **Voice Assistant** — transcription, TTS, and natural-language command handling
 - **Conversation Memory** — per-user consultation memory and archive
 - **Morning Brief** — automated intelligence digest from configured public sources
+
+### Cyber Intelligence (BCI)
+
+- **Nine Registered Engines** — passive, safe-active, authenticated, and
+  restricted capabilities spanning SCA, SAST, secrets, IaC, network/web/API
+  analysis, Smart Fuzz, Smart Intrusive, Smart Resilience, and normalized
+  posture intelligence
+- **Cyber Decision Intelligence** — security-graph paths, digital-twin patch
+  simulation, deterministic remediation ranking, and provenance-safe AI
+  explanations built on scanner evidence
+- **Controlled Proof of Impact** — admin-restricted, non-destructive validation
+  of eligible findings with evidence hashes, explicit proof status, history,
+  exports, and optional short-lived public visibility through configured
+  providers
+- **Post-Quantum Security** — TLS/SSH/JWT discovery, crypto inventory, CBOM,
+  PQC readiness scoring, and migration guidance for authorized targets
 
 ### Decision Intelligence & Auditability
 
