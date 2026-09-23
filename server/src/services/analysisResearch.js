@@ -56,7 +56,21 @@ export async function gatherResearchContext(category, topic, depth = 'standart',
   const queries = [topicQuery, siteFilter ? `${topicQuery} mevzuat kanun yönetmelik ${siteFilter}` : null].filter(Boolean);
 
   try {
-    const results = (await Promise.all(queries.map((q) => researchWeb(q).catch(() => [])))).flat();
+    const results = (await Promise.all(queries.map((q) => researchWeb(q).catch((e) => {
+      // Swallowing this per-query so one failed query doesn't sink the
+      // other -- but silently, `.catch(() => [])` was indistinguishable
+      // from "DuckDuckGo returned zero relevant results" (see
+      // webResearch.js's own zero-results log). A request-level failure
+      // (DNS, TLS, connection reset, the 8s AbortSignal timeout, DDG
+      // rejecting the request outright before any HTML comes back) never
+      // reaches that log at all, since it's thrown before parsing -- this
+      // was the actual silent case: confirmed on a real report where the
+      // final generation had no zero-parsed-results log AND no skip log,
+      // meaning researchWeb() threw and this catch ate it with nothing
+      // recorded anywhere.
+      logger.warn({ err: e?.message || String(e), query: q }, '[WebResearch] researchWeb() threw for query -- treated as no results');
+      return [];
+    })))).flat();
     return formatResearchContext(results);
   } catch (e) {
     logger.warn({ err: e }, '[WebResearch] generate search error');
