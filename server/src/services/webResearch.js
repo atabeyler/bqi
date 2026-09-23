@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger.js';
+
 function stripHtml(s = '') {
   return s
     .replace(/<[^>]*>/g, ' ')
@@ -41,7 +43,27 @@ export async function researchWeb(query) {
   });
   if (!res.ok) throw new Error(`search HTTP ${res.status}`);
   const html = await res.text();
-  return parseDuckDuckGoHtml(html);
+  const results = parseDuckDuckGoHtml(html);
+  // A zero-result parse was previously silent and indistinguishable from
+  // "genuinely no coverage of this topic" -- confirmed on a real report
+  // ("Altura tankeri saldırısı" was a real, widely-covered event; BQI's own
+  // report still said no source could be found). Logging the signals that
+  // actually explain a parse miss (DDG redirected/blocked this request
+  // entirely vs. the page came back but the result markup didn't match --
+  // e.g. DDG changes its HTML structure, or serves a bot-check/consent
+  // page instead of results, which happens disproportionately to
+  // datacenter/cloud egress IPs like Render's) turns this from an
+  // undiagnosable "the model said nothing was found" into something an
+  // operator can actually act on.
+  if (results.length === 0) {
+    logger.warn({
+      query: q,
+      finalUrl: res.url,
+      redirected: res.redirected,
+      htmlLength: html.length,
+    }, '[WebResearch] DuckDuckGo returned zero parsed results -- likely blocked/redirected or its HTML structure changed, not necessarily "no coverage"');
+  }
+  return results;
 }
 
 export function formatResearchContext(results) {
