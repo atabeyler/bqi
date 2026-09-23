@@ -7,25 +7,35 @@ function stripHtml(s = '') {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function parseDuckDuckGoHtml(html) {
+// Titles and snippets are extracted independently (not by slicing out each
+// result's own HTML block first) and paired up by position. A per-result
+// block regex was tried first (bounded by the next `</div></div>` pair) but
+// DuckDuckGo's actual markup closes `result__extras__url`/`result__extras`
+// -- both `<div>`s -- well before the snippet, which lives in a sibling
+// `<a class="result__snippet">` (or, for some result types, a sibling
+// `<div>`) right after. That `</div>\s*</div>` pair matched the lazy block
+// boundary first, so every chunk got truncated before reaching the snippet
+// at all -- titles/URLs kept working (they come first), but `snippet` was
+// silently '' for every single result (confirmed against real fetched DDG
+// HTML: 10/10 results, 10/10 empty snippets). DuckDuckGo returns results in
+// a fixed title-then-snippet order with one snippet per title, so pairing
+// by index sidesteps the whole block-boundary problem instead of trying to
+// find a more precise one.
+export function parseDuckDuckGoHtml(html) {
+  const titles = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+  const snippets = [...html.matchAll(/<(a|div)[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/\1>/gi)];
   const out = [];
-  const blocks = [...html.matchAll(/<div class="result[\s\S]*?<\/div>\s*<\/div>/gi)];
-  for (const b of blocks) {
-    const chunk = b[0];
-    const a = chunk.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-    if (!a) continue;
-    const rawUrl = a[1];
-    const title = stripHtml(a[2]);
-    const sn = chunk.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i)
-      || chunk.match(/<div[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
-    const snippet = sn ? stripHtml(sn[1]) : '';
+  for (let i = 0; i < titles.length && out.length < 6; i++) {
+    const rawUrl = titles[i][1];
+    const title = stripHtml(titles[i][2]);
+    const snippet = snippets[i] ? stripHtml(snippets[i][2]) : '';
     if (!title || !rawUrl) continue;
     out.push({ title, url: rawUrl, snippet });
-    if (out.length >= 6) break;
   }
   return out;
 }
