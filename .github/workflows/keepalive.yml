@@ -18,15 +18,25 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      # Each -w format string embeds a "label: " (colon-space) inside what
+      # would otherwise be a plain YAML scalar -- YAML reads colon-space in
+      # an unquoted scalar as the start of a new mapping key, not literal
+      # text, and fails to parse the whole file (confirmed: GitHub rejected
+      # this workflow outright, 0 jobs ever ran). `run: |` block scalars
+      # aren't parsed for embedded colons the way plain scalars are, so the
+      # curl command's own quoting is preserved as-is.
       - name: Ping bqi
-        run: curl -sS -o /dev/null -w "bqi: %{http_code} in %{time_total}s\n" --max-time 60 "https://bqi.onrender.com/api/health" || true
+        run: |
+          curl -sS -o /dev/null -w "bqi: %{http_code} in %{time_total}s\n" --max-time 60 "https://bqi.onrender.com/api/health" || true
 
       - name: Ping bci-api
-        run: curl -sS -o /dev/null -w "bci-api: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-api-f9w8.onrender.com/" || true
+        run: |
+          curl -sS -o /dev/null -w "bci-api: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-api-f9w8.onrender.com/" || true
 
       # bci-worker is a Render Background Worker (srv-dalo4dek1f9s738tp6c0),
       # not a Web Service -- it has no public HTTP URL and doesn't spin
       # down on request-idle the way bqi/bci-api/bci-ui do, so it's
       # deliberately not pinged here.
       - name: Ping bci-ui
-        run: curl -sS -o /dev/null -w "bci-ui: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-ui.onrender.com/" || true
+        run: |
+          curl -sS -o /dev/null -w "bci-ui: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-ui.onrender.com/" || true
