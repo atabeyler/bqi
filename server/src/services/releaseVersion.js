@@ -53,7 +53,31 @@ async function fetchPublishedReleases() {
   );
 }
 
+// GitHub's list endpoint (fetchPublishedReleases above) has been observed
+// to keep serving a just-created release with a stale/empty `assets` array
+// for many minutes after publish, even though the release itself (and its
+// assets) are already fully there -- confirmed by comparing it against
+// this dedicated single-release endpoint, which reflects the same release
+// correctly and immediately. This is the same GitHub API flakiness
+// desktop-release.yml's own top comment documents for the "list releases"
+// endpoint vs. "get release by tag". Only returns null on a genuine 404
+// (no published releases exist yet at all) rather than throwing, so the
+// caller can fall back to the list-based lookup for that edge case.
+async function fetchLatestReleaseViaLatestEndpoint() {
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'bqi-server' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers,
+    signal: AbortSignal.timeout(8000),
+  });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GitHub latest-release lookup failed (HTTP ${r.status})`);
+  return r.json();
+}
+
 async function fetchLatestReleaseRaw() {
+  const viaLatest = await fetchLatestReleaseViaLatestEndpoint();
+  if (viaLatest) return viaLatest;
   const [release] = await fetchPublishedReleases();
   if (!release) throw new Error('GitHub releases lookup returned no published release');
   return release;
@@ -102,8 +126,19 @@ export async function getLatestReleaseAssets() {
 const RELEASES_TO_SEARCH_FOR_ASSET = 10;
 
 export async function findReleaseAssetByFilename(filename) {
+  // Checked first, via the reliable single-release endpoint (see
+  // fetchLatestReleaseViaLatestEndpoint's comment) -- this is what makes
+  // latest.yml/latest-mac.yml/latest-linux.yml (always looked up on the
+  // newest release, right after it's built) resolve immediately instead of
+  // silently falling through to a stale older release below for several
+  // minutes after every publish.
+  const latest = await fetchLatestReleaseViaLatestEndpoint();
+  const latestAsset = (latest?.assets || []).find((a) => a.name === filename);
+  if (latestAsset) return latestAsset;
+
   const releases = await fetchPublishedReleases();
   for (const release of releases.slice(0, RELEASES_TO_SEARCH_FOR_ASSET)) {
+    if (latest && release.id === latest.id) continue; // already checked above
     const asset = (release.assets || []).find((a) => a.name === filename);
     if (asset) return asset;
   }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 function fakeRelease(overrides = {}) {
   return {
+    id: 1,
     tag_name: 'v2.1.140',
     published_at: '2026-08-14T00:00:00Z',
     body: 'Some notes',
@@ -17,6 +18,23 @@ function fakeRelease(overrides = {}) {
   };
 }
 
+// getLatestVersionInfo/findReleaseAssetByFilename now check GitHub's
+// dedicated /releases/latest endpoint before falling back to the /releases
+// list endpoint (see releaseVersion.js's fetchLatestReleaseViaLatestEndpoint
+// comment) -- a single fetchMock needs to answer both URLs correctly, not
+// just return the same list payload regardless of which was requested.
+// `latest: null` simulates /releases/latest 404ing (no published release at
+// all yet), forcing the list-endpoint fallback path.
+function mockGithubFetch({ latest, list }) {
+  return vi.fn(async (url) => {
+    if (typeof url === 'string' && url.includes('/releases/latest')) {
+      if (latest === null) return { ok: false, status: 404 };
+      return { ok: true, json: async () => latest };
+    }
+    return { ok: true, json: async () => list };
+  });
+}
+
 beforeEach(() => {
   vi.resetModules();
 });
@@ -27,7 +45,7 @@ afterEach(() => {
 
 describe('getLatestVersionInfo', () => {
   it('strips the leading v and picks the .apk/.exe/.dmg/.AppImage assets, ignoring blockmap/yml', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [fakeRelease()] }));
+    const fetchMock = mockGithubFetch({ latest: fakeRelease(), list: [fakeRelease()] });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestVersionInfo } = await import('./releaseVersion.js');
 
@@ -44,7 +62,7 @@ describe('getLatestVersionInfo', () => {
   it('surfaces GitHub-computed SHA-256 asset digests (BQI-003 update integrity)', async () => {
     const release = fakeRelease();
     release.assets[1].digest = `sha256:${'a'.repeat(64)}`;
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [release] }));
+    const fetchMock = mockGithubFetch({ latest: release, list: [release] });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestVersionInfo } = await import('./releaseVersion.js');
 
@@ -57,7 +75,7 @@ describe('getLatestVersionInfo', () => {
   it('ignores a malformed digest rather than passing it through as a hash', async () => {
     const release = fakeRelease();
     release.assets[1].digest = 'not-a-real-digest';
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [release] }));
+    const fetchMock = mockGithubFetch({ latest: release, list: [release] });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestVersionInfo } = await import('./releaseVersion.js');
 
@@ -67,7 +85,7 @@ describe('getLatestVersionInfo', () => {
   });
 
   it('fetches fresh release data on every call', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [fakeRelease()] }));
+    const fetchMock = mockGithubFetch({ latest: fakeRelease(), list: [fakeRelease()] });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestVersionInfo } = await import('./releaseVersion.js');
 
@@ -86,7 +104,7 @@ describe('getLatestVersionInfo', () => {
   });
 
   it('getLatestReleaseAssets returns the raw asset list, including blockmap/yml (unlike getLatestVersionInfo)', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [fakeRelease()] }));
+    const fetchMock = mockGithubFetch({ latest: fakeRelease(), list: [fakeRelease()] });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestReleaseAssets } = await import('./releaseVersion.js');
 
@@ -102,37 +120,37 @@ describe('getLatestVersionInfo', () => {
     ]);
   });
 
-  it('skips drafts and uses the newest published release', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => [
-        fakeRelease({ tag_name: 'v2.1.999', draft: true }),
-        fakeRelease({ tag_name: 'v2.1.206', draft: false }),
+  it('skips drafts and uses the newest published release (list-endpoint fallback, /releases/latest never returns a draft anyway)', async () => {
+    // latest: null simulates /releases/latest 404ing (e.g. no non-draft
+    // release exists yet from GitHub's point of view) so this exercises
+    // fetchPublishedReleases' own draft-filtering/sort fallback logic.
+    const fetchMock = mockGithubFetch({
+      latest: null,
+      list: [
+        fakeRelease({ id: 1, tag_name: 'v2.1.999', draft: true }),
+        fakeRelease({ id: 2, tag_name: 'v2.1.206', draft: false }),
       ],
-    }));
+    });
     vi.stubGlobal('fetch', fetchMock);
     const { getLatestVersionInfo } = await import('./releaseVersion.js');
 
     const info = await getLatestVersionInfo();
 
     expect(info.version).toBe('2.1.206');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // /releases/latest (404) + list fallback
   });
 });
 
 describe('findReleaseAssetByFilename', () => {
   it('finds an asset that only exists on an older release, not just the latest one', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => [
-        fakeRelease({ tag_name: 'v2.1.140' }),
-        fakeRelease({
-          tag_name: 'v2.1.139',
-          published_at: '2026-08-10T00:00:00Z',
-          assets: [{ name: 'BQI-Setup-2.1.139.exe.blockmap', browser_download_url: 'https://x/old-blockmap', size: 5 }],
-        }),
-      ],
-    }));
+    const latest = fakeRelease({ id: 1, tag_name: 'v2.1.140' });
+    const older = fakeRelease({
+      id: 2,
+      tag_name: 'v2.1.139',
+      published_at: '2026-08-10T00:00:00Z',
+      assets: [{ name: 'BQI-Setup-2.1.139.exe.blockmap', browser_download_url: 'https://x/old-blockmap', size: 5 }],
+    });
+    const fetchMock = mockGithubFetch({ latest, list: [latest, older] });
     vi.stubGlobal('fetch', fetchMock);
     const { findReleaseAssetByFilename } = await import('./releaseVersion.js');
 
@@ -142,7 +160,7 @@ describe('findReleaseAssetByFilename', () => {
   });
 
   it('returns null when no recent release published that filename', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [fakeRelease()] }));
+    const fetchMock = mockGithubFetch({ latest: fakeRelease(), list: [fakeRelease()] });
     vi.stubGlobal('fetch', fetchMock);
     const { findReleaseAssetByFilename } = await import('./releaseVersion.js');
 
