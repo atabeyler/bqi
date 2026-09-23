@@ -22,6 +22,17 @@ export function getSocketBaseUrl() {
   return baseFor() || '/';
 }
 
+// Exposed for the rare caller that needs a raw fetch() to a specific API
+// path instead of going through one of this module's own wrapper
+// functions (e.g. HomeView.jsx's dashboard health poll) -- same resolution
+// as every wrapper below, just public. Always prefix the path with this,
+// never hardcode a bare '/api/...' fetch: that works by accident on the
+// web build (same-origin) but silently resolves to nothing on desktop/
+// mobile, where the app shell is served from its own local origin.
+export function apiBaseUrl() {
+  return baseFor();
+}
+
 // Desktop (Electron) and mobile (Capacitor) call the deployed API from a
 // different origin than the one serving the app shell (see baseFor() above)
 // -- an httpOnly cookie set by that API origin would never reach them, so

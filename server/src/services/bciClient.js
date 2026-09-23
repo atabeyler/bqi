@@ -24,7 +24,13 @@ import { ROLES, resolveRole } from '../lib/rbac.js';
 
 const BCI_BASE_URL = process.env.BCI_BASE_URL;
 const BCI_GATEWAY_SECRET = process.env.BCI_GATEWAY_SECRET;
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+// BCI's own deployment can be a free-tier instance that spins down when
+// idle -- observed taking 20-50s+ to answer its first request again (Render
+// itself warns of "50 seconds or more"). A shorter timeout here made every
+// cold-start request fail as bci_unavailable before BCI ever got a chance
+// to wake up and respond, even though it was perfectly healthy once warm.
+const COLD_START_TIMEOUT_MS = 60_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = COLD_START_TIMEOUT_MS;
 
 export function isBciConfigured() {
   return Boolean(BCI_BASE_URL && BCI_GATEWAY_SECRET);
@@ -79,7 +85,7 @@ async function createBciToken(user) {
   const res = await fetch(`${BCI_BASE_URL}/api/v1/gateway/session`, {
     method: 'POST',
     headers: { authorization: `Bearer ${gatewayToken}` },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(COLD_START_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`BCI gateway session failed: HTTP ${res.status}`);
   const { token } = await res.json();

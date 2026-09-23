@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, AlertTriangle, Atom, Bot, Database, HardDrive, History, Network, Radar, RefreshCw, Search, Server, ShieldCheck, Sparkles, Upload, Users, X, Zap } from 'lucide-react';
 import TurkeyMap from './TurkeyMap.jsx';
-import { api } from '../services/api.js';
+import { api, apiBaseUrl } from '../services/api.js';
 import { useLang } from '../services/langContext.jsx';
 import { localeFor } from '../services/i18n.js';
 import { formatLocalTime } from '../services/dateTime.js';
@@ -24,7 +24,7 @@ function useCommandData() {
       // hitting a suspended connection every cycle.
       if (isAppModeOffline()) { if (alive) setOffline(true); return; }
       if (alive) setOffline(false);
-      const [healthResult, feedResult, briefResult] = await Promise.allSettled([fetch('/api/v1/platform/health/ready', { cache: 'no-store' }).then((r) => r.json()), api.activityFeed(), api.morningBriefToday()]);
+      const [healthResult, feedResult, briefResult] = await Promise.allSettled([fetch(apiBaseUrl() + '/api/v1/platform/health/ready', { cache: 'no-store' }).then((r) => r.json()), api.activityFeed(), api.morningBriefToday()]);
       if (!alive) return;
       if (healthResult.status === 'fulfilled') setHealth(healthResult.value);
       if (feedResult.status === 'fulfilled' && Array.isArray(feedResult.value)) setFeed(feedResult.value);
