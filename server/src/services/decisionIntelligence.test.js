@@ -4,7 +4,9 @@ import { getMetricsSnapshot, recordRequestMetric } from '../lib/requestMetrics.j
 
 describe('decision intelligence', () => {
   it('defaults sensitive operational categories to confidential', () => {
-    expect(classifyData('savunma')).toBe('CONFIDENTIAL');
+    // 'savunma' TEMPORARILY moved to INTERNAL -- see classifyData's comment
+    // (revert after the HAVELSAN presentation) for why and how to undo.
+    expect(classifyData('savunma')).toBe('INTERNAL');
     expect(classifyData('bddk')).toBe('CONFIDENTIAL');
     expect(classifyData('ekonomi')).toBe('INTERNAL');
   });

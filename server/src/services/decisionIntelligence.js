@@ -133,7 +133,19 @@ export function maxLevel(a, b) {
 }
 
 export function classifyData(category, requested = null) {
-  const categoryDefault = ['savunma', 'saldiri', 'bddk', 'btk', 'cok-alanli'].includes(category)
+  // TEMPORARY (revert after the HAVELSAN presentation): 'savunma'/'saldiri'
+  // pulled out of the CONFIDENTIAL default so gatherResearchContext's
+  // WEB_RESEARCH_BLOCKED_CLASSIFICATIONS gate (analysisResearch.js) no
+  // longer skips them -- without this, defense-category reports are
+  // generated with zero grounding in real search results (confirmed: two
+  // separate "Altura tankeri" reports produced contradictory dates/attack
+  // details because nothing was ever actually looked up). The tradeoff
+  // while this is in effect: a 'savunma'/'saldiri' report's topic text (up
+  // to 150 chars) reaches DuckDuckGo's public endpoint, same as any
+  // INTERNAL-classification request already does. Revert by moving
+  // 'savunma', 'saldiri' back into the line below once presentation
+  // material is no longer being generated.
+  const categoryDefault = ['bddk', 'btk', 'cok-alanli'].includes(category)
     ? 'CONFIDENTIAL'
     : (category ? 'INTERNAL' : null);
 
