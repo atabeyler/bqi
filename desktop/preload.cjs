@@ -11,7 +11,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Same default/override as main.js's CLOUD_URL -- duplicated rather than
 // imported because the preload script runs in its own isolated context
 // (see contextIsolation below) and doesn't share module state with main.js.
-const CLOUD_URL = process.env.BQI_CLOUD_URL || 'https://site--anatoliaboldq--6ftfc8q7458m.code.run';
+const CLOUD_URL = process.env.BQI_CLOUD_URL || 'https://bqi.onrender.com';
 
 // contextIsolation is on and nodeIntegration is off (see main.js) — this is
 // the *only* surface the renderer (the ordinary client/ React app) gets
