@@ -1,6 +1,6 @@
 {
   "name": "bqi-server",
-  "version": "3.3.68",
+  "version": "3.3.69",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
