@@ -1,0 +1,25 @@
+name: Keepalive Ping
+
+# Render's free tier spins a web service down after ~15 minutes of no
+# inbound requests, and the next request pays a 20-60s cold-start penalty.
+# Pinging both backends on a schedule keeps them warm -- this runs on
+# GitHub's own infrastructure, so unlike a locally-scheduled task it works
+# regardless of whether any machine/app is open, and unlike a third-party
+# uptime monitor it needs no separate account. cron is UTC and best-effort
+# (GitHub can delay a scheduled run under load), so this is "usually every
+# ~10 minutes", not a hard guarantee -- still comfortably under Render's
+# 15-minute idle window in practice.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping bqi
+        run: curl -sS -o /dev/null -w "bqi: %{http_code} in %{time_total}s\n" --max-time 60 "https://bqi.onrender.com/api/health" || true
+
+      - name: Ping bci-api
+        run: curl -sS -o /dev/null -w "bci-api: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-api-f9w8.onrender.com/" || true
