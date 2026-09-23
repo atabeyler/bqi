@@ -33,7 +33,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The deployed web app is the source of truth this points at by default;
 // override with BQI_CLOUD_URL for a self-hosted/staging server.
-const CLOUD_URL = process.env.BQI_CLOUD_URL || 'https://site--anatoliaboldq--6ftfc8q7458m.code.run';
+const CLOUD_URL = process.env.BQI_CLOUD_URL || 'https://bqi.onrender.com';
 // Same origin as CLOUD_URL, ws(s): scheme -- Socket.IO upgrades its
 // connection to this scheme, so CSP's connect-src needs it listed
 // explicitly (see the CSP header below); scoped to this one origin rather

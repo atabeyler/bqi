@@ -35,7 +35,7 @@ export const mobilePlatform = isMobileApp ? Capacitor.getPlatform() : null;
 // The deployed web app is the source of truth this points at by default;
 // override at build time with VITE_MOBILE_CLOUD_URL for a self-hosted/
 // staging server (see mobile/README.md).
-const CLOUD_URL = import.meta.env.VITE_MOBILE_CLOUD_URL || 'https://site--anatoliaboldq--6ftfc8q7458m.code.run';
+const CLOUD_URL = import.meta.env.VITE_MOBILE_CLOUD_URL || 'https://bqi.onrender.com';
 
 // api.js reads this to know where the "same-origin" API actually lives --
 // the WebView's own origin (capacitor://localhost) has no API on it.

@@ -1,6 +1,6 @@
 # API Reference
 
-Base URL: `https://site--anatoliaboldq--6ftfc8q7458m.code.run/api` (or `http://localhost:10000/api` locally).
+Base URL: `https://bqi.onrender.com/api` (or `http://localhost:10000/api` locally).
 
 All endpoints marked **auth** require `Authorization: Bearer <jwt>`. Admin-only endpoints additionally require the JWT's `isAdmin` claim.
 
