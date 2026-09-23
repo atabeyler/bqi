@@ -158,16 +158,80 @@ function drawTable(doc, headers, rows) {
   doc.moveDown(0.6);
 }
 
+// One spec per heading level, shared by parseAndDraw's draw step and its
+// keep-with-next lookahead below so the two can never disagree about a
+// heading's rendered font/size.
+function headingSpec(line) {
+  if (line.startsWith('#### ')) return { level: 4, font: FONT_BOLD, size: 11, text: line.slice(5).trim() };
+  if (line.startsWith('### ')) return { level: 3, font: FONT_ITALIC, size: 12, text: line.slice(4).trim() };
+  if (line.startsWith('## ')) return { level: 2, font: FONT_BOLD, size: 13, text: line.slice(3).trim() };
+  if (line.startsWith('# ')) return { level: 1, font: FONT_BOLD, size: 15, text: line.slice(2).trim().toUpperCase() };
+  return null;
+}
+
 function parseAndDraw(doc, md) {
   const lines = md.split('\n');
+  const textWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   let i = 0;
 
   const ensureSpace = (minHeight = 20) => {
     if (doc.y + minHeight > doc.page.height - doc.page.margins.bottom) doc.addPage();
   };
 
+  // A heading rendered as the very last line on a page (its body text
+  // starting fresh on the next page) reads as broken -- the reader can't
+  // tell what the heading was even for until they turn the page. Estimates
+  // the height of whatever comes right after a heading (skipping blank
+  // lines) so ensureSpace can be called for the heading *and* that first
+  // real chunk of its content together, forcing both onto the next page as
+  // a unit when they don't both fit. A following heading with nothing
+  // between (no body to orphan) returns 0. Code blocks/tables are given a
+  // fixed floor rather than measured exactly -- exact reflow there depends
+  // on drawTable/the code-block loop, not worth duplicating here just for
+  // a page-break estimate.
+  const peekNextBlockHeight = (fromIdx) => {
+    let j = fromIdx;
+    while (j < lines.length && !lines[j].trim()) j++;
+    if (j >= lines.length) return 0;
+    const next = lines[j];
+    if (headingSpec(next)) return 0;
+    if (next.trim().startsWith('```')) return 30;
+    if (next.trim().startsWith('|') && lines[j + 1]?.includes('---')) return 40;
+    let text = next;
+    let size = 10.5;
+    if (next.match(/^[-*]\s+/)) { text = next.replace(/^[-*]\s+/, ''); size = 10; }
+    else if (next.match(/^\d+\.\s+/)) { text = next.replace(/^\d+\.\s+/, ''); size = 10; }
+    doc.font(FONT).fontSize(size);
+    return doc.heightOfString(stripBoldMarkers(text), { width: textWidth });
+  };
+
   while (i < lines.length) {
     const line = lines[i];
+
+    const heading = headingSpec(line);
+    if (heading) {
+      doc.font(heading.font).fontSize(heading.size);
+      const headingHeight = doc.heightOfString(heading.text, { width: textWidth });
+      const leadIn = heading.level === 1 ? 0.5 : heading.level === 2 ? 0.4 : heading.level === 3 ? 0 : 0;
+      ensureSpace(headingHeight + peekNextBlockHeight(i + 1) + leadIn * doc.currentLineHeight() + 10);
+      if (heading.level === 4) {
+        doc.font(FONT_BOLD).fontSize(11).fillColor(COLORS.darkBlue).text(heading.text);
+        doc.moveDown(0.25);
+      } else if (heading.level === 3) {
+        doc.font(FONT_ITALIC).fontSize(12).fillColor(COLORS.black).text(heading.text);
+        doc.moveDown(0.3);
+      } else if (heading.level === 2) {
+        doc.moveDown(0.4);
+        doc.font(FONT_BOLD).fontSize(13).fillColor(COLORS.darkBlue).text(heading.text);
+        doc.moveDown(0.3);
+      } else {
+        doc.moveDown(0.5);
+        doc.font(FONT_BOLD).fontSize(15).fillColor(COLORS.darkBlue).text(heading.text);
+        doc.moveDown(0.4);
+      }
+      i++;
+      continue;
+    }
 
     if (line.trim().startsWith('```')) {
       i++;
@@ -210,21 +274,7 @@ function parseAndDraw(doc, md) {
     }
 
     ensureSpace();
-    if (line.startsWith('#### ')) {
-      doc.font(FONT_BOLD).fontSize(11).fillColor(COLORS.darkBlue).text(line.slice(5).trim());
-      doc.moveDown(0.25);
-    } else if (line.startsWith('### ')) {
-      doc.font(FONT_ITALIC).fontSize(12).fillColor(COLORS.black).text(line.slice(4).trim());
-      doc.moveDown(0.3);
-    } else if (line.startsWith('## ')) {
-      doc.moveDown(0.4);
-      doc.font(FONT_BOLD).fontSize(13).fillColor(COLORS.darkBlue).text(line.slice(3).trim());
-      doc.moveDown(0.3);
-    } else if (line.startsWith('# ')) {
-      doc.moveDown(0.5);
-      doc.font(FONT_BOLD).fontSize(15).fillColor(COLORS.darkBlue).text(line.slice(2).trim().toUpperCase());
-      doc.moveDown(0.4);
-    } else if (line.match(/^[-*]\s+/)) {
+    if (line.match(/^[-*]\s+/)) {
       doc.font(FONT).fontSize(10).fillColor(COLORS.black).text('•  ', { indent: 12, continued: true });
       writeInline(doc, line.replace(/^[-*]\s+/, ''), { size: 10 });
     } else if (line.match(/^\d+\.\s+/)) {
@@ -253,14 +303,32 @@ export async function generateReportPdf({ category, title, content, userCode }) 
       parseAndDraw(doc, content);
 
       const range = doc.bufferedPageRange();
+      const footerY = doc.page.height - doc.page.margins.bottom + 20;
       for (let idx = range.start; idx < range.start + range.count; idx++) {
         doc.switchToPage(idx);
+        // footerY sits deliberately below page.maxY() (page.height -
+        // margins.bottom) -- inside the bottom margin, where a footer
+        // belongs. But pdfkit's text() computes maxY from the page's
+        // current margins.bottom and, whenever the given y falls past it,
+        // calls addPage() *before* drawing (this isn't gated by
+        // lineBreak:false -- confirmed by generating a real report with
+        // that alone and still getting the same result below). That
+        // silently pushed the footer for every content page onto a new
+        // trailing blank page instead, and left the original content
+        // pages with no footer at all -- a report with N content pages
+        // came out as N pages with no footer followed by N blank pages
+        // each showing only "Sayfa X/N". Zeroing this page's bottom
+        // margin for the duration of the write makes footerY fall inside
+        // maxY (= page.height), so the same call draws in place instead.
+        const originalBottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
         doc.font(FONT).fontSize(8).fillColor(COLORS.gray).text(
           `Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.  |  ${new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}  |  Sayfa ${idx - range.start + 1}/${range.count}`,
           doc.page.margins.left,
-          doc.page.height - doc.page.margins.bottom + 20,
-          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: 'center' }
+          footerY,
+          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: 'center', lineBreak: false }
         );
+        doc.page.margins.bottom = originalBottomMargin;
       }
 
       doc.end();

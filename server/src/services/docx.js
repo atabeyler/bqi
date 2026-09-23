@@ -74,11 +74,21 @@ function hr() {
   });
 }
 
+// keepNext (Word's "Keep with next" paragraph property, w:keepNext) tells
+// Word's own layout engine never to break the page between this paragraph
+// and the one immediately following it -- exactly the built-in mechanism
+// for "don't leave a heading alone at the bottom of a page with its body
+// starting on the next one". Word evaluates it against whatever actually
+// follows at render/reflow time (including on the reader's own machine,
+// at their zoom level and page size), so unlike the pdfkit generator this
+// needs no manual height lookahead: applying it to every heading paragraph
+// is sufficient and can't go stale as content changes.
 function h1(text) {
   return new Paragraph({
     spacing: { before: 360, after: 180 },
     alignment: AlignmentType.LEFT,
     heading: HeadingLevel.HEADING_1,
+    keepNext: true,
     children: [new TextRun({
       text: text.toUpperCase(),
       font: FONT,
@@ -94,6 +104,7 @@ function h2(text) {
     spacing: { before: 240, after: 120 },
     alignment: AlignmentType.LEFT,
     heading: HeadingLevel.HEADING_2,
+    keepNext: true,
     children: [new TextRun({
       text,
       font: FONT,
@@ -107,6 +118,7 @@ function h2(text) {
 function h3(text) {
   return new Paragraph({
     spacing: { before: 180, after: 100 },
+    keepNext: true,
     children: [new TextRun({
       text,
       font: FONT,
@@ -120,6 +132,7 @@ function h3(text) {
 function h4(text) {
   return new Paragraph({
     spacing: { before: 160, after: 80 },
+    keepNext: true,
     children: [new TextRun({
       text,
       font: FONT,
