@@ -40,6 +40,35 @@ const CLOUD_URL = process.env.BQI_CLOUD_URL || 'https://bqi.onrender.com';
 // than the bare `wss:`/`ws:` schemes, which would allow a WebSocket to ANY
 // host.
 const CLOUD_WS_URL = CLOUD_URL.replace(/^http/, 'ws');
+
+// Render's free tier spins a web service down after ~15 minutes with no
+// inbound requests, and the next request pays a 20-60s cold-start penalty --
+// a GitHub Actions scheduled keepalive workflow was tried first, but proved
+// unreliable in practice (confirmed: over an hour with zero `schedule`-
+// triggered runs despite the workflow being registered and active --
+// GitHub's shared runner queue can silently drop/delay scheduled workflows
+// for public repos, and there's no repo-side fix for that). The desktop app
+// itself is the one thing guaranteed to be running for the whole length of
+// a live demo, so pinging all three backends from here -- independent of
+// which features actually get used during the session -- keeps them warm
+// for as long as the app stays open, with no external service, account or
+// paid plan required. It does NOT warm anything before the app is first
+// opened (a cold first request that day is unavoidable without one of
+// those), but it eliminates the risk of a mid-presentation cold start.
+// bci-api/bci-ui aren't otherwise reachable from the desktop app itself
+// (only the server proxies to them, via BCI_BASE_URL) -- these are the same
+// fixed URLs already used for this in .github/workflows/keepalive.yml.
+const KEEPALIVE_TARGETS = [
+  `${CLOUD_URL}/api/health`,
+  'https://bci-api-f9w8.onrender.com/',
+  'https://bci-ui.onrender.com/',
+];
+
+function pingKeepaliveTargets() {
+  for (const url of KEEPALIVE_TARGETS) {
+    fetch(url, { signal: AbortSignal.timeout(15000) }).catch(() => {});
+  }
+}
 // Fixed (not random) so it can be allowlisted in the server's CORS config
 // (server/src/index.js) -- see the loadURL call below.
 const STATIC_SERVER_PORT = 57813;
@@ -65,6 +94,7 @@ let connectivity = null;
 let appMode = null;
 let syncTimer = null;
 let updateTimer = null;
+let keepaliveTimer = null;
 // Mirrors startBackgroundServices()/pauseBackgroundServices() -- tracks
 // whether the timers + connectivity polling are currently running, since
 // (unlike before Offline Mode existed) `connectivity` itself is now created
@@ -812,6 +842,12 @@ app.whenReady().then(async () => {
     syncTimer = setInterval(() => performSync().catch(() => {}), 5 * 60 * 1000);
     syncTimer.unref?.();
 
+    // Runs immediately (not just on the first tick) so a fresh launch
+    // starts warming the backends right away instead of waiting 4 minutes.
+    pingKeepaliveTargets();
+    keepaliveTimer = setInterval(pingKeepaliveTargets, 4 * 60 * 1000);
+    keepaliveTimer.unref?.();
+
     if (!isDev && app.isPackaged) {
       // Checked via this app's own server (server/src/routes/version.js's
       // /generic/* feed), never GitHub directly -- see configureAutoUpdater.
@@ -828,8 +864,10 @@ app.whenReady().then(async () => {
   function stopTimersOnly() {
     if (syncTimer) clearInterval(syncTimer);
     if (updateTimer) clearInterval(updateTimer);
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
     syncTimer = null;
     updateTimer = null;
+    keepaliveTimer = null;
   }
 
   // Pauses the timers + connectivity polling without discarding
