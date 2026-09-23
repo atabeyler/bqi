@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import HomeView from './HomeView.jsx';
+import HomeView, { isActiveEmergency } from './HomeView.jsx';
 import { LangProvider } from '../services/langContext.jsx';
 import { api } from '../services/api.js';
 import { executeAction, getActionsForAI } from '../services/voiceActionRegistry.js';
@@ -8,6 +8,7 @@ import { setAppMode } from '../services/appModePreference.js';
 
 vi.mock('./TurkeyMap.jsx', () => ({ default: () => <div>TurkeyMap stub</div> }));
 vi.mock('../services/api.js', () => ({
+  apiBaseUrl: () => '',
   api: {
     activityFeed: vi.fn(async () => []),
     morningBriefToday: vi.fn(async () => ({ exists: false })),
@@ -167,5 +168,31 @@ describe('HomeView command data under Offline Mode', () => {
     setAppMode('auto');
     await waitFor(() => expect(api.activityFeed).toHaveBeenCalled());
     expect(api.morningBriefToday).toHaveBeenCalled();
+  });
+});
+
+describe('critical alerts recency', () => {
+  const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+
+  it('isActiveEmergency only counts emergency records from the last 24 hours', () => {
+    expect(isActiveEmergency({ type: 'emergency', created_at: hoursAgo(1) })).toBe(true);
+    expect(isActiveEmergency({ type: 'emergency', created_at: hoursAgo(30) })).toBe(false);
+    expect(isActiveEmergency({ type: 'analysis', created_at: hoursAgo(1) })).toBe(false);
+    expect(isActiveEmergency({ type: 'emergency', created_at: 'not-a-date' })).toBe(false);
+    expect(isActiveEmergency(null)).toBe(false);
+  });
+
+  it('does not show a stale emergency record as an active critical alert', async () => {
+    api.activityFeed.mockResolvedValue([{ type: 'emergency', id: 1, message: 'eski-test-kaydi', created_at: hoursAgo(72) }]);
+    renderHome();
+    await screen.findAllByText('eski-test-kaydi'); // still listed in the activity feed
+    expect(screen.getByText(/Aktif kritik uyarı bulunmuyor/i)).toBeInTheDocument();
+  });
+
+  it('shows a recent emergency record as an active critical alert', async () => {
+    api.activityFeed.mockResolvedValue([{ type: 'emergency', id: 2, message: 'taze-acil-kayit', created_at: hoursAgo(2) }]);
+    renderHome();
+    await screen.findAllByText('taze-acil-kayit');
+    expect(screen.queryByText(/Aktif kritik uyarı bulunmuyor/i)).not.toBeInTheDocument();
   });
 });
