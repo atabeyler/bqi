@@ -56,6 +56,13 @@ const queryMock = vi.fn(async (sql, params = []) => {
   if (s.startsWith('SELECT user_code, nickname, email, is_admin, blocked, created_at FROM auth_users ORDER BY')) {
     return { rows: [...authUsers.values()].map(publicUserFields), rowCount: authUsers.size };
   }
+  if (s.startsWith('SELECT nickname FROM auth_users WHERE blocked IS NOT TRUE')) {
+    const rows = [...authUsers.values()]
+      .filter((r) => !r.blocked && r.nickname)
+      .map((r) => ({ nickname: r.nickname }))
+      .sort((a, b) => a.nickname.localeCompare(b.nickname));
+    return { rows, rowCount: rows.length };
+  }
   if (s.startsWith('UPDATE auth_users SET')) {
     const userCode = params[params.length - 1];
     const row = authUsers.get(userCode);
@@ -384,6 +391,26 @@ describe('GET /api/auth/me', () => {
     const res = await request(app).get('/api/auth/me').set('Cookie', `bqi_jwt=${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ userCode: 'ADMIN-3', nickname: 'BOLD', isAdmin: true });
+  });
+});
+
+describe('GET /api/auth/directory', () => {
+  it('401s without a session', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/auth/directory');
+    expect(res.status).toBe(401);
+  });
+
+  it('lets a non-admin see the nicknames (and only nicknames) of active users, including ones who never logged in', async () => {
+    authUsers.set('NEW-1', { user_code: 'NEW-1', password_hash: 'x', nickname: 'YENI-KULLANICI', is_admin: false, email: 'secret@example.com', role: 'analyst', blocked: false, created_at: new Date() });
+    authUsers.set('BLK-1', { user_code: 'BLK-1', password_hash: 'x', nickname: 'ENGELLI', is_admin: false, blocked: true, created_at: new Date() });
+    const app = buildApp();
+    const res = await request(app).get('/api/auth/directory').set('Authorization', `Bearer ${userToken('U9', 'BOLD-009')}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('YENI-KULLANICI');
+    expect(res.body).not.toContain('ENGELLI');
+    expect(JSON.stringify(res.body)).not.toContain('secret@example.com');
+    expect(JSON.stringify(res.body)).not.toContain('NEW-1');
   });
 });
 

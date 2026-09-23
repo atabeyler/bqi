@@ -353,6 +353,21 @@ router.get('/me', authMiddleware, (req, res) => {
   res.json({ userCode, nickname, isAdmin: !!isAdmin, role, exp });
 });
 
+// Nicknames only (never user codes, emails or roles) of every active user, for
+// the messaging panel's recipient list. Without this the panel could only
+// list users who happened to be online right now, so a user an admin had
+// just added stayed invisible until they logged in and connected.
+router.get('/directory', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query(
+      'SELECT nickname FROM auth_users WHERE blocked IS NOT TRUE AND nickname IS NOT NULL ORDER BY nickname ASC'
+    );
+    res.json(rows.map((r) => r.nickname));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ success: true });

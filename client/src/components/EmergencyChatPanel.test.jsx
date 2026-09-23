@@ -47,6 +47,7 @@ vi.mock('../services/socket.js', () => ({
 vi.mock('../services/api.js', () => ({
   api: {
     emergencyCenter: vi.fn(async () => ({ success: true })),
+    directory: vi.fn(async () => ['BOLD-001', 'BOLD-002']),
   },
   getToken: vi.fn(() => 'fake-jwt'),
 }));

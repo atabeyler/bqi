@@ -20,6 +20,7 @@ vi.mock('../services/api.js', () => ({
   api: {
     emergencyCenter: vi.fn(async () => ({ success: true })),
     emergencyUsers: vi.fn(async () => ({ success: true })),
+    directory: vi.fn(async () => ['BOLD-001', 'BOLD-002', 'YENI-KULLANICI']),
   },
   getToken: vi.fn(() => 'fake-jwt'),
 }));
@@ -103,10 +104,18 @@ describe('EmergencyButton', () => {
     await waitFor(() => expect(api.emergencyCenter).toHaveBeenCalledWith('yardim lazim'));
   });
 
-  it('routes a chat message over the socket when a specific user is selected', () => {
+  it('lists a user the admin just added (offline, never connected) as a message recipient', async () => {
     renderButton();
     fireEvent.click(screen.getByLabelText('ACİL MERKEZ'));
     fireEvent.click(screen.getByText('Mesajlaşma'));
+    expect(await screen.findByRole('option', { name: /YENI-KULLANICI/ })).toBeInTheDocument();
+  });
+
+  it('routes a chat message over the socket when a specific user is selected', async () => {
+    renderButton();
+    fireEvent.click(screen.getByLabelText('ACİL MERKEZ'));
+    fireEvent.click(screen.getByText('Mesajlaşma'));
+    await screen.findByRole('option', { name: /BOLD-002/ });
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'BOLD-002' } });
     fireEvent.change(screen.getByPlaceholderText('BOLD-002 kullanıcısına mesaj...'), { target: { value: 'merhaba' } });
     fireEvent.click(screen.getByRole('button', { name: '' }));

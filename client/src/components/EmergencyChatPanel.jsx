@@ -45,6 +45,9 @@ export default function ChatPanel({ user }) {
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [otherUser, setOtherUser] = useState('');
   const [onlineUsers, setOnlineUsers] = useState([]);
+  // Every active user from the DB (not just whoever is online right now), so
+  // a user an admin just added is selectable before they've ever connected.
+  const [directory, setDirectory] = useState([]);
   const me = user;
   const myNick = me?.isAdmin ? 'BOLD' : (me?.nickname || me?.userCode);
   const isAdmin = !!me?.isAdmin;
@@ -73,6 +76,17 @@ export default function ChatPanel({ user }) {
   useEffect(() => {
     otherUserRef.current = otherUser;
   }, [otherUser]);
+
+  useEffect(() => {
+    if (isAppModeOffline()) return undefined;
+    let cancelled = false;
+    const load = () => api.directory()
+      .then((names) => { if (!cancelled && Array.isArray(names)) setDirectory(names); })
+      .catch(() => {});
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
 
   useEffect(() => {
     localStreamRef.current = localStream;
@@ -535,8 +549,9 @@ export default function ChatPanel({ user }) {
     getSocket()?.emit('video:admin:mute', { roomId, targetPeerId: peerId, mute });
   };
 
-  const fallbackNicks = ['BOLD', 'BOLD-001', 'BOLD-002', 'BOLD-003', 'BOLD-004', 'BOLD-005', 'BOLD-006', 'BOLD-007', 'BOLD-008', 'BOLD-009', 'BOLD-010'];
-  const mergedTargets = Array.from(new Set([...(onlineUsers || []), ...fallbackNicks]))
+  // 'BOLD' (the admin/center) is always messageable: admins connect under
+  // that fixed nickname regardless of their auth_users row.
+  const mergedTargets = Array.from(new Set(['BOLD', ...(directory || []), ...(onlineUsers || [])]))
     .filter((n) => n && n !== myNick);
 
   return (

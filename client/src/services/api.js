@@ -146,6 +146,8 @@ export const api = {
 
   me: () => req('/api/auth/me'),
 
+  directory: () => req('/api/auth/directory'),
+
   logout: () => req('/api/auth/logout', { method: 'POST' }),
 
   // Passkey/WebAuthn -- see server/src/routes/webauthn.js. Registration
