@@ -23,3 +23,10 @@ jobs:
 
       - name: Ping bci-api
         run: curl -sS -o /dev/null -w "bci-api: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-api-f9w8.onrender.com/" || true
+
+      # bci-worker is a Render Background Worker (srv-dalo4dek1f9s738tp6c0),
+      # not a Web Service -- it has no public HTTP URL and doesn't spin
+      # down on request-idle the way bqi/bci-api/bci-ui do, so it's
+      # deliberately not pinged here.
+      - name: Ping bci-ui
+        run: curl -sS -o /dev/null -w "bci-ui: %{http_code} in %{time_total}s\n" --max-time 60 "https://bci-ui.onrender.com/" || true
