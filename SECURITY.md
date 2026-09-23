@@ -4,7 +4,7 @@
 
 If you believe you've found a security vulnerability in BQI — particularly anything touching authentication (`server/src/routes/auth.js`), the emergency broadcast system (`server/src/routes/emergency.js`), file uploads, or the fraud/AML detection module — please report it privately rather than opening a public GitHub issue.
 
-Email **info@boldas.com.tr** with:
+Email **info@boldkimya.com.tr** with:
 
 - A description of the vulnerability and its potential impact
 - Steps to reproduce it (a minimal request/response example is ideal)

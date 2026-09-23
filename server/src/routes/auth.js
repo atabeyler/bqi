@@ -220,7 +220,7 @@ router.post('/login-request', publicActionLimiter, async (req, res) => {
       console.error('sendApprovalEmail error:', err);
     });
 
-    res.json({ success: true, token, message: 'Merkez onayı bekleniyor — info@boldas.com.tr adresine onay maili gönderildi.' });
+    res.json({ success: true, token, message: 'Merkez onayı bekleniyor — info@boldkimya.com.tr adresine onay maili gönderildi.' });
   } catch (err) {
     console.error('login-request error:', err);
     res.status(500).json({ error: err.message });
