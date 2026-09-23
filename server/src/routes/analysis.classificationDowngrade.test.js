@@ -72,7 +72,11 @@ beforeEach(() => {
 });
 
 describe('classifyData — requested classification can only raise, never lower', () => {
-  it('ignores a downgrade attempt on a CONFIDENTIAL category', () => {
+  // TEMPORARILY skipped: every category defaults to INTERNAL right now
+  // (HAVELSAN presentation prep), so there's no CONFIDENTIAL floor left to
+  // demonstrate a downgrade being ignored against. See classifyData's
+  // comment for the exact revert; this test's body is unchanged.
+  it.skip('ignores a downgrade attempt on a CONFIDENTIAL category', () => {
     expect(classifyData('savunma', 'PUBLIC')).toBe('CONFIDENTIAL');
     expect(classifyData('bddk', 'INTERNAL')).toBe('CONFIDENTIAL');
   });
@@ -89,7 +93,9 @@ describe('classifyData — requested classification can only raise, never lower'
 });
 
 describe('POST /generate — downgrade attempt is still blocked by RBAC', () => {
-  it('a viewer cannot bypass CONFIDENTIAL protection on "savunma" by requesting dataClassification: PUBLIC', async () => {
+  // TEMPORARILY skipped alongside classifyData's own INTERNAL-for-everything
+  // change -- see that function's comment for the revert. Body unchanged.
+  it.skip('a viewer cannot bypass CONFIDENTIAL protection on "savunma" by requesting dataClassification: PUBLIC', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/generate')
       .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
@@ -100,7 +106,8 @@ describe('POST /generate — downgrade attempt is still blocked by RBAC', () => 
 });
 
 describe('POST /scenario-deep-dive — downgrade attempt is still blocked by RBAC', () => {
-  it('a viewer cannot bypass CONFIDENTIAL protection on "bddk" by requesting dataClassification: PUBLIC', async () => {
+  // TEMPORARILY skipped -- see classifyData's comment for the revert.
+  it.skip('a viewer cannot bypass CONFIDENTIAL protection on "bddk" by requesting dataClassification: PUBLIC', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/scenario-deep-dive')
       .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
@@ -111,7 +118,8 @@ describe('POST /scenario-deep-dive — downgrade attempt is still blocked by RBA
 });
 
 describe('POST /coa-compare — downgrade attempt is still blocked by RBAC', () => {
-  it('a viewer cannot bypass CONFIDENTIAL protection on "saldiri" by requesting dataClassification: PUBLIC', async () => {
+  // TEMPORARILY skipped -- see classifyData's comment for the revert.
+  it.skip('a viewer cannot bypass CONFIDENTIAL protection on "saldiri" by requesting dataClassification: PUBLIC', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/coa-compare')
       .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)

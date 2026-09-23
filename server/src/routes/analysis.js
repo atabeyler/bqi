@@ -304,12 +304,12 @@ router.post('/upload', authMiddleware, analysisLimiter, uploadConcurrencyGate, u
 const VALID_PRIORITIES = ['dusuk', 'normal', 'yuksek', 'kritik'];
 const VALID_DEPTHS = ['hizli', 'standart', 'derin'];
 // 'hizli' skips gatherResearchContext's web-search round-trip entirely (see
-// analysisResearch.js) and asks for a shorter report; 'standart'/'derin'
-// both keep today's existing research + output-length behavior -- 'derin'
-// doesn't currently do MORE than 'standart' (see analysis.js's depth
-// handling below), it just guarantees research isn't skipped the way
-// 'hizli' does.
-const DEPTH_MAX_OUTPUT_TOKENS = { hizli: 3000 };
+// analysisResearch.js) and asks for a shorter report. 'standart' keeps
+// today's existing research + output-length behavior. 'derin' also raises
+// the output budget and unlocks aiPrompts.ts's deepModeBlock (national/
+// cross-entity scope expansion + cross-section consistency) -- distinct
+// from 'standart' now, not just a research-skip guard.
+const DEPTH_MAX_OUTPUT_TOKENS = { hizli: 3000, derin: 50000 };
 
 router.post('/generate', authMiddleware, analysisLimiter, async (req, res) => {
   try {
@@ -341,8 +341,8 @@ router.post('/generate', authMiddleware, analysisLimiter, async (req, res) => {
     const hasRealOptimization = !fraudCategory && isRealOptimizationProblem(realOptimization);
 
     const systemPrompt = quantumMode
-      ? getQuantumSystemPrompt(category, { hasRealTransactions, hasRealScenarios, hasRealOptimization }, lang)
-      : getSystemPromptForCategory(category, lang);
+      ? getQuantumSystemPrompt(category, { hasRealTransactions, hasRealScenarios, hasRealOptimization }, lang, depth)
+      : getSystemPromptForCategory(category, lang, depth);
 
     const webContext = await gatherResearchContext(category, prompt, depth, requestedClassification);
 

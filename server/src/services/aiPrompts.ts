@@ -322,7 +322,7 @@ interface RealDataFlags {
   hasRealOptimization?: boolean;
 }
 
-function buildMasterSystemPrompt(category: string, quantumMode = false, realData: RealDataFlags = {}, lang = 'tr'): string {
+function buildMasterSystemPrompt(category: string, quantumMode = false, realData: RealDataFlags = {}, lang = 'tr', depth = 'standart'): string {
   const { hasRealTransactions = false, hasRealScenarios = false, hasRealOptimization = false } = realData;
   const group = getCategoryGroup(category);
   const langName = resolveLangName(lang);
@@ -436,6 +436,31 @@ ${mandatory.map((m) => `- **${m}**`).join('\n')}
 ${STATE_KNOWLEDGE_BASE}
 ` : '';
 
+  // 'derin' only -- kept out of 'standart'/'hizli' since both instructions
+  // below meaningfully lengthen the report, and 'derin' is the only tier
+  // whose maxOutputTokens (see analysis.js's DEPTH_MAX_OUTPUT_TOKENS) is
+  // raised to actually fit the result. Deliberately category-agnostic
+  // (no hardcoded region/entity list) -- the model already has this
+  // category's domain expertise from getCategoryExpertise() above, so it
+  // infers the right axis of repetition itself: geographic for
+  // savunma/saglik (bolgeler), sectoral for ekonomi, institutional for
+  // bddk/compliance-type topics, etc. A hardcoded list would need updating
+  // every time a new category is added and would be wrong for narrow,
+  // single-entity topics it wasn't written for.
+  const deepModeBlock = depth === 'derin' ? `
+## DERIN ANALIZ MODU
+
+- **ULUSAL KAPSAM DEGERLENDIRMESI:** Konu tek bir olay/noktayla tetiklenmis olsa bile, bu alandaki uzmanligina
+  gore bunun **yapisal olarak tekrarlanabilir** bir orguntu olup olmadigini degerlendir (cografi, sektorel,
+  kurumsal veya demografik olabilir). Oyleyse raporu o tek olayla sinirlama -- ilgili TUM ulusal
+  ornekleri/bolgeleri/kurumlari ayri ayri ele al (kendi tablolariyla). Konu zaten dar ve tek bir
+  varlik/sisteme ozguyse (ornegin tek bir platform alimi), kapsami yapay sekilde genisletme.
+- **BOLUMLER ARASI TUTARLILIK:** Ayni konuyu (risk, aktor, kurum) raporun birden fazla bolumunde ele alirken
+  (ornegin hem "RISK VE FIRSAT ANALIZI" hem "RISKLER VE AZALTMA TEDBIRLERI" bolumlerinde), ikinci gecisi
+  ilkinden bagimsiz olarak yeniden uretme -- ayni listeye referans ver, celisen veya ortusmeyen iki ayri
+  risk/aktor listesi cikarma.
+` : '';
+
   const languageBlock = `
 ## DIL
 
@@ -455,7 +480,7 @@ GUNEL TARIH: ${today} (${todayISO}) -- Tum analizleri bu tarih itibariyla guncel
 GIZLILIK: GIZLI -- Tum ciktilar ust gizlilik kurallarina tabidir.
 ${UNTRUSTED_EVIDENCE_POLICY}
 ${quantumInstructions}
-${reportStandardsBlock}${mandatoryBlock}${languageBlock}
+${reportStandardsBlock}${mandatoryBlock}${deepModeBlock}${languageBlock}
 ${knowledgeBaseBlock}
 ## KATEGORI BAZLI UZMANLIK: ${getCategoryExpertise(category)}`;
 }
@@ -551,12 +576,12 @@ Gorev: Birden fazla alani (savunma+ekonomi+enerji+siber+toplumsal) sentezlemek.
   return expertise[category] || expertise['cok-alanli'];
 }
 
-export function getSystemPromptForCategory(category: string, lang = 'tr'): string {
-  return buildMasterSystemPrompt(category, false, {}, lang);
+export function getSystemPromptForCategory(category: string, lang = 'tr', depth = 'standart'): string {
+  return buildMasterSystemPrompt(category, false, {}, lang, depth);
 }
 
-export function getQuantumSystemPrompt(category: string, realData: RealDataFlags = {}, lang = 'tr'): string {
-  return buildMasterSystemPrompt(category, true, realData, lang);
+export function getQuantumSystemPrompt(category: string, realData: RealDataFlags = {}, lang = 'tr', depth = 'standart'): string {
+  return buildMasterSystemPrompt(category, true, realData, lang, depth);
 }
 
 export function getScenarioDeepDivePrompt(category: string, scenarioId: string, scenarioSummary: string, lang = 'tr'): string {

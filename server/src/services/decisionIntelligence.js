@@ -133,21 +133,31 @@ export function maxLevel(a, b) {
 }
 
 export function classifyData(category, requested = null) {
-  // TEMPORARY (revert after the HAVELSAN presentation): 'savunma'/'saldiri'
-  // pulled out of the CONFIDENTIAL default so gatherResearchContext's
-  // WEB_RESEARCH_BLOCKED_CLASSIFICATIONS gate (analysisResearch.js) no
-  // longer skips them -- without this, defense-category reports are
-  // generated with zero grounding in real search results (confirmed: two
-  // separate "Altura tankeri" reports produced contradictory dates/attack
-  // details because nothing was ever actually looked up). The tradeoff
-  // while this is in effect: a 'savunma'/'saldiri' report's topic text (up
-  // to 150 chars) reaches DuckDuckGo's public endpoint, same as any
-  // INTERNAL-classification request already does. Revert by moving
-  // 'savunma', 'saldiri' back into the line below once presentation
-  // material is no longer being generated.
-  const categoryDefault = ['bddk', 'btk', 'cok-alanli'].includes(category)
-    ? 'CONFIDENTIAL'
-    : (category ? 'INTERNAL' : null);
+  // TEMPORARY (revert after the HAVELSAN presentation): EVERY category
+  // (savunma/saldiri/bddk/btk/cok-alanli included) now defaults to
+  // INTERNAL instead of CONFIDENTIAL, on the user's explicit instruction
+  // (no other real users on this deployment right now; every platform --
+  // desktop/Android/web -- should have full research grounding for demo
+  // material). This pulls ALL analysis categories out of
+  // gatherResearchContext's WEB_RESEARCH_BLOCKED_CLASSIFICATIONS gate
+  // (analysisResearch.js) -- without it, reports are generated with zero
+  // grounding in real search results (confirmed: two separate "Altura
+  // tankeri" reports produced contradictory dates/attack details because
+  // nothing was ever actually looked up).
+  //
+  // Tradeoffs while this is in effect:
+  // - Every report's topic text (up to 150 chars) reaches DuckDuckGo's
+  //   public endpoint, same as any INTERNAL request already does.
+  // - canAccessClassification()'s CONFIDENTIAL floor (rbac.js) no longer
+  //   applies to any category -- a 'viewer'-role user can now generate/
+  //   read every category, including savunma/bddk, that normally requires
+  //   analyst-or-higher clearance.
+  //
+  // REVERT by restoring the two-branch form this replaced:
+  //   const categoryDefault = ['savunma', 'saldiri', 'bddk', 'btk', 'cok-alanli'].includes(category)
+  //     ? 'CONFIDENTIAL'
+  //     : (category ? 'INTERNAL' : null);
+  const categoryDefault = category ? 'INTERNAL' : null;
 
   const requestedUpper = requested ? String(requested).toUpperCase() : null;
   const requestedValid = requestedUpper && CLASSIFICATIONS.includes(requestedUpper) ? requestedUpper : null;
