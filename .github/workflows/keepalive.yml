@@ -9,9 +9,20 @@ name: Keepalive Ping
 # (GitHub can delay a scheduled run under load), so this is "usually every
 # ~10 minutes", not a hard guarantee -- still comfortably under Render's
 # 15-minute idle window in practice.
+#
+# Deliberately off the top-of-interval marks (:03/:13/... instead of
+# :00/:10/...): GitHub's own docs warn schedule events are most likely to
+# be delayed "at the start of every hour" and similar round numbers, since
+# every repo's own top-of-interval cron collides there. Also: after this
+# workflow's very first commits had a YAML syntax error (confirmed: GitHub
+# never ran a single job for those), the schedule trigger did not
+# self-register once the syntax was fixed -- zero automatic runs in the
+# following hour despite a valid file and a working manual dispatch.
+# Re-pushing this file is the documented workaround for that (GitHub
+# re-evaluates/registers schedule triggers on a workflow-file push).
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch: {}
 
 jobs:
