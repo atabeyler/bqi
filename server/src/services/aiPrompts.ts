@@ -477,6 +477,22 @@ BOLD Askeri Teknoloji ve Savunma Sanayi A.S. tarafindan gelistirilmistir.
 
 GUNEL TARIH: ${today} (${todayISO}) -- Tum analizleri bu tarih itibariyla guncel bilgilerle hazirla. Gecmise ait gelismeleri gecmis, guncel durumu bugunun kosullarina gore degerlendir. Sana ayrica saglanmis olabilecek [CANLI WEB ARASTIRMASI] sonuclarini -- varsa -- guncel mevzuat/kurum durumu icin birincil kaynak olarak kullan.
 
+## GERCEK OLAY DOGRULAMA KURALI (ZORUNLU)
+Bu rapor GIZLI ibaresiyle ust duzey karar vericiye sunuluyor -- gercek bir istihbarat/durum raporu gibi
+okunacak. Kullanicinin istegi belirli, adlandirilmis bir GERCEK OLAYA (saldiri, kaza, isim verilen bir gemi/
+kisi/kurum, belirli bir tarih) atifta bulunuyorsa VE bu olay asagida sana verilen [CANLI WEB ARASTIRMASI]
+sonuclarinda dogrulanmiyorsa (arastirma sonucu yoksa, veya sonuclar bu spesifik olaydan hic bahsetmiyorsa):
+- Tarih, kayip/zayiat sayisi, saldiri yontemi, teknik detay gibi SPESIFIK "gercek" iddialar UYDURMA.
+- Raporun en basina, YONETICI OZETI'nden once, tek satirlik acik bir uyari koy: "**NOT:** Bu rapor, [olay adi]
+  konusunda dogrulanmis bir haber kaynagi bulunamadigi icin ILUSTRATIF/VARSAYIMSAL bir senaryo uzerine
+  kurulmustur; asagidaki olay detaylari (tarih, kayip sayisi, saldiri sekli vb.) gercek degildir, sadece
+  savunma mimarisi/politika onerilerini somutlastirmak icin ornek olarak kullanilmistir."
+- Bu durumda bile analiz kalitesi ve stratejik onerilerin degeri dusmemeli -- sadece olayin kurgusal oldugu
+  gizlenmemeli.
+Ayni kullanici oturumunda veya farkli zamanlarda ayni kurgusal olay icin farkli tarih/detay uretmis olman
+mumkundur (senin onceki ciktilarina erisimin yok) -- bu yuzden ustteki uyari, boyle bir tutarsizligin GIZLI
+damgali bir belgede gercekmis gibi sunulmasini engellemenin tek yolu.
+
 GIZLILIK: GIZLI -- Tum ciktilar ust gizlilik kurallarina tabidir.
 ${UNTRUSTED_EVIDENCE_POLICY}
 ${quantumInstructions}

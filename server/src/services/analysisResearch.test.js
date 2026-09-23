@@ -10,10 +10,11 @@ vi.mock('./ai.js', () => ({
   CATEGORY_GROUP_SOURCES: { defense: { local: ['mevzuat.gov.tr'], international: [] } },
 }));
 
-const { gatherResearchContext } = await import('./analysisResearch.js');
+const { gatherResearchContext, isDemoWebResearchEnabled } = await import('./analysisResearch.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.BQI_DEMO_WEB_RESEARCH;
 });
 
 describe('gatherResearchContext', () => {
@@ -56,5 +57,59 @@ describe('gatherResearchContext', () => {
     const context = await gatherResearchContext('ekonomi', 'enflasyon', 'standart', 'INTERNAL');
     expect(researchWebMock).toHaveBeenCalled();
     expect(context).toContain('[web]');
+  });
+});
+
+// BQI_DEMO_WEB_RESEARCH: single opt-in flag for live demo prep -- must never
+// change default (unset) behavior, and must never touch RBAC/classification
+// access itself (that's a separate concern -- see decisionIntelligence.js's
+// classifyData and rbac.js's canAccessClassification, neither of which this
+// flag reads or affects). It only changes whether a request that's already
+// allowed to generate a CONFIDENTIAL/RESTRICTED report also gets real web
+// grounding for it.
+describe('BQI_DEMO_WEB_RESEARCH', () => {
+  it('isDemoWebResearchEnabled is false by default (env var unset)', () => {
+    expect(isDemoWebResearchEnabled()).toBe(false);
+  });
+
+  it('isDemoWebResearchEnabled is false for any value other than the literal string "true"', () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = '1';
+    expect(isDemoWebResearchEnabled()).toBe(false);
+    process.env.BQI_DEMO_WEB_RESEARCH = 'TRUE';
+    expect(isDemoWebResearchEnabled()).toBe(false);
+  });
+
+  it('isDemoWebResearchEnabled is true when set to "true"', () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = 'true';
+    expect(isDemoWebResearchEnabled()).toBe(true);
+  });
+
+  it('does NOT change default (flag unset) behavior -- CONFIDENTIAL/RESTRICTED still skip research', async () => {
+    const restricted = await gatherResearchContext('savunma', 'İHA teknolojisi', 'standart', 'RESTRICTED');
+    const confidential = await gatherResearchContext('savunma', 'İHA teknolojisi', 'derin', 'CONFIDENTIAL');
+    expect(researchWebMock).not.toHaveBeenCalled();
+    expect(restricted).toBe('');
+    expect(confidential).toBe('');
+  });
+
+  it('when enabled, runs real web search even for CONFIDENTIAL classification', async () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = 'true';
+    const context = await gatherResearchContext('savunma', 'İHA teknolojisi', 'derin', 'CONFIDENTIAL');
+    expect(researchWebMock).toHaveBeenCalled();
+    expect(context).toContain('[web]');
+  });
+
+  it('when enabled, runs real web search even for RESTRICTED classification', async () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = 'true';
+    const context = await gatherResearchContext('savunma', 'İHA teknolojisi', 'standart', 'RESTRICTED');
+    expect(researchWebMock).toHaveBeenCalled();
+    expect(context).toContain('[web]');
+  });
+
+  it('does not override the "hizli" depth skip even when enabled', async () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = 'true';
+    const context = await gatherResearchContext('savunma', 'İHA teknolojisi', 'hizli', 'CONFIDENTIAL');
+    expect(researchWebMock).not.toHaveBeenCalled();
+    expect(context).toBe('');
   });
 });

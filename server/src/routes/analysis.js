@@ -31,7 +31,7 @@ import { parseScenarioFile, parseOptimizationFile } from '../services/scenarioDa
 import { sheetToText } from '../services/tableParsing.js';
 import { isWeatherQuery, getLiveWeatherReply } from '../services/weather.js';
 import { researchWeb, formatResearchContext } from '../services/webResearch.js';
-import { gatherResearchContext } from '../services/analysisResearch.js';
+import { gatherResearchContext, isDemoWebResearchEnabled } from '../services/analysisResearch.js';
 import { resolveResultSource } from '../services/analysisOrchestrator.js';
 import { buildEvidenceItems } from '../services/evidence.js';
 import { scanFile } from '../lib/fileScan.js';
@@ -381,7 +381,14 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
     // treated as data to report on, never as a directive this request
     // itself obeys.
     const hasRealData = hasRealTransactions || hasRealScenarios || hasRealOptimization;
-    const webContextPrefix = webContext ? `${wrapUntrustedEvidence('CANLI WEB ARAŞTIRMASI', webContext)}\n` : '';
+    // Previously: no webContext meant no prefix at all, so the model had no
+    // signal that research was skipped/empty vs. simply not mentioned --
+    // it would confidently invent specific "facts" about a named incident
+    // either way. Explicitly flagging the empty case is what the system
+    // prompt's "GERCEK OLAY DOGRULAMA KURALI" (aiPrompts.ts) checks for.
+    const webContextPrefix = webContext
+      ? `${wrapUntrustedEvidence('CANLI WEB ARAŞTIRMASI', webContext)}\n`
+      : '[CANLI WEB ARAŞTIRMASI SONUCU: Bu istek için hiçbir doğrulanmış arama sonucu bulunamadı (araştırma atlanmış veya sonuçsuz kalmış olabilir).]\n';
     const enrichedPrompt = documentContext || hasRealData
       ? `${webContextPrefix}${wrapUntrustedEvidence('YÜKLENEN KAYNAK BELGE', documentContext || '')}\n\n${realTransactionsNote}${realScenariosNote}${realOptimizationNote}[ANALİZ TALEBİ]\n${basePrompt}`
       : `${webContextPrefix}${basePrompt}`;
@@ -736,11 +743,15 @@ router.post('/chat', authMiddleware, analysisLimiter, async (req, res) => {
       ? `${wrapUntrustedEvidence('YÜKLENEN KAYNAK BELGE', documentContext)}\n\n`
       : '';
 
-    // Same CONFIDENTIAL/RESTRICTED gate as /generate's gatherResearchContext()
-    // -- this call site predates that fix and was missed then.
+    // Same CONFIDENTIAL/RESTRICTED gate (and BQI_DEMO_WEB_RESEARCH escape
+    // hatch) as /generate's gatherResearchContext() -- this call site
+    // predates that fix and was missed then, so it's duplicated here
+    // rather than routed through gatherResearchContext itself (that
+    // function's category-sourced dual-query shape doesn't fit a
+    // freeform chat message the same way).
     const WEB_RESEARCH_BLOCKED_CLASSIFICATIONS = new Set(['CONFIDENTIAL', 'RESTRICTED']);
     let webContext = '';
-    if (!WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(chatClassification)) {
+    if (isDemoWebResearchEnabled() || !WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(chatClassification)) {
       try {
         const webResults = await researchWeb(message);
         webContext = formatResearchContext(webResults);

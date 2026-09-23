@@ -91,11 +91,8 @@ describe('GET /api/history/:id — unit-mate ABAC', () => {
     expect(res.status).toBe(404);
   });
 
-  // TEMPORARILY skipped: 'savunma' defaults to INTERNAL right now, not
-  // CONFIDENTIAL -- see decisionIntelligence.js's classifyData comment for
-  // why and the exact revert. Body unchanged.
-  it.skip('does not extend unit sharing to a CONFIDENTIAL-or-above record, even for the same unit', async () => {
-    joinedRow.category = 'savunma'; // CONFIDENTIAL (normally)
+  it('does not extend unit sharing to a CONFIDENTIAL-or-above record, even for the same unit', async () => {
+    joinedRow.category = 'savunma'; // CONFIDENTIAL
     plainSelectQueue = [{ unit: 'ALPHA' }, { unit: 'ALPHA' }];
     const app = buildApp();
     const res = await request(app).get('/api/history/2').set('Authorization', `Bearer ${token({ role: 'analyst' })}`);

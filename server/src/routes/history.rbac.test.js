@@ -55,10 +55,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/history/:id — classification access control', () => {
-  // TEMPORARILY skipped: fakeRow.category = 'savunma' defaults to INTERNAL
-  // right now, not CONFIDENTIAL -- see decisionIntelligence.js's
-  // classifyData comment for why and the exact revert. Body unchanged.
-  it.skip('blocks a viewer-role owner from reading their own CONFIDENTIAL-category record', async () => {
+  it('blocks a viewer-role owner from reading their own CONFIDENTIAL-category record', async () => {
     const app = buildApp();
     const res = await request(app).get('/api/history/1').set('Authorization', `Bearer ${token({ role: 'viewer' })}`);
     expect(res.status).toBe(403);
@@ -80,9 +77,7 @@ describe('GET /api/history/:id — classification access control', () => {
 });
 
 describe('GET /api/history/:id/download — classification access control', () => {
-  // TEMPORARILY skipped -- see decisionIntelligence.js's classifyData
-  // comment for the revert.
-  it.skip('blocks a viewer-role owner from downloading a CONFIDENTIAL-category record', async () => {
+  it('blocks a viewer-role owner from downloading a CONFIDENTIAL-category record', async () => {
     const app = buildApp();
     const res = await request(app).get('/api/history/1/download').set('Authorization', `Bearer ${token({ role: 'viewer' })}`);
     expect(res.status).toBe(403);
@@ -96,9 +91,7 @@ describe('GET /api/history/:id/download — classification access control', () =
 });
 
 describe('GET /api/history/:id/download-pdf — classification access control', () => {
-  // TEMPORARILY skipped -- see decisionIntelligence.js's classifyData
-  // comment for the revert.
-  it.skip('blocks a viewer-role owner from downloading a CONFIDENTIAL-category record', async () => {
+  it('blocks a viewer-role owner from downloading a CONFIDENTIAL-category record', async () => {
     const app = buildApp();
     const res = await request(app).get('/api/history/1/download-pdf').set('Authorization', `Bearer ${token({ role: 'viewer' })}`);
     expect(res.status).toBe(403);

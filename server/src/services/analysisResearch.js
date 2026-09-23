@@ -21,12 +21,29 @@ import { logger } from '../lib/logger.js';
 // AQ security review).
 const WEB_RESEARCH_BLOCKED_CLASSIFICATIONS = new Set(['CONFIDENTIAL', 'RESTRICTED']);
 
+// Single opt-in escape hatch for live demo prep (e.g. a presentation where
+// CONFIDENTIAL-category reports need real grounding, not just internally
+// self-consistent fabrication) -- unset/false leaves the classification
+// gate above fully intact, exactly as before this existed. Deliberately
+// does NOT touch canAccessClassification()/RBAC (rbac.js) -- this only
+// ever changes whether a request that's *already* allowed to generate a
+// CONFIDENTIAL/RESTRICTED report also gets real search grounding for it,
+// never who is allowed to generate or read one. Read fresh on every call
+// (not cached at module load) so toggling the env var in the hosting
+// platform takes effect without a redeploy.
+export function isDemoWebResearchEnabled() {
+  return process.env.BQI_DEMO_WEB_RESEARCH === 'true';
+}
+
 export async function gatherResearchContext(category, topic, depth = 'standart', classification = null) {
   // 'hizli' (see routes/analysis.js's depth setting) skips the network
   // round-trip entirely instead of just formatting an empty result, since
   // the whole point of the fast tier is not waiting on web search.
   if (depth === 'hizli') return '';
-  if (classification && WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(String(classification).toUpperCase())) {
+  if (
+    !isDemoWebResearchEnabled() &&
+    classification && WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(String(classification).toUpperCase())
+  ) {
     logger.info({ classification }, '[WebResearch] Skipped: classification above PUBLIC/INTERNAL');
     return '';
   }

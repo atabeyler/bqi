@@ -3,11 +3,7 @@ import { classifyData, computeOutcomeCalibration, hashRecord, publicModelRegistr
 import { getMetricsSnapshot, recordRequestMetric } from '../lib/requestMetrics.js';
 
 describe('decision intelligence', () => {
-  // TEMPORARILY skipped: classifyData currently defaults EVERY category to
-  // INTERNAL (HAVELSAN presentation prep) -- see its comment for why and
-  // the exact revert. Un-skip once that revert lands; this test's body is
-  // unchanged and will pass again as-is.
-  it.skip('defaults sensitive operational categories to confidential', () => {
+  it('defaults sensitive operational categories to confidential', () => {
     expect(classifyData('savunma')).toBe('CONFIDENTIAL');
     expect(classifyData('bddk')).toBe('CONFIDENTIAL');
     expect(classifyData('ekonomi')).toBe('INTERNAL');

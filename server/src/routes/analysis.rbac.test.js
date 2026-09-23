@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -92,11 +92,7 @@ describe('POST /generate — priority/depth request fields', () => {
 });
 
 describe('POST /generate — classification access control', () => {
-  // TEMPORARILY skipped: every category (bddk included) defaults to
-  // INTERNAL right now, so there's no CONFIDENTIAL category left to prove
-  // a viewer is blocked from. See classifyData's comment for the revert;
-  // this test's body is unchanged.
-  it.skip('blocks a viewer-role user from generating a CONFIDENTIAL category (bddk)', async () => {
+  it('blocks a viewer-role user from generating a CONFIDENTIAL category (bddk)', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/generate')
       .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
@@ -105,25 +101,11 @@ describe('POST /generate — classification access control', () => {
     expect(generateAnalysisMock).not.toHaveBeenCalled();
   });
 
-  it('allows an analyst-role user to generate any category', async () => {
+  it('allows an analyst-role user to generate a CONFIDENTIAL category', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/generate')
       .set('Authorization', `Bearer ${token({ role: 'analyst' })}`)
       .send({ category: 'bddk', prompt: 'test' });
-    expect(res.status).toBe(200);
-    expect(generateAnalysisMock).toHaveBeenCalled();
-  });
-
-  // Savunma is temporarily INTERNAL (see above), so a viewer -- normally
-  // blocked from CONFIDENTIAL -- can generate it during this window. This
-  // is a deliberate, temporary widening for HAVELSAN presentation prep
-  // (user-confirmed: no other real users on this deployment right now),
-  // not an oversight. Revert alongside classifyData's own revert note.
-  it('TEMP: viewer-role can generate savunma while it is INTERNAL', async () => {
-    const app = buildApp();
-    const res = await request(app).post('/api/analysis/generate')
-      .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
-      .send({ category: 'savunma', prompt: 'test' });
     expect(res.status).toBe(200);
     expect(generateAnalysisMock).toHaveBeenCalled();
   });
@@ -155,8 +137,7 @@ describe('POST /generate — classification access control', () => {
 });
 
 describe('POST /scenario-deep-dive — classification access control', () => {
-  // TEMPORARILY skipped -- see classifyData's comment for the revert.
-  it.skip('blocks a viewer-role user from a CONFIDENTIAL category', async () => {
+  it('blocks a viewer-role user from a CONFIDENTIAL category', async () => {
     const app = buildApp();
     const res = await request(app).post('/api/analysis/scenario-deep-dive')
       .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
@@ -171,5 +152,25 @@ describe('POST /scenario-deep-dive — classification access control', () => {
       .set('Authorization', `Bearer ${token({ role: 'analyst' })}`)
       .send({ category: 'bddk', scenarioId: 'SENARYO-A', scenarioSummary: 'test' });
     expect(res.status).toBe(200);
+  });
+});
+
+// BQI_DEMO_WEB_RESEARCH only ever changes whether an already-authorized
+// request also gets real web grounding (see analysisResearch.js) -- it
+// must never widen who is authorized in the first place. RBAC (this file's
+// whole point) has to stay identical whether the flag is on or off.
+describe('POST /generate — RBAC is unaffected by BQI_DEMO_WEB_RESEARCH', () => {
+  afterEach(() => {
+    delete process.env.BQI_DEMO_WEB_RESEARCH;
+  });
+
+  it('a viewer is still blocked from a CONFIDENTIAL category even with the demo flag on', async () => {
+    process.env.BQI_DEMO_WEB_RESEARCH = 'true';
+    const app = buildApp();
+    const res = await request(app).post('/api/analysis/generate')
+      .set('Authorization', `Bearer ${token({ role: 'viewer' })}`)
+      .send({ category: 'bddk', prompt: 'test' });
+    expect(res.status).toBe(403);
+    expect(generateAnalysisMock).not.toHaveBeenCalled();
   });
 });

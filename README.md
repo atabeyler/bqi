@@ -1,6 +1,6 @@
 # BQI
 
-![Version](https://img.shields.io/badge/version-3.3.60-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-3.3.61-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Quantum-Based National Decision Support System**  
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -317,6 +317,7 @@ The bare browser WebAuthn API (`navigator.credentials`) is not reliably usable f
 | `NEWS_RSS_SOURCES` | Optional override for morning-brief sources |
 | `CONVERSATION_MEMORY_TTL_DAYS` | Consultation-memory retention window |
 | `BQI_CLOUD_URL` | Desktop-only deployed API/web origin |
+| `BQI_DEMO_WEB_RESEARCH` | Set to exactly `true` to let CONFIDENTIAL/RESTRICTED-classified requests also get real web-research grounding (normally skipped, see analysisResearch.js); unset/any other value leaves that gate exactly as-is. Never affects who may generate/read a given classification (RBAC/`canAccessClassification` is untouched) -- only whether an already-authorized request is grounded in real search results. Intended for temporary use (e.g. live demo prep), toggled directly in the hosting platform's env vars |
 | `VITE_MOBILE_CLOUD_URL` | Mobile-only build-time deployed API/web origin |
 | `DATABASE_CA_CERT` | PEM CA certificate enabling verified Postgres TLS in production; unset connections stay encrypted but unverified (MITM risk) |
 | `DECISION_RETENTION_DAYS` | Retention window (days) for decision-intelligence records; defaults to 365 |
