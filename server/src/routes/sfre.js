@@ -19,6 +19,7 @@ import { matchesDeclaredFileType } from '../lib/fileSignature.js';
 import { importTefas } from '../sfre/ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
 import { importHoldings } from '../sfre/ingest/holdings.js';
+import { getSharedSync } from '../sfre/ingest/syncService.js';
 import { systemFromView } from '../sfre/validation/fragilityAlarm.js';
 
 export const INGEST_KINDS = Object.freeze({
@@ -40,7 +41,7 @@ function parseAsOf(v) {
   const t = Date.parse(s); return Number.isNaN(t) || !/Z$/.test(s) ? null : new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function createSfreRouter({ store = null, pg = null, ledger = null, registry = null, explainLlm = null, research = null, runner = runInWorker } = {}) {
+export function createSfreRouter({ store = null, pg = null, ledger = null, registry = null, explainLlm = null, research = null, runner = runInWorker, sync = null } = {}) {
   const router = express.Router();
   const mem = store || new MemoryStore();
   const db = pg ? new PgStore(pg) : null;
@@ -79,6 +80,19 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     if (!db) return res.json({ storage: 'memory', observations: null, note: 'no database configured: no persisted observations' });
     const r = await pg('SELECT source, field, count(*)::int AS n, min(available_time) AS first_available, max(available_time) AS last_available FROM sfre_observations GROUP BY source, field ORDER BY source, field');
     res.json({ storage: 'postgres', datasets: r.rows });
+  });
+
+  // Automatic data sync (KAP/MKK API, authorised institution feeds, TEFAS file inbox). Admin only; see docs/sfre/OPERATIONS.md.
+  const syncService = async () => sync || (pg ? getSharedSync(pg, logger) : null);
+  router.get('/sync/status', requireRole(ROLES.ADMIN), async (_req, res) => {
+    const svc = await syncService();
+    if (!svc) return res.json({ available: false, note: 'automatic sync needs DATABASE_URL (observations are persisted)' });
+    res.json({ available: true, ...svc.status() });
+  });
+  router.post('/sync/run', requireRole(ROLES.ADMIN), async (_req, res) => {
+    const svc = await syncService();
+    if (!svc) return res.status(409).json({ error: 'automatic sync needs DATABASE_URL' });
+    res.json({ results: await svc.runAll(), status: svc.status() });
   });
 
   router.get('/models', (_req, res) => res.json({ models: state.registry.list().map((m) => ({ model_id: m.model_id, version: m.version, state: m.state, calibration: m.calibration, approved_use: m.approved_use })) }));

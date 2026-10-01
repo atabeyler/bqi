@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx';
 import { makeObservation } from '../data/observation.js';
 
 const DAY = 86400000;
@@ -30,10 +30,16 @@ export function parseDay(v) {
 
 export const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
-/** All sheets of a CSV/XLSX buffer -> {name: rows[][]} (row 0 = headers). */
+/** Drops leading report-metadata rows (e.g. TEFAS "Rapor Bilgileri" block): the header is the first row with >= 3 non-empty cells. */
+export function stripPreamble(rows) {
+  const i = rows.findIndex((r) => r.filter((c) => String(c ?? '').trim() !== '').length >= 3);
+  return i > 0 ? rows.slice(i) : rows;
+}
+
+/** All sheets of a CSV/XLSX buffer -> {name: rows[][]} (row 0 = headers, after any report-metadata preamble is dropped). */
 export function readWorkbook(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false });
-  return Object.fromEntries(wb.SheetNames.map((n) => [n, XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: true })]));
+  return Object.fromEntries(wb.SheetNames.map((n) => [n, stripPreamble(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: true }))]));
 }
 
 /** Maps required/optional logical columns to header indexes by alias lists. Returns {idx, missing}. */

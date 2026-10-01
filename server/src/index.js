@@ -220,6 +220,12 @@ initDatabase()
   .then(() => ensureQuantumJobTables())
   .then(() => {
     startMorningBriefScheduler();
+    if (process.env.SFRE_SYNC_ENABLED === 'true') {
+      import('./sfre/ingest/syncService.js')
+        .then(({ getSharedSync }) => getSharedSync(query, logger))
+        .then((svc) => svc.start() && logger.info('[SFRE] automatic data sync started'))
+        .catch((err) => logger.warn({ err }, '[SFRE] automatic data sync failed to start'));
+    }
     startQuantumJobWorker(io);
     purgeExpiredDecisionRecords().catch((err) => logger.warn({ err }, 'Decision retention sweep failed'));
     const retentionTimer = setInterval(() => {

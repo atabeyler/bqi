@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as XLSX from 'xlsx';
-import { num, parseDay, normHeader, mapColumns } from '../ingest/parse.js';
+import { num, parseDay, normHeader, mapColumns, stripPreamble } from '../ingest/parse.js';
 import { importTefas } from '../ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../ingest/bist.js';
 import { importHoldings } from '../ingest/holdings.js';
@@ -19,6 +19,22 @@ describe('parsing primitives', () => {
     expect(num('1.234,56')).toBe(1234.56); expect(num('1234.56')).toBe(1234.56); expect(num('12,5')).toBe(12.5); expect(num('%12,5')).toBe(12.5);
     expect(parseDay('03.09.2026')).toBe(D(3)); expect(parseDay('2026-09-03')).toBe(D(3)); expect(parseDay(46268)).toBe(Date.UTC(2026, 8, 3)); expect(parseDay('x')).toBeNull();
     expect(normHeader('Tedavüldeki Pay Sayısı')).toBe('tedavuldeki pay sayisi'); expect(mapColumns(['Tarih', 'Fon Kodu'], { d: { aliases: ['tarih'], required: true }, x: { aliases: ['yok'], required: true } }).missing).toEqual(['x']);
+  });
+});
+
+describe('real TEFAS export layout (2026 fon-verileri Excel)', () => {
+  it('skips the "Rapor Bilgileri" preamble and maps the real headers (Fon Adı column, Fon Toplam Değer, Excel serial dates)', () => {
+    const f = xlsx({ 'Tablo Verisi': [
+      ['Rapor Bilgileri'], ['Dışa Aktarım Tarihi:', '01.10.2026 09:21:41'], ['Toplam Kayıt Sayısı:', 4], [],
+      ['Fon Kodu', 'Fon Adı', 'Tarih', 'Fiyat', 'Tedavüldeki Pay Sayısı', 'Kişi Sayısı', 'Fon Toplam Değer'],
+      ['AAL', 'ATA PORTFÖY PARA PİYASASI (TL) FONU', 46266, 3.5, 1000, 10, 3500],
+      ['AAL', 'ATA PORTFÖY PARA PİYASASI (TL) FONU', 46273, 3.6, 1100, 12, 3960],
+    ] });
+    const r = importTefas(f);
+    expect(r.skipped).toEqual([]); expect(r.report.rows).toBe(2);
+    const fields = new Set(r.observations.map((o) => o.field));
+    for (const k of ['nav_price', 'units', 'investors', 'aum', 'net_flow_ratio']) expect(fields.has(k)).toBe(true);
+    expect(stripPreamble([['x'], ['a', 'b', 'c'], [1, 2, 3]])).toEqual([['a', 'b', 'c'], [1, 2, 3]]);
   });
 });
 

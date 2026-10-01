@@ -45,3 +45,18 @@ Kamuya açık MKK PDF'i yalnızca servis adlarını verir. İstemci: `Authorizat
 
 ## 7. Hâlâ sizden beklenenler
 Anahtarlar/sözleşmeler (docs/sfre/DATA_REQUESTS.md), veri dosyaları, SPK onaylı olay bilgisi, model onay kararları (governance). Model onayı olmadan tüm çıktılar `NON_PRODUCTION`.
+
+
+## Otomatik veri senkronu
+
+Tek yerden tüm kurum kaynakları: `server/src/sfre/ingest/syncService.js`. Hepsi aynı doğrulanmış, hash ile tekilleştirilmiş yoldan geçer (tekrar çalıştırmak güvenlidir). `SFRE_SYNC_ENABLED=true` + `DATABASE_URL` ile sunucu açılışında zamanlayıcı başlar (`SFRE_SYNC_INTERVAL_MIN`, varsayılan 60 dk).
+
+| Kaynak | Yol | Durum |
+|---|---|---|
+| KAP / MKK | REST API (`SFRE_KAP_BASE_URL`, `SFRE_KAP_API_KEY`, `SFRE_KAP_SYNC_PARAMS`) | MKK onboarding sonrası otomatik |
+| Borsa İstanbul (BIST EOD), serbest dolaşım, fon-hisse portföy | Yetkili HTTP dosya beslemesi `SFRE_FEED_<KIND>_URL` (+ `_TOKEN`) | Lisans/erişim sonrası otomatik |
+| TEFAS | **API yok** (TEFAS SSS: API paylaşımı yapılmıyor; Borsa İstanbul Pazarlama ve Satış'a başvuru). Arayüzden indirilen Excel `SFRE_INBOX_DIR` içine `tefas_*.xlsx` adıyla bırakılır, otomatik alınır | Yarı otomatik |
+
+TEFAS notları: arayüz tek seferde en fazla 1 aylık aralık veriyor; hızlı art arda indirmelerde güvenlik duvarı "Request Rejected" verebilir (bypass edilmez, beklenir). Dosya içeriği hash'lenir: yeniden adlandırma/yeniden bırakma çift sayım yapmaz. İlk 4 satır "Rapor Bilgileri" bloğudur, importer otomatik atlar.
+
+API: `GET /api/sfre/sync/status`, `POST /api/sfre/sync/run` (yalnız admin). Test: `SFRE_REAL_DATA=1 npx vitest run src/sfre/tests/syncService.test.js` gerçek TEFAS dosyalarını (`~/sfre-data/raw`) bellek içi store'a yükleyip doğrular.
