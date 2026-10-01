@@ -49,6 +49,36 @@ const I = 'M936 455 H1022 V788 H936 Z';
 const SH = 'M600 128 L958 238 V626 Q958 850 600 1042 Q242 850 242 626 V238 Z';
 const SH_IN = 'M600 158 L930 258 V626 Q930 828 600 1010 Q270 828 270 626 V258 Z';
 
+// ---- thin angular "tech" lettering drawn as strokes (no font dependency, so it renders identically everywhere) ----
+const GLYPHS = {
+  A: ['M0 16 V3 L3 0 H7 L10 3 V16', 'M0 9 H10'], B: ['M0 16 V0 H7.5 L9.5 2 V6 L7.5 8 H0', 'M7.5 8 L9.5 10 V14 L7.5 16 H0'],
+  C: ['M10 3 L7 0 H3 L0 3 V13 L3 16 H7 L10 13'], D: ['M0 0 H7 L10 3 V13 L7 16 H0 Z'], E: ['M10 0 H0 V16 H10', 'M0 8 H8'],
+  F: ['M10 0 H0 V16', 'M0 8 H8'], G: ['M10 3 L7 0 H3 L0 3 V13 L3 16 H7 L10 13 V8 H5'], I: ['M0 0 V16'], L: ['M0 0 V16 H9'],
+  N: ['M0 16 V0 L10 16 V0'], O: ['M3 0 H7 L10 3 V13 L7 16 H3 L0 13 V3 Z'], T: ['M0 0 H10', 'M5 0 V16'],
+};
+const GLYPH_W = { I: 0 }; const GAP = 6.5; const SPACE = 11;
+function techText(text, { cx, cy, width, height, stroke }) {
+  const units = [...text].map((ch) => (ch === ' ' ? SPACE : (GLYPH_W[ch] ?? 10) + GAP));
+  const total = units.reduce((a, b) => a + b, 0) - GAP;
+  const sx = width / total; const sy = height / 16; let x = cx - width / 2; let d = '';
+  [...text].forEach((ch, i) => {
+    if (ch !== ' ') {
+      for (const path of GLYPHS[ch]) {
+        const t = path.match(/[MLHVZ]|-?\d+\.?\d*/g); let px = 0; let py = 0; let k = 0;
+        while (k < t.length) {
+          const c = t[k++];
+          if (c === 'Z') { d += 'Z'; continue; }
+          if (c === 'H') px = +t[k++]; else if (c === 'V') py = +t[k++]; else { px = +t[k++]; py = +t[k++]; }
+          d += `${c === 'M' ? 'M' : 'L'}${(x + px * sx).toFixed(1)} ${(cy - height / 2 + py * sy).toFixed(1)} `;
+        }
+      }
+    }
+    x += units[i] * sx;
+  });
+  return `<path d="${d}" fill="none" stroke="#f2faff" stroke-width="${stroke}" stroke-linejoin="miter" stroke-linecap="square" filter="url(#glowS)"/>`;
+}
+const BANNER_TEXT = techText('BOLD FINANCIAL INTELLIGENCE', { cx: 600, cy: 873, width: 760, height: 34, stroke: 3.4 });
+
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-label="BFI - BOLD Financial Intelligence">
 <defs>
   <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".12" stop-color="#dfeaf5"/><stop offset=".3" stop-color="#8da6bf"/><stop offset=".47" stop-color="#f7fbff"/><stop offset=".53" stop-color="#6a84a0"/><stop offset=".72" stop-color="#c7d9ea"/><stop offset=".9" stop-color="#8aa3bc"/><stop offset="1" stop-color="#5b7390"/></linearGradient>
@@ -135,7 +165,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" rol
   <path d="M138 850 L206 812 H994 L1062 850 L1012 934 H188 Z" fill="url(#banner)" stroke="#0b1f45" stroke-width="16" stroke-linejoin="round"/>
   <path d="M138 850 L206 812 H994 L1062 850 L1012 934 H188 Z" fill="none" stroke="url(#rim)" stroke-width="9" stroke-linejoin="round"/>
   <path d="M160 852 L216 824 H984 L1040 852" fill="none" stroke="#2f94ff" stroke-width="3" opacity=".95" filter="url(#glowS)"/>
-  <text x="600" y="889" text-anchor="middle" font-family="Orbitron, Rajdhani, 'Segoe UI', Arial, sans-serif" font-size="48" font-weight="700" fill="#f2faff" filter="url(#glowS)" textLength="760" lengthAdjust="spacing">BOLD FINANCIAL INTELLIGENCE</text>
+  ${BANNER_TEXT}
 </g>
 </svg>
 `;
