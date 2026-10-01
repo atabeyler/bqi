@@ -1,5 +1,10 @@
 # SFRE — Veri Talep Taslakları (gönderilmeye hazır; GÖNDERİLMEDİ)
 
+Adresler (web araması, 2026-10-01; gönderimden önce resmi sitelerden teyit edin):
+- MKK / KAP API: kapdestek@mkk.com.tr (resmi MKK PDF'inde yazıyor — doğrulandı)
+- Borsa İstanbul veri yayın/satış: vyk-marketing@borsaistanbul.com, tel 0 212 298 21 00 (arama sonucu; ayrıca borsaistanbul.com > Kurumsal > İletişim formu ve https://datastore.borsaistanbul.com/ — DataStore içeriği okunamadı)
+- TEFAS: işleten kurum Takasbank; destek adresi uga@takasbank.com.tr (arama sonucu, **teyitsiz**; ürün/teknik destek için ube@takasbank.com.tr de geçiyor)
+
 Gönderen/şirket/yetkili bilgileri `[...]` ile işaretli alanlara girilmelidir. Sözleşme imzası ve ücret onayı şirket yetkilisine aittir.
 
 ## 1) MKK — KAP Veri Yayın Servisi (kapdestek@mkk.com.tr)
@@ -16,7 +21,7 @@ Merhaba,
 6. 2025 Q4 – 2026 Eylül dönemi için geriye dönük toplu veri sağlanabilir mi?
 Saygılarımızla, [Ad Soyad / Unvan / Telefon]
 
-## 2) Borsa İstanbul — Veri Yayın Ürünleri / Veri Satışı
+## 2) Borsa İstanbul — Veri Yayın Ürünleri / Veri Satışı (vyk-marketing@borsaistanbul.com)
 
 Konu: Geçmişe Dönük Veri Satışı — Gün Sonu ve Fiili Dolaşım Verisi teklif talebi
 
@@ -28,7 +33,7 @@ Akademik/analitik risk modelleme için aşağıdaki geçmişe dönük veri setle
 Sorularımız: (a) her veri setinde "verinin kamuya açıklandığı an" zaman damgası var mı (geriye dönük test için gereklidir)? (b) lisans kapsamı: iç kullanım, model eğitimi/doğrulaması, türev rapor yayını; (c) teslimat formatı; (d) fiyat ve süre; (e) yetkili veri dağıtıcıları listesi.
 Saygılarımızla, [Ad Soyad / Unvan / Telefon]
 
-## 3) TEFAS — Tarihsel Veriler kullanım koşulları
+## 3) TEFAS (Takasbank) — Tarihsel Veriler kullanım koşulları (uga@takasbank.com.tr)
 
 Konu: TEFAS Tarihsel Veriler sayfası verilerinin otomatik/toplu kullanımına ilişkin izin
 
