@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-label="BFI - BOLD Financial Intelligence">
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".22" stop-color="#b9cde0"/>
+      <stop offset=".48" stop-color="#f4f9ff"/>
+      <stop offset=".52" stop-color="#8fa6bd"/>
+      <stop offset=".78" stop-color="#d8e6f3"/>
+      <stop offset="1" stop-color="#7089a3"/>
+    </linearGradient>
+    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b3f9a" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#041634" stop-opacity=".85"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f8ff"/>
+      <stop offset=".5" stop-color="#7f9bb7"/>
+      <stop offset="1" stop-color="#dbe9f6"/>
+    </linearGradient>
+    <linearGradient id="banner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2347"/>
+      <stop offset="1" stop-color="#030c1c"/>
+    </linearGradient>
+    <radialGradient id="ball" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#d8f3ff"/>
+      <stop offset=".35" stop-color="#2fa8ff"/>
+      <stop offset="1" stop-color="#0a3fb0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#1a7bff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#1a7bff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="bevel" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="6" flood-color="#021030" flood-opacity=".9"/>
+    </filter>
+    <clipPath id="shieldClip"><path d="M600 150 L935 252 V622 Q935 828 600 1015 Q265 828 265 622 V252 Z"/></clipPath>
+    <path id="B" fill-rule="evenodd" d="M290 470 L490 470 L535 505 L535 565 L508 595 L540 625 L540 735 L505 770 L290 770 Z M350 522 L455 522 L472 536 L472 552 L455 566 L350 566 Z M350 626 L462 626 L480 642 L480 722 L462 724 L350 724 Z"/>
+    <path id="F" d="M580 470 L775 470 L805 495 V525 H640 V593 H765 V645 H640 V770 H580 Z"/>
+    <path id="I" d="M845 470 H925 V770 H845 Z"/>
+  </defs>
+
+  <!-- ambient halo -->
+  <circle cx="600" cy="600" r="540" fill="url(#halo)"/>
+
+  <!-- compass ring with ticks -->
+  <circle cx="600" cy="600" r="545" fill="none" stroke="#2a8cff" stroke-width="3" stroke-dasharray="3 14" opacity=".8" filter="url(#glow)"/>
+  <circle cx="600" cy="600" r="520" fill="none" stroke="#1f6fe0" stroke-width="2" opacity=".6"/>
+  <g stroke="#38a6ff" stroke-width="4" filter="url(#glow)" opacity=".9">
+    <path d="M600 20 V135 M600 1065 V1180 M20 600 H135 M1065 600 H1180"/>
+  </g>
+  <g fill="url(#ball)" filter="url(#glow)">
+    <circle cx="600" cy="62" r="17"/><circle cx="600" cy="1138" r="17"/><circle cx="62" cy="600" r="17"/><circle cx="1138" cy="600" r="17"/>
+  </g>
+
+  <!-- shield -->
+  <path d="M600 150 L935 252 V622 Q935 828 600 1015 Q265 828 265 622 V252 Z" fill="url(#shieldFill)"/>
+  <g clip-path="url(#shieldClip)">
+    <!-- globe wireframe -->
+    <g fill="none" stroke="#2f9bff" stroke-width="2.5" opacity=".75">
+      <circle cx="600" cy="600" r="345"/>
+      <ellipse cx="600" cy="600" rx="345" ry="120"/>
+      <ellipse cx="600" cy="600" rx="345" ry="240"/>
+      <ellipse cx="600" cy="600" rx="120" ry="345"/>
+      <ellipse cx="600" cy="600" rx="240" ry="345"/>
+      <path d="M255 600 H945 M600 255 V945"/>
+    </g>
+    <g fill="#3db4ff" opacity=".55">
+      <circle cx="430" cy="690" r="5"/><circle cx="470" cy="720" r="5"/><circle cx="510" cy="700" r="5"/><circle cx="690" cy="690" r="5"/><circle cx="730" cy="710" r="5"/><circle cx="770" cy="680" r="5"/><circle cx="560" cy="820" r="5"/><circle cx="640" cy="840" r="5"/><circle cx="600" cy="880" r="5"/>
+    </g>
+    <!-- market price line -->
+    <polyline points="330,440 410,390 470,420 550,330 625,372 705,285 790,328 880,248" fill="none" stroke="#7fd4ff" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)"/>
+    <polyline points="330,440 410,390 470,420 550,330 625,372 705,285 790,328 880,248" fill="none" stroke="#e6f7ff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <g fill="url(#ball)" stroke="#d8f3ff" stroke-width="2" filter="url(#glow)">
+      <circle cx="330" cy="440" r="11"/><circle cx="470" cy="420" r="11"/><circle cx="550" cy="330" r="13"/><circle cx="705" cy="285" r="13"/><circle cx="790" cy="328" r="11"/><circle cx="880" cy="248" r="14"/>
+    </g>
+    <!-- risk contagion links -->
+    <g stroke="#3db4ff" stroke-width="2.5" opacity=".6" fill="none">
+      <path d="M550 330 L600 600 M705 285 L600 600 M470 420 L600 600 M790 328 L600 600"/>
+    </g>
+  </g>
+  <!-- shield rim -->
+  <path d="M600 150 L935 252 V622 Q935 828 600 1015 Q265 828 265 622 V252 Z" fill="none" stroke="#1d7bff" stroke-width="16" opacity=".55" filter="url(#glow)"/>
+  <path d="M600 150 L935 252 V622 Q935 828 600 1015 Q265 828 265 622 V252 Z" fill="none" stroke="url(#rim)" stroke-width="9"/>
+  <path d="M600 172 L915 267 V622 Q915 812 600 988 Q285 812 285 622 V267 Z" fill="none" stroke="#2a8cff" stroke-width="3" opacity=".9"/>
+  <circle cx="600" cy="150" r="18" fill="url(#ball)" stroke="#d8f3ff" stroke-width="2" filter="url(#glow)"/>
+
+  <!-- orbit -->
+  <g transform="rotate(-24 600 620)">
+    <ellipse cx="600" cy="620" rx="565" ry="205" fill="none" stroke="#1f7bff" stroke-width="16" opacity=".5" filter="url(#glow)"/>
+    <ellipse cx="600" cy="620" rx="565" ry="205" fill="none" stroke="#7fd4ff" stroke-width="5"/>
+    <circle cx="1165" cy="620" r="24" fill="url(#ball)" stroke="#d8f3ff" stroke-width="2" filter="url(#glow)"/>
+  </g>
+
+  <!-- BFI letters: glow, extrusion, chrome face, highlight -->
+  <g filter="url(#soft)" opacity=".9" fill="#1a7bff"><use href="#B"/><use href="#F"/><use href="#I"/></g>
+  <g filter="url(#bevel)" fill="#06214f" stroke="#06214f" stroke-width="26" stroke-linejoin="round" transform="translate(0 8)"><use href="#B"/><use href="#F"/><use href="#I"/></g>
+  <g fill="none" stroke="#3aa0ff" stroke-width="14" stroke-linejoin="round" filter="url(#glow)"><use href="#B"/><use href="#F"/><use href="#I"/></g>
+  <g fill="url(#chrome)" stroke="#0a2a5e" stroke-width="3" stroke-linejoin="round"><use href="#B"/><use href="#F"/><use href="#I"/></g>
+  <g fill="none" stroke="#ffffff" stroke-width="2" opacity=".85" stroke-linejoin="round" transform="translate(-2 -2)"><use href="#B"/><use href="#F"/><use href="#I"/></g>
+
+  <!-- banner -->
+  <g filter="url(#bevel)">
+    <path d="M205 830 L255 800 H945 L995 830 L955 902 H245 Z" fill="url(#banner)" stroke="url(#rim)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M222 832 L262 810 H938 L978 832" fill="none" stroke="#2a8cff" stroke-width="2.5" opacity=".9"/>
+    <text x="600" y="864" text-anchor="middle" font-family="Orbitron, Rajdhani, 'Segoe UI', Arial, sans-serif" font-size="43" font-weight="700" letter-spacing="7" fill="#eaf6ff" textLength="640" lengthAdjust="spacingAndGlyphs">BOLD FINANCIAL INTELLIGENCE</text>
+  </g>
+</svg>

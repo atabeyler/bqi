@@ -37,7 +37,7 @@ export const CATEGORIES = [
     status: { tr: 'BCI', en: 'BCI', de: 'BCI', fr: 'BCI', ar: 'BCI' },
     desc: { tr: 'Siber risk skoru, tarama bulguları ve saldırı yüzeyi', en: 'Cyber risk score, scan findings and attack surface', de: 'Cyberrisikobewertung, Scan-Ergebnisse und Angriffsfläche', fr: 'Score de risque cyber, résultats d\'analyse et surface d\'attaque', ar: 'درجة المخاطر السيبرانية ونتائج الفحص وسطح الهجوم' } },
   { id: 'sfre',       nameKey: 'cat_sfre',       icon: Network,       color: '#5eead4', tone: 'bg-teal-600/15 border-teal-400/35',
-    status: { tr: 'SFRE', en: 'SFRE', de: 'SFRE', fr: 'SFRE', ar: 'SFRE' },
+    status: { tr: 'BFI', en: 'BFI', de: 'BFI', fr: 'BFI', ar: 'BFI' },
     desc: { tr: 'Sistemik fon riski, bulaşma ve piyasa bütünlüğü ölçümleri', en: 'Systemic fund risk, contagion and market-integrity measurements', de: 'Systemisches Fondsrisiko, Ansteckung und Marktintegrität', fr: 'Risque systémique des fonds, contagion et intégrité du marché', ar: 'المخاطر النظامية للصناديق والعدوى وسلامة السوق' } }
 ];
 
