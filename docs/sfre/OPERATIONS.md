@@ -60,3 +60,10 @@ Tek yerden tüm kurum kaynakları: `server/src/sfre/ingest/syncService.js`. Heps
 TEFAS notları: arayüz tek seferde en fazla 1 aylık aralık veriyor; hızlı art arda indirmelerde güvenlik duvarı "Request Rejected" verebilir (bypass edilmez, beklenir). Dosya içeriği hash'lenir: yeniden adlandırma/yeniden bırakma çift sayım yapmaz. İlk 4 satır "Rapor Bilgileri" bloğudur, importer otomatik atlar.
 
 API: `GET /api/sfre/sync/status`, `POST /api/sfre/sync/run` (yalnız admin). Test: `SFRE_REAL_DATA=1 npx vitest run src/sfre/tests/syncService.test.js` gerçek TEFAS dosyalarını (`~/sfre-data/raw`) bellek içi store'a yükleyip doğrular.
+
+### Kurum erişim durumu (1 Ekim 2026'da arayüzden doğrulandı)
+
+- **TEFAS:** API paylaşılmıyor (resmi SSS). Arayüz tek seferde en fazla 1 ay veriyor; art arda indirmelerde güvenlik duvarı kısa süreli "Request Rejected" veriyor, bekleyince açılıyor. Excel üretimi tarayıcıda yapıldığı için indirme 20-60 sn sürer.
+- **MKK API Portal (apiportal.mkk.com.tr):** KAP için "KAP Data Dissemination Services" (REST) ürünü var. Adımlar: portalda hesap aç (Sign in / Register) -> hesap onayı -> uygulama oluştur (API key üretir) -> ürüne kaydol -> gerekirse token üret. Test ağ geçidi \`https://apigwdev.mkk.com.tr/\`, istekte \`Authorization\` başlığı gerekir. Bu değerler \`SFRE_KAP_BASE_URL\` / \`SFRE_KAP_API_KEY\` olarak girilir; ilk çağrıda \`kap-probe\` ile alan adları doğrulanmalı. Hesap açma ve onay kullanıcıya aittir.
+- **Borsa İstanbul DataStore:** Pay Piyasası, Endeks, Borçlanma, VİOP, Halka Arz, Kıymetli Maden kategorileri var; ürün/abonelik ve fiyat listesi giriş yapmadan görünmüyor ("abonelik mevcut değil"). Fiyat ve satın alma adımları için hesapla giriş gerekir; satın alma kullanıcıya aittir. Alınan veri \`SFRE_FEED_BIST_EOD_URL\` beslemesiyle ya da \`bist-eod_*.csv\` olarak inbox'a bırakılarak içeri alınır.
+- **Doğrulama:** \`PGlite\` (bellek içi PostgreSQL) üzerinde gerçek \`PgStore\` + senkron servisiyle bir aylık gerçek TEFAS dosyası (213.836 gözlem) yüklendi; yeniden yükleme 0 yeni kayıt, PIT filtresi gelecekteki gözlemleri gizledi.
