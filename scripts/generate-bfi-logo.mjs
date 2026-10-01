@@ -2,11 +2,11 @@
 // Generates client/public/bfi-logo.svg (BOLD Financial Intelligence mark) in the visual language of the BCI/BQI logos:
 // beveled chrome letters, neon-blue shield, dot-matrix world globe with a glowing node network, segmented compass rings,
 // orbit tube and a banner. Run: node scripts/generate-bfi-logo.mjs
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client', 'public', 'bfi-logo.svg');
+const OUT = process.env.BFI_OUT || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client', 'public', 'bfi-logo.svg');
 const CX = 600; const CY = 590;
 
 // ---- dot-matrix continents (coarse polygons in a 0..100 box mapped onto the globe) ----
@@ -77,7 +77,11 @@ function techText(text, { cx, cy, width, height, stroke }) {
   });
   return `<path d="${d}" fill="none" stroke="#f2faff" stroke-width="${stroke}" stroke-linejoin="miter" stroke-linecap="square" filter="url(#glowS)"/>`;
 }
-const BANNER_TEXT = techText('BOLD FINANCIAL INTELLIGENCE', { cx: 600, cy: 873, width: 760, height: 34, stroke: 3.4 });
+// Optional: pre-converted outline of a real typeface (path data file, banner coordinates). Falls back to the stroke lettering.
+const BANNER_PATH_FILE = process.env.BFI_BANNER_PATH || path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'bfi-banner.path');
+const BANNER_TEXT = existsSync(BANNER_PATH_FILE)
+  ? `<path d="${readFileSync(BANNER_PATH_FILE, 'utf8').trim()}" fill="#f2faff" filter="url(#glowS)"/>`
+  : techText('BOLD FINANCIAL INTELLIGENCE', { cx: 600, cy: 873, width: 760, height: 34, stroke: 3.4 });
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-label="BFI - BOLD Financial Intelligence">
 <defs>
