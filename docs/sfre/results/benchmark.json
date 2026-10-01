@@ -1,0 +1,110 @@
+{
+  "machine": {
+    "node": "v22.22.0",
+    "cpus": 4,
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "platform": "linux-x64"
+  },
+  "note": "single-threaded, synchronous JS on the API thread; wall-clock",
+  "rows": [
+    {
+      "name": "cascade",
+      "params": {
+        "funds": 50,
+        "assets": 100
+      },
+      "medianMs": 124.5,
+      "minMs": 101.9,
+      "maxMs": 145.8,
+      "rounds": 39,
+      "reconciled": true
+    },
+    {
+      "name": "cascade",
+      "params": {
+        "funds": 200,
+        "assets": 300
+      },
+      "medianMs": 275.7,
+      "minMs": 221.2,
+      "maxMs": 286.1,
+      "rounds": 12,
+      "reconciled": true
+    },
+    {
+      "name": "cascade",
+      "params": {
+        "funds": 1000,
+        "assets": 1000
+      },
+      "medianMs": 1406.6,
+      "minMs": 1406.6,
+      "maxMs": 1406.6,
+      "rounds": 5,
+      "reconciled": true
+    },
+    {
+      "name": "tailRisk",
+      "params": {
+        "scenarios": 10000,
+        "assets": 50,
+        "funds": 20,
+        "methods": 2
+      },
+      "medianMs": 709.2,
+      "minMs": 709.2,
+      "maxMs": 709.2
+    },
+    {
+      "name": "tailRisk",
+      "params": {
+        "scenarios": 100000,
+        "assets": 50,
+        "funds": 20,
+        "methods": 2
+      },
+      "medianMs": 11358.3,
+      "minMs": 11358.3,
+      "maxMs": 11358.3
+    },
+    {
+      "name": "anomalyEnsemble(6 detectors)",
+      "params": {
+        "reference": 500,
+        "evaluation": 5
+      },
+      "medianMs": 74,
+      "minMs": 71.4,
+      "maxMs": 100.9
+    },
+    {
+      "name": "reverseStress (default budget 12 starts+40 local, 28 bisect)",
+      "params": {
+        "funds": 20,
+        "assets": 20
+      },
+      "medianMs": 1320.9,
+      "minMs": 1320.9,
+      "maxMs": 1320.9,
+      "evaluations": 1508
+    },
+    {
+      "name": "syntheticWorld generation (hash-verified PIT ingestion)",
+      "params": {
+        "observations": 134290
+      },
+      "medianMs": 3717,
+      "minMs": 3717,
+      "maxMs": 3717
+    },
+    {
+      "name": "PitStore.asOf",
+      "params": {
+        "observations": 134290
+      },
+      "medianMs": 286.947056,
+      "minMs": 0,
+      "maxMs": 0
+    }
+  ]
+}

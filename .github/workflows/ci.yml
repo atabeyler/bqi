@@ -45,7 +45,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - name: Validate quantum script syntax
-        run: python3 -m py_compile quantum/scenario_quantum.py quantum/fraud_detection.py quantum/fraud_detection_13q.py quantum/portfolio_optimizer.py quantum/_ibm_backend.py quantum/_reproducibility.py
+        run: python3 -m py_compile sfre/crosscheck/reference.py quantum/scenario_quantum.py quantum/fraud_detection.py quantum/fraud_detection_13q.py quantum/portfolio_optimizer.py quantum/_ibm_backend.py quantum/_reproducibility.py
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -55,6 +55,16 @@ jobs:
         run: pip install -r quantum/requirements.txt
       - name: Quantum worker smoke test
         run: python3 quantum/smoke_test.py
+      # SFRE (docs/sfre): unit/property/regression/cross-check tests already run inside `npm test` above
+      # (the stdlib-only Python reference in sfre/crosscheck is exercised by src/sfre/tests/crosscheck.test.js).
+      # This step additionally re-runs the SYNTHETIC validation harness + benchmark and keeps the JSON as an artifact.
+      # It is a machinery check, not evidence of real-world predictive power.
+      - name: SFRE synthetic validation + benchmark
+        run: node scripts/sfre-validate.js 2 && node scripts/sfre-benchmark.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sfre-results
+          path: docs/sfre/results/
 
   client:
     runs-on: ubuntu-latest

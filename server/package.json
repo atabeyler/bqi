@@ -14,7 +14,9 @@
     "loadtest": "node scripts/load-test.js",
     "fetch:elliptic": "node scripts/fetch-elliptic-data.js",
     "benchmark:elliptic": "node scripts/run-elliptic-benchmark.js",
-    "benchmark:bddk": "node scripts/run-bddk-benchmark.js"
+    "benchmark:bddk": "node scripts/run-bddk-benchmark.js",
+    "sfre:validate": "node scripts/sfre-validate.js",
+    "sfre:benchmark": "node scripts/sfre-benchmark.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.16",

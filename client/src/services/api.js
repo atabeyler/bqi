@@ -453,6 +453,14 @@ export const cyberAnalysisApi = {
   deleteControlledProof: (id) => bciProxy(`/controlled-proof/${id}`, { method: 'DELETE' }),
 };
 
+// SFRE (docs/sfre): analytical risk measurement under stated uncertainty; never investment advice.
+export const sfreApi = {
+  models: () => req('/api/sfre/models'),
+  run: (body) => req('/api/sfre/runs', { method: 'POST', body: JSON.stringify(body), timeoutMs: 120000 }),
+  getRun: (id) => req(`/api/sfre/runs/${encodeURIComponent(id)}`),
+  explain: (claimId) => req(`/api/sfre/claims/${encodeURIComponent(claimId)}/explain`),
+};
+
 export const adminApi = {
   listUsers: () => req('/api/auth/admin/users'),
   addUser: (userCode, password, nickname, isAdmin = false, email = '') =>

@@ -32,6 +32,7 @@ import wellKnownRoutes from './routes/wellKnown.js';
 import versionRoutes from './routes/version.js';
 import healthRoutes from './routes/health.js';
 import cyberAnalysisRoutes from './routes/cyberAnalysis.js';
+import sfreRoutes from './routes/sfre.js';
 import { startMorningBriefScheduler } from './services/morningBrief.js';
 
 // .env is loaded by instrument.js, preloaded via node/tsx's --import flag
@@ -179,6 +180,7 @@ app.use('/api/webauthn', webauthnRoutes);
 app.use('/api/version', versionRoutes);
 // Proxies to the separately deployed BCI service -- see routes/cyberAnalysis.js
 // and services/bciClient.js. Never reads BCI's database directly.
+app.use('/api/sfre', sfreRoutes);
 app.use('/api/cyber-analysis', cyberAnalysisRoutes);
 app.use('/api/v1/cyber-analysis', cyberAnalysisRoutes);
 // Not under /api -- Android's Credential Manager fetches this exact path
