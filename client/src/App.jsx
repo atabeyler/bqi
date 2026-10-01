@@ -34,6 +34,7 @@ function LoadingFallback() {
 const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const ButtonShowcasePage = lazy(() => import('./pages/ButtonShowcasePage.jsx'));
 const CyberAnalysisPage = lazy(() => import('./pages/CyberAnalysisPage.jsx'));
+const SfrePage = lazy(() => import('./pages/SfrePage.jsx'));
 
 export default function App() {
   // undefined = still resolving who's logged in (web asks the server, since
@@ -158,6 +159,10 @@ export default function App() {
             element={
               user && (user.isAdmin || user.role === 'analyst') ? <CyberAnalysisPage user={user} /> : <Navigate to={user ? '/' : '/login'} />
             }
+          />
+          <Route
+            path="/sfre"
+            element={user && (user.isAdmin || user.role === 'analyst') ? <SfrePage user={user} /> : <Navigate to={user ? '/' : '/login'} />}
           />
           <Route path="/*" element={user ? <DashboardPage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} />
         </Routes>

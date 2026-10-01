@@ -1,0 +1,49 @@
+{
+  "id": "TR-FUND-2026-001",
+  "title": "Türkiye 2026 fon vakası (portföy yönetim şirketleri fonları / düşük fiili dolaşımlı hisseler)",
+  "spec_version": "1.0.0",
+  "blind": true,
+  "data_kind_required": "REAL",
+  "status": "SPECIFICATION_ONLY_NO_REAL_DATA_LOADED",
+  "event_facts": {
+    "provenance": "SECONDARY_PRESS_REPORTS_NOT_VERIFIED_AGAINST_SPK_PRIMARY_DOCUMENTS",
+    "retrieved": "2026-10-01",
+    "sources": [
+      "https://tr.euronews.com/2026/09/17/turk-piyasalarinda-fon-skandali-tam-olarak-ne-oldu-ve-sirketler-neyle-suclaniyor",
+      "https://medyascope.tv/2026/09/22/fon-krizi-nasil-basladi-nasil-oldu-ne-yapilabilirdi/"
+    ],
+    "reported_trigger_regulatory": { "date": "2026-08-28", "what": "reported SPK rule limiting the sum of large (>5%) positions in funds" },
+    "reported_event": { "date": "2026-09-17", "what": "reported SPK decision to liquidate 131 funds of seven portfolio management companies" },
+    "note": "Dates are as REPORTED by the press; the exact timestamps, entities and the observable precursor series must be taken from SPK/TEFAS/KAP primary data before any replay. Nothing about the outcome is used as a model input."
+  },
+  "event_time": null,
+  "event_time_candidate_for_window_definition": "2026-09-17T00:00:00Z",
+  "event_time_status": "NOT_CONFIRMED_FROM_PRIMARY_SOURCE",
+  "evaluation": {
+    "pre_event_horizon_days": 120,
+    "evaluation_grid": "weekly",
+    "gap_days": 1,
+    "false_alarm_budget_per_entity": 0.05,
+    "healthy_controls": { "rule": "all funds of the same category/period not named in the SPK decision, at least 100", "min_count": 100 },
+    "required_precursors": [
+      { "field": "fund_holdings", "entity_prefix": "FUND:", "min_observations": 4, "lookback_days": 365 },
+      { "field": "free_float_shares", "entity_prefix": "BIST:", "min_observations": 4, "lookback_days": 365 },
+      { "field": "adv_shares", "entity_prefix": "BIST:", "min_observations": 60, "lookback_days": 180 }
+    ],
+    "min_required_coverage": 0.8
+  },
+  "unobservable_pre_event": [
+    "the regulatory rule change itself (exogenous): SFRE can only measure fragility (concentration, free-float exposure, illiquidity, overlap), not forecast regulation",
+    "fund leverage / derivative / repo exposure (not public)",
+    "counterparty exposures"
+  ],
+  "forbidden_in_model_inputs": ["post_event_prices", "post_event_news", "liquidation_list", "learned_threshold", "trained_on_event"],
+  "scoring": {
+    "RELEASE_FAILURE": "coverage >= min_required_coverage AND no alarm on any event entity before event_time",
+    "FALSE_ALARM_BUDGET_EXCEEDED": "alarm on event entity but healthy-control false-alarm rate exceeds the budget",
+    "BLOCKED_NO_DATA": "required precursor coverage below minimum or event facts not confirmed (NOT a pass)",
+    "PASSED": "only on REAL data: caught before event_time AND within false-alarm budget"
+  },
+  "event_entities": [],
+  "event_entities_status": "UNOBSERVED: entity list must be supplied from SPK primary publication"
+}

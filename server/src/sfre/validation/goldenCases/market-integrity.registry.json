@@ -1,0 +1,15 @@
+{
+  "registry_version": "1.0.0",
+  "status": "EMPTY_NO_VERIFIED_POINT_IN_TIME_CASES",
+  "case_schema": {
+    "case_id": "MI-<country>-<year>-<seq>",
+    "spk_reference": "SPK bulletin number / decision date (primary source required)",
+    "entity": "BIST:<ticker>",
+    "event_window": { "start": "ISO-8601 UTC", "end": "ISO-8601 UTC" },
+    "verified_by": "SPK | court | other primary source",
+    "negative_controls": "matched healthy entities, same sector and period, >= 20 per case",
+    "data_kind": "REAL"
+  },
+  "cases": [],
+  "note": "The harness refuses to report market-integrity results on an empty registry. Cases must be reconstructed with point-in-time price/volume/free-float data (licence required)."
+}

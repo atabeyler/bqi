@@ -142,7 +142,7 @@ export default function AnalysisWizard({
                         <FieldLabel>{t('wizCategory')}</FieldLabel>
                         <select value={category} onChange={(e) => setCategory(e.target.value)}
                           className="w-full bg-black/25 border border-cyan-400/20 rounded px-2.5 py-2 text-[14px] text-cyan-100 focus:border-cyan-300 focus:outline-none">
-                          {CATEGORIES.filter((c) => c.id !== 'danisma' && c.id !== 'siber').map((c) => <option key={c.id} value={c.id}>{catLabel(c)}</option>)}
+                          {CATEGORIES.filter((c) => c.id !== 'danisma' && c.id !== 'siber' && c.id !== 'sfre').map((c) => <option key={c.id} value={c.id}>{catLabel(c)}</option>)}
                         </select>
                       </div>
                       <div>

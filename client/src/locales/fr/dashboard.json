@@ -132,5 +132,7 @@
   "cat_bddk": "Supervision BDDK",
   "cat_btk": "Supervision BTK",
   "cat_siber": "Renseignement Cyber",
-  "newAnalysisShort": "ANALYSE"
+  "newAnalysisShort": "ANALYSE",
+  "cat_sfre": "SFRE Risque systémique",
+  "cat_sfre_desc": "Risque systémique des fonds, contagion et intégrité du marché"
 }

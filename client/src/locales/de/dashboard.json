@@ -132,5 +132,7 @@
   "cat_bddk": "BDDK-Aufsicht",
   "cat_btk": "BTK-Aufsicht",
   "cat_siber": "Cyber-Aufklärung",
-  "newAnalysisShort": "ANALYSE"
+  "newAnalysisShort": "ANALYSE",
+  "cat_sfre": "SFRE Systemrisiko",
+  "cat_sfre_desc": "Systemisches Fondsrisiko, Ansteckung und Marktintegrität"
 }
