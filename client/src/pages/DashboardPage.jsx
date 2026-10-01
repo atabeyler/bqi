@@ -501,6 +501,10 @@ export default function DashboardPage({ user, onLogout }) {
           navigate('/cyber-analysis');
           return;
         }
+        if (e?.detail?.category === 'sfre') {
+          navigate('/sfre');
+          return;
+        }
         setActiveCategory(e?.detail?.category || null);
         setView('analysis');
       } else if (view === 'home') {
@@ -537,6 +541,7 @@ export default function DashboardPage({ user, onLogout }) {
   // BQI the whole time, using the same BQI session (SSO).
   const startAnalysis = (cat) => {
     if (cat === 'siber') { navigate('/cyber-analysis'); return; }
+    if (cat === 'sfre') { navigate('/sfre'); return; } // full-width console, like cyber
     setActiveCategory(cat);
     setView('analysis');
   };

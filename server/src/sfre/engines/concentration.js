@@ -9,7 +9,7 @@ const TOL = 1e-9;
  * Unobserved weights are NOT zero: the observed mass s<1 leaves remainder rho; HHI is bounded
  * HHI in [sum w^2, sum w^2 + rho^2].
  */
-export function hhi(weights) {
+export function hhi(weights, { entity = null } = {}) {
   const obs = weights.filter((x) => x.w !== null && x.w !== undefined);
   const unobserved = weights.filter((x) => x.w === null || x.w === undefined).map((x) => `weight:${x.id}`);
   if (obs.some((x) => !(Number.isFinite(x.w)) || x.w < 0)) return failed(ENGINE, 'M02.hhi', 'weights must be finite and non-negative');
@@ -26,7 +26,7 @@ export function hhi(weights) {
   return makeResult({
     engine: ENGINE, modelId: 'M02.hhi', status: full ? STATUS.MEASURED : STATUS.INSUFFICIENT_OBSERVABILITY,
     value, coverage: coverageOf(Math.min(1, s) , 1), unobserved, calibration: CALIBRATION.UNCALIBRATED,
-    parameters: {}, notes: full ? [] : ['observed holdings do not cover the whole portfolio: HHI reported as an interval, not a point'],
+    parameters: entity ? { entity } : {}, notes: full ? [] : ['observed holdings do not cover the whole portfolio: HHI reported as an interval, not a point'],
   });
 }
 

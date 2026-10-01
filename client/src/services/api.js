@@ -461,6 +461,18 @@ export const sfreApi = {
   run: (body) => req('/api/sfre/runs', { method: 'POST', body: JSON.stringify(body), timeoutMs: 120000 }),
   getRun: (id) => req(`/api/sfre/runs/${encodeURIComponent(id)}`),
   explain: (claimId) => req(`/api/sfre/claims/${encodeURIComponent(claimId)}/explain`),
+  universe: (asOf) => req(`/api/sfre/data/universe?asOf=${encodeURIComponent(asOf)}`),
+  ingests: () => req('/api/sfre/data/ingests'),
+  runFromData: (body) => req('/api/sfre/runs/from-data', { method: 'POST', body: JSON.stringify(body), timeoutMs: 120000 }),
+  upload: async (kind, file, lagDays) => {
+    const jwt = getJWT();
+    const formData = new FormData();
+    formData.append('file', file);
+    if (lagDays !== '' && lagDays !== null && lagDays !== undefined) formData.append('lagDays', String(lagDays));
+    const res = await fetch(`${baseFor()}/api/sfre/ingest/${encodeURIComponent(kind)}`, { method: 'POST', headers: jwt ? { Authorization: `Bearer ${jwt}` } : {}, credentials: 'include', body: formData });
+    if (!res.ok) { const e = await res.json().catch(() => ({ error: res.statusText })); throw new Error(e.error || 'upload failed'); }
+    return res.json();
+  },
 };
 
 export const adminApi = {

@@ -132,5 +132,7 @@
   "cat_bddk": "BDDK Denetim",
   "cat_btk": "BTK Denetim",
   "cat_siber": "Siber İstihbarat",
-  "newAnalysisShort": "ANALİZ"
+  "newAnalysisShort": "ANALİZ",
+  "cat_sfre": "SFRE Sistemik Risk",
+  "cat_sfre_desc": "Sistemik fon riski, bulaşma ve piyasa bütünlüğü ölçümleri"
 }

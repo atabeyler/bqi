@@ -36,10 +36,11 @@ export class PgStore {
   }
 
   /** Loads observations available at or before `asOfMax` into an in-memory PitStore (the firewall then applies per view). */
-  async loadPitStore({ asOfMax, entityPrefix = null } = {}) {
-    const r = await this.query(
-      `SELECT hash,id,entity,field,value,unit,event_time,published_time,available_time,ingested_time,source,revision,quality_flags FROM sfre_observations WHERE available_time <= $1 ${entityPrefix ? 'AND entity LIKE $2' : ''} ORDER BY available_time`,
-      entityPrefix ? [asOfMax, `${entityPrefix}%`] : [asOfMax]);
+  async loadPitStore({ asOfMax, entityPrefix = null, sinceEventTime = null } = {}) {
+    const params = [asOfMax]; let where = 'available_time <= $1';
+    if (entityPrefix) { params.push(`${entityPrefix}%`); where += ` AND entity LIKE $${params.length}`; }
+    if (sinceEventTime) { params.push(sinceEventTime); where += ` AND event_time >= $${params.length}`; }
+    const r = await this.query(`SELECT hash,id,entity,field,value,unit,event_time,published_time,available_time,ingested_time,source,revision,quality_flags FROM sfre_observations WHERE ${where} ORDER BY available_time`, params);
     const store = new PitStore();
     const iso = (d) => new Date(d).toISOString().replace(/\.\d{3}Z$/, 'Z');
     for (const x of r.rows) store.add({ hash: x.hash, id: x.id, entity: x.entity, field: x.field, value: x.value, unit: x.unit, event_time: iso(x.event_time), published_time: iso(x.published_time), available_time: iso(x.available_time), ingested_time: iso(x.ingested_time), source: x.source, revision: x.revision, quality_flags: x.quality_flags });

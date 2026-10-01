@@ -11,7 +11,11 @@ Uygulama kodu hazır: PostgreSQL kalıcılığı (gerçek PG 16'da test edildi),
 | `SFRE_KAP_AUTH_HEADER`, `SFRE_KAP_AUTH_SCHEME` | hayır | Varsayılan `Authorization: Bearer <key>`. Ham anahtar başlığı için şema boş bırakılır. |
 | `SFRE_OFFICIAL_*_FEED_URL/TOKEN` | hayır | SPK/BIST/IR/haber için lisanslı JSON gateway (şema `.env.example`'da). |
 
-## 2. Veri yükleme (CLI, `server/`)
+## 2. Veri yükleme
+Arayüzden: `/sfre` → **Veri** sekmesi (yalnızca admin; .xlsx/.xls/.csv, 25 MB, içerik-uzantı doğrulaması). Aynı işlemi API ile: `POST /api/sfre/ingest/{tefas|bist-eod|free-float|holdings}` (multipart `file`, opsiyonel `lagDays`). Senaryo sekmesi yüklenmiş veriyle çalışır: `POST /api/sfre/runs/from-data` (`asOf`, `seed`, `engines`, `scenario`); veri eksik olan fonlar atlanır ve nedeniyle listelenir (eksik bilanço kalemi asla sıfır sayılmaz).
+
+### CLI
+
 ```
 npm run sfre:ingest -- tefas   TarihselVeriler.xlsx            # fon NAV, pay, kişi, AUM, varlık dağılımı -> haftalık net akış
 npm run sfre:ingest -- bist-eod  gunsonu.csv                    # BIST günlük OHLCV (DataStore/dağıtıcı)

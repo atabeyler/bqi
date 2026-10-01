@@ -12,7 +12,21 @@ import { MemoryStore } from '../sfre/storage/store.js';
 import { PgStore } from '../sfre/storage/pgStore.js';
 import { defaultProviders } from '../sfre/research/providers.js';
 import { ResearchRegistry } from '../sfre/research/registry.js';
-import { analysisLimiter } from '../middleware/rateLimit.js';
+import { analysisLimiter, uploadLimiter } from '../middleware/rateLimit.js';
+import multer from 'multer';
+import { createHash } from 'node:crypto';
+import { matchesDeclaredFileType } from '../lib/fileSignature.js';
+import { importTefas } from '../sfre/ingest/tefas.js';
+import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
+import { importHoldings } from '../sfre/ingest/holdings.js';
+import { systemFromView } from '../sfre/validation/fragilityAlarm.js';
+
+export const INGEST_KINDS = Object.freeze({
+  tefas: (buf, o) => importTefas(buf, o), 'bist-eod': (buf) => importBistEod(buf), 'free-float': (buf, o) => importFreeFloat(buf, o), holdings: (buf, o) => importHoldings(buf, o),
+});
+const FROM_DATA_ENGINES = ['cascade', 'concentration', 'overlap', 'counterfactual'];
+const DAY_MS = 86400000;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
 /**
  * /api/sfre -- Systemic Financial Risk & Market Integrity Engine.
@@ -20,6 +34,12 @@ import { analysisLimiter } from '../middleware/rateLimit.js';
  * Persistence: PostgreSQL when `pg` is supplied (production: DATABASE_URL), otherwise process memory (dev/tests).
  * Heavy computation runs in a worker thread with timeout + concurrency cap.
  */
+function parseAsOf(v) {
+  if (typeof v !== 'string') return null;
+  const s = /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T23:59:59Z` : v; // a bare date means "end of that UTC day"
+  const t = Date.parse(s); return Number.isNaN(t) || !/Z$/.test(s) ? null : new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 export function createSfreRouter({ store = null, pg = null, ledger = null, registry = null, explainLlm = null, research = null, runner = runInWorker } = {}) {
   const router = express.Router();
   const mem = store || new MemoryStore();
@@ -107,6 +127,71 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     const ex = owner && canRead(req, owner.created_by) ? state.ledger.explain(req.params.claimId) : null;
     if (!ex) return res.status(404).json({ error: 'claim not found' });
     res.json(ex); // evidence graph, not LLM text
+  });
+
+  // ---- data: universe, ingestion, runs on ingested data -------------------------------------------------
+  router.get('/data/universe', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db) return res.json({ storage: 'memory', funds: [], assets: [] });
+    const asOf = parseAsOf(req.query.asOf); if (!asOf) return res.status(400).json({ error: 'asOf must be an ISO-8601 UTC time or date' });
+    const f = await pg("SELECT DISTINCT entity FROM sfre_observations WHERE field='holdings' AND available_time <= $1 ORDER BY entity LIMIT 2000", [asOf]);
+    const a = await pg("SELECT DISTINCT entity FROM sfre_observations WHERE field='close' AND available_time <= $1 ORDER BY entity LIMIT 5000", [asOf]);
+    res.json({ storage: 'postgres', asOf, funds: f.rows.map((r) => r.entity), assets: a.rows.map((r) => r.entity) });
+  });
+
+  router.post('/ingest/:kind', uploadLimiter, requireRole(ROLES.ADMIN), (req, res, next) => upload.single('file')(req, res, (e) => (e ? res.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'file too large (25 MB max)' : 'upload failed' }) : next())), async (req, res) => {
+    const importer = INGEST_KINDS[req.params.kind];
+    if (!importer) return res.status(404).json({ error: `unknown kind; use ${Object.keys(INGEST_KINDS).join(', ')}` });
+    if (!db) return res.status(409).json({ error: 'a database (DATABASE_URL) is required to store ingested data' });
+    const f = req.file; if (!f) return res.status(400).json({ error: 'file required' });
+    const name = String(f.originalname || '').toLowerCase();
+    const ok = /\.xlsx$/.test(name) ? matchesDeclaredFileType(f.buffer, 'office') : /\.xls$/.test(name) ? matchesDeclaredFileType(f.buffer, 'legacyOffice') : /\.csv$/.test(name) ? matchesDeclaredFileType(f.buffer, 'text') : false;
+    if (!ok) return res.status(400).json({ error: 'only .xlsx, .xls or .csv files whose content matches the extension are accepted' });
+    const lag = req.body?.lagDays !== undefined && req.body.lagDays !== '' ? Number(req.body.lagDays) : undefined;
+    if (lag !== undefined && !(Number.isFinite(lag) && lag >= 0 && lag <= 90)) return res.status(400).json({ error: 'lagDays must be between 0 and 90' });
+    try {
+      const out = importer(f.buffer, { lagDays: lag });
+      const saved = await db.addObservations(out.observations);
+      const record = { id: `ingest_${createHash('sha256').update(f.buffer).digest('hex').slice(0, 20)}_${Date.now()}`, kind: req.params.kind, filename: String(f.originalname).slice(0, 200), bytes: f.size, lagDays: lag ?? null, report: out.report, skipped: out.skipped, inserted: saved.inserted, duplicates: saved.duplicates, rejected: saved.rejected.length, created_by: req.user.userCode };
+      await db.append('ingests', record);
+      res.status(201).json(record);
+    } catch (e) {
+      logger.error({ err: e }, '[SFRE] ingest failed');
+      res.status(422).json({ error: 'file could not be parsed' }); // no parser internals leaked
+    }
+  });
+
+  router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => res.json({ ingests: db ? await db.list('ingests', 50) : [] }));
+
+  router.post('/runs/from-data', analysisLimiter, requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db) return res.status(409).json({ error: 'a database with ingested data is required' });
+    try {
+      const b = req.body || {}; const asOf = parseAsOf(b.asOf); if (!asOf) return res.status(400).json({ error: 'asOf must be an ISO-8601 UTC time or date' });
+      const engines = Array.isArray(b.engines) && b.engines.length ? b.engines : ['cascade', 'concentration'];
+      if (engines.some((e) => !FROM_DATA_ENGINES.includes(e))) return res.status(400).json({ error: `engines must be a subset of ${FROM_DATA_ENGINES.join(', ')}` });
+      if (!Number.isInteger(b.seed)) return res.status(400).json({ error: 'integer seed required' });
+      const since = new Date(Date.parse(asOf) - 400 * DAY_MS).toISOString();
+      const pit = await db.loadPitStore({ asOfMax: asOf, sinceEventTime: since });
+      const view = pit.asOf(asOf);
+      const assetIds = view.entities('BIST:').filter((e) => view.latest(e, 'close')); const fundIds = view.entities('FUND:').filter((e) => view.latest(e, 'holdings'));
+      const { skipped, ...system } = systemFromView(view, assetIds, fundIds);
+      if (!system.funds.length) return res.status(422).json({ error: 'no fund has holdings, AUM and cash ratio available as of that date: ingest holdings, TEFAS (NAV/AUM + allocation) and BIST prices first', code: 'NO_DATA', fundsSkipped: skipped.slice(0, 50) });
+      const states = Object.fromEntries(state.registry.list().map((m) => [`${m.model_id}@${m.version}`, m.state]));
+      const request = { seed: b.seed, engines, fundSystem: system, scenario: b.scenario || {}, options: b.options || {}, label: `from-data@${asOf}` };
+      const bad = validateRequest(request); if (bad) return res.status(400).json({ error: bad });
+      const out = recordRun(await runner(request, states), state.ledger);
+      const meta = { asOf, funds: system.funds.length, assets: system.assets.length, fundsSkipped: skipped.slice(0, 200), unobservedLeverageFunds: system.funds.filter((f) => f.debt === null).length, source: 'ingested PIT observations (available_time <= asOf)' };
+      await S.append('runs', { ...out.run, id: out.run.run_id, created_by: req.user.userCode, data: meta });
+      await S.append('results', { id: out.run.run_id, results: out.results, claims: out.claims, created_by: req.user.userCode });
+      for (const claimId of Object.values(out.claims)) await S.append('claim_owners', { id: claimId, created_by: req.user.userCode });
+      await db.saveLedger(state.ledger);
+      const byKey = {}; for (const r of out.results) byKey[r.engine] ||= r;
+      res.status(201).json({ run: out.run, data: meta, production_status: out.production_status, non_production_models: out.non_production_models, results: out.results, claims: out.claims, retail_table: buildRetailRiskTable({ contagion: byKey.cascade, concentration: byKey.concentration }) });
+    } catch (e) {
+      if (e.code === 'BUSY') return res.status(429).json({ error: 'SFRE is busy, retry shortly' });
+      if (e.code === 'TIMEOUT') return res.status(504).json({ error: 'run exceeded the time limit; reduce the request size' });
+      logger.error({ err: e }, '[SFRE] from-data run failed');
+      res.status(500).json({ error: 'internal error' });
+    }
   });
 
   router.post('/runs/:id/narrative', analysisLimiter, requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {

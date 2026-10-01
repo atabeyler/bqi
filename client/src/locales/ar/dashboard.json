@@ -132,5 +132,7 @@
   "cat_bddk": "رقابة BDDK",
   "cat_btk": "رقابة BTK",
   "cat_siber": "الاستخبارات السيبرانية",
-  "newAnalysisShort": "تحليل"
+  "newAnalysisShort": "تحليل",
+  "cat_sfre": "SFRE المخاطر النظامية",
+  "cat_sfre_desc": "المخاطر النظامية للصناديق والعدوى وسلامة السوق"
 }

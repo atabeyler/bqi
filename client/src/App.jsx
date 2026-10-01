@@ -162,7 +162,7 @@ export default function App() {
           />
           <Route
             path="/sfre"
-            element={user && (user.isAdmin || user.role === 'analyst') ? <SfrePage /> : <Navigate to={user ? '/' : '/login'} />}
+            element={user && (user.isAdmin || user.role === 'analyst') ? <SfrePage user={user} /> : <Navigate to={user ? '/' : '/login'} />}
           />
           <Route path="/*" element={user ? <DashboardPage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} />
         </Routes>

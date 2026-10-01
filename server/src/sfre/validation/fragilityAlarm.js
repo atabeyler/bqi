@@ -20,10 +20,11 @@ export function systemFromView(view, assetIds, fundIds) {
     assets.push({ id, price: close[close.length - 1], illiq, adv: vol.length ? median(vol.filter(finite)) : null });
   }
   const aIdx = new Map(assets.map((a, k) => [a.id, k]));
-  const funds = [];
+  const funds = []; const skipped = [];
   for (const id of fundIds) {
     const h = view.latest(id, 'holdings'); const aum = view.latest(id, 'aum'); const cash = view.latest(id, 'cash_ratio'); const debt = view.latest(id, 'debt_ratio');
-    if (!h || !aum || !cash) continue; // fund not yet reported at this T
+    const missing = [!h && 'holdings', !aum && 'aum', !cash && 'cash_ratio'].filter(Boolean);
+    if (missing.length) { skipped.push({ fund: id, missing }); continue; } // never assume a missing balance-sheet item is zero
     const holdings = [];
     // two encodings: synthetic "idx:w,idx:w" and canonical "BIST:TICKER=w;BIST:TICKER=w" (weights are fractions of NAV)
     const canonical = String(h.value).includes('=');
@@ -34,7 +35,7 @@ export function systemFromView(view, assetIds, fundIds) {
     }
     funds.push({ id, cash: cash.value * aum.value, debt: debt && debt.value !== null ? debt.value * aum.value : null, marginRatio: null, beta: null, holdings });
   }
-  return { assets, funds, impact: STANDARD_STRESS.impactModel };
+  return { assets, funds, impact: STANDARD_STRESS.impactModel, skipped };
 }
 
 /** Fragility = cascade loss fraction of each fund under a fixed standardized redemption stress. */

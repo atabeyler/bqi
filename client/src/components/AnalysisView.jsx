@@ -193,6 +193,7 @@ export default function AnalysisView({ category, onCategoryChange, pendingAnalys
   // second copy of the BCI interface here.
   useEffect(() => {
     if (category === 'siber') onCategoryChange?.('siber');
+    if (category === 'sfre') onCategoryChange?.('sfre');
   }, [category, onCategoryChange]);
 
   const cat = CATEGORIES.find(c => c.id === category);
@@ -407,7 +408,7 @@ export default function AnalysisView({ category, onCategoryChange, pendingAnalys
 
   if (!category) return <CategoryPicker onSelect={onCategoryChange} />;
   if (isConsult) return <div className="max-w-4xl mx-auto"><ConsultChat /></div>;
-  if (category === 'siber') return null;
+  if (category === 'siber' || category === 'sfre') return null;
 
   const sourceCount = documentContexts.length + imageFiles.length + (realTransactions ? 1 : 0) + (realScenarios ? 1 : 0) + (realOptimization ? 1 : 0);
   const hasData = sourceCount > 0;

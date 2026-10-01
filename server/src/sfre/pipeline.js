@@ -42,7 +42,7 @@ const RUNNERS = {
   counterfactual: (r) => (r.fundSystem ? [counterfactuals(r.fundSystem, r.scenario || {}, r.options || {})] : [missing('counterfactual', 'M15.counterfactual', 'fundSystem')]),
   reverseStress: (r, ctx) => (r.fundSystem && r.reverseStress ? [reverseStress({ system: r.fundSystem, rng: ctx.rng, options: r.options || {}, ...r.reverseStress })] : [missing('reverseStress', 'M13.reverse_stress', 'fundSystem+reverseStress')]),
   tailRisk: (r, ctx) => (r.tail ? [tailRisk({ rng: ctx.rng, ...r.tail })] : [missing('tailRisk', 'M11.tail', 'tail')]),
-  concentration: (r) => (r.fundSystem ? weightsOf(r.fundSystem).map((f) => hhi(Object.entries(f.weights).map(([id, w]) => ({ id, w })))) : [missing('concentration', 'M02.hhi', 'fundSystem')]),
+  concentration: (r) => (r.fundSystem ? weightsOf(r.fundSystem).map((f) => hhi(Object.entries(f.weights).map(([id, w]) => ({ id, w })), { entity: f.id })) : [missing('concentration', 'M02.hhi', 'fundSystem')]),
   overlap: (r) => {
     if (!r.fundSystem) return [missing('overlap', 'M03.overlap', 'fundSystem')];
     const w = weightsOf(r.fundSystem); const ov = overlapMatrix(w.map((f) => ({ id: f.id, weights: f.weights })));
