@@ -29,13 +29,19 @@ const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MANIFEST = '.sfre-processed.json';
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
+/** JSON.parse with explicit fallbacks: `empty` when the text is blank, `invalid` when it does not parse. */
+function parseJson(text, empty, invalid) {
+  if (!text) return empty;
+  try { return JSON.parse(text); } catch { return invalid; }
+}
+const readManifest = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return {}; } };
+
 export function syncConfig(env = process.env) {
   const feeds = {};
   for (const [kind, d] of Object.entries(FEED_KINDS)) {
     feeds[kind] = { url: env[`SFRE_FEED_${d.env}_URL`] || null, token: env[`SFRE_FEED_${d.env}_TOKEN`] || null, header: env[`SFRE_FEED_${d.env}_AUTH_HEADER`] || 'Authorization', scheme: env[`SFRE_FEED_${d.env}_AUTH_SCHEME`] ?? 'Bearer', lagDays: env[`SFRE_FEED_${d.env}_LAG_DAYS`] ? Number(env[`SFRE_FEED_${d.env}_LAG_DAYS`]) : undefined };
   }
-  let kapParams = {};
-  try { kapParams = env.SFRE_KAP_SYNC_PARAMS ? JSON.parse(env.SFRE_KAP_SYNC_PARAMS) : {}; } catch { kapParams = null; }
+  const kapParams = parseJson(env.SFRE_KAP_SYNC_PARAMS, {}, null);
   return {
     enabled: env.SFRE_SYNC_ENABLED === 'true', intervalMs: Math.max(1, Number(env.SFRE_SYNC_INTERVAL_MIN) || 60) * 60000,
     inboxDir: env.SFRE_INBOX_DIR || null, feeds, kapParams, timeoutMs: Number(env.SFRE_FEED_TIMEOUT_MS) || 120000,
@@ -106,8 +112,8 @@ export class SfreSyncService {
       const dir = this.cfg.inboxDir;
       if (!dir) return { skipped: 'not configured' };
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      const mf = path.join(dir, MANIFEST); let seen = {};
-      try { seen = JSON.parse(readFileSync(mf, 'utf8')); } catch { seen = {}; }
+      const mf = path.join(dir, MANIFEST);
+      const seen = readManifest(mf);
       const out = { files: 0, imported: 0, alreadySeen: 0, unrecognised: [], failed: [], inserted: 0, duplicates: 0 };
       for (const name of readdirSync(dir).sort()) {
         const full = path.join(dir, name);
