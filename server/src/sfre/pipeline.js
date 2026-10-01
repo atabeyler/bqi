@@ -81,10 +81,10 @@ export function validateRequest(req) {
 }
 
 /**
- * Orchestrates one SFRE run: PIT snapshot -> engines -> evidence ledger -> reproducibility record.
- * deps: {ledger, registry, clock}. Engines never mutate inputs; every result is bound to a ledger claim.
+ * Pure computation of one run (no ledger, no I/O): safe to execute in a worker thread.
+ * Returns plain, structured-clone-able data.
  */
-export function runPipeline(request, { ledger, registry = null, clock = () => new Date().toISOString() }) {
+export function computeRun(request, { registryStates = null, clock = () => new Date().toISOString() } = {}) {
   const err = validateRequest(request);
   if (err) throw Object.assign(new Error(err), { code: 'INVALID_REQUEST' });
   const ctx = { seed: request.seed, rng: new Rng(request.seed) };
@@ -97,18 +97,31 @@ export function runPipeline(request, { ledger, registry = null, clock = () => ne
     snapshot = createSnapshot(view.observations, { asOf: request.asOf, label: request.label ?? null });
   }
 
-  const results = []; const claims = {};
+  const results = [];
   for (const name of request.engines) {
     let out;
     try { out = RUNNERS[name](request, ctx); } catch (e) { out = [failed(name, name, e?.message || String(e))]; }
-    for (const res of out) {
-      results.push(res);
-      const claimId = ledger.recordClaim({ claim: `${res.engine}:${res.model_id}:${res.status}`, result: res, snapshot });
-      claims[res.result_hash] = claimId;
-    }
+    results.push(...out);
   }
-  const models = [...new Map(results.map((r) => [`${r.model_id}@${r.model_version}`, { model_id: r.model_id, version: r.model_version, state: registry?.get(r.model_id, r.model_version)?.state ?? 'UNREGISTERED' }])).values()];
+  const stateOf = (m) => registryStates?.[`${m.model_id}@${m.model_version}`] ?? 'UNREGISTERED';
+  const models = [...new Map(results.map((r) => [`${r.model_id}@${r.model_version}`, { model_id: r.model_id, version: r.model_version, state: stateOf(r) }])).values()];
   const run = createRunRecord({ snapshot, models, parameters: { engines: request.engines, scenario: request.scenario ?? null, options: request.options ?? null, inputHash: hashOf(request.fundSystem ?? null) }, seed: request.seed, results, startedAt: clock() });
   const nonProduction = models.filter((m) => m.state !== 'APPROVED').map((m) => m.model_id);
-  return { run, results, claims, snapshot: snapshot && { snapshot_id: snapshot.snapshot_id, content_hash: snapshot.content_hash, asOf: snapshot.asOf, count: snapshot.count }, production_status: nonProduction.length ? 'NON_PRODUCTION' : 'APPROVED', non_production_models: nonProduction };
+  return { run, results, snapshot, production_status: nonProduction.length ? 'NON_PRODUCTION' : 'APPROVED', non_production_models: nonProduction };
+}
+
+/** Binds every result of a computed run to the evidence ledger. */
+export function recordRun(out, ledger) {
+  const claims = {};
+  for (const res of out.results) {
+    const claimId = ledger.recordClaim({ claim: `${res.engine}:${res.model_id}:${res.status}`, result: res, snapshot: out.snapshot });
+    claims[res.result_hash] = claimId;
+  }
+  return { ...out, claims, snapshot: out.snapshot && { snapshot_id: out.snapshot.snapshot_id, content_hash: out.snapshot.content_hash, asOf: out.snapshot.asOf, count: out.snapshot.count } };
+}
+
+/** Synchronous convenience (tests, CLI): compute + record. */
+export function runPipeline(request, { ledger, registry = null, clock = () => new Date().toISOString() }) {
+  const states = registry ? Object.fromEntries(registry.list().map((m) => [`${m.model_id}@${m.version}`, m.state])) : null;
+  return recordRun(computeRun(request, { registryStates: states, clock }), ledger);
 }

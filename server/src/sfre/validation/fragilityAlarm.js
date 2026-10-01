@@ -25,7 +25,13 @@ export function systemFromView(view, assetIds, fundIds) {
     const h = view.latest(id, 'holdings'); const aum = view.latest(id, 'aum'); const cash = view.latest(id, 'cash_ratio'); const debt = view.latest(id, 'debt_ratio');
     if (!h || !aum || !cash) continue; // fund not yet reported at this T
     const holdings = [];
-    for (const tok of String(h.value).split(',')) { const [ai, w] = tok.split(':'); const a = assets[aIdx.get(assetIds[Number(ai)])]; if (a) holdings.push({ asset: a.id, shares: (Number(w) * aum.value) / a.price }); }
+    // two encodings: synthetic "idx:w,idx:w" and canonical "BIST:TICKER=w;BIST:TICKER=w" (weights are fractions of NAV)
+    const canonical = String(h.value).includes('=');
+    for (const tok of String(h.value).split(canonical ? ';' : ',')) {
+      let a; let w;
+      if (canonical) { const [id, ww] = tok.split('='); a = assets[aIdx.get(id)]; w = Number(ww); } else { const [ai, ww] = tok.split(':'); a = assets[aIdx.get(assetIds[Number(ai)])]; w = Number(ww); }
+      if (a && Number.isFinite(w)) holdings.push({ asset: a.id, shares: (w * aum.value) / a.price });
+    }
     funds.push({ id, cash: cash.value * aum.value, debt: debt && debt.value !== null ? debt.value * aum.value : null, marginRatio: null, beta: null, holdings });
   }
   return { assets, funds, impact: STANDARD_STRESS.impactModel };

@@ -17,7 +17,8 @@ function contentOf(o) {
   return {
     entity: o.entity, field: o.field, value: o.value, unit: o.unit ?? null,
     event_time: o.event_time, published_time: o.published_time, available_time: o.available_time,
-    ingested_time: o.ingested_time, source: o.source, revision: o.revision, quality_flags: [...o.quality_flags].sort(),
+    // ingested_time is deliberately NOT part of the content hash: re-importing the same fact later must dedupe
+    source: o.source, revision: o.revision, quality_flags: [...o.quality_flags].sort(),
   };
 }
 

@@ -40,6 +40,19 @@ export class ModelRegistry {
     rec.history.push({ ...body, hash: hashOf(body) });
   }
 
+  /** Serializable state (for persistence). History hash chains travel with each record. */
+  exportState() { return [...this.#models.values()].map((r) => JSON.parse(JSON.stringify(r))); }
+
+  /** Restores persisted state, verifying every model's history chain; refuses a tampered history. */
+  loadState(records) {
+    for (const r of records) {
+      let prev = '0'.repeat(64);
+      for (const h of r.history) { const { hash, ...body } = h; if (h.prev_hash !== prev || hashOf(body) !== hash) throw new GovernanceError(`persisted history of ${r.model_id}@${r.version} failed verification`); prev = hash; }
+      this.#models.set(`${r.model_id}@${r.version}`, JSON.parse(JSON.stringify(r)));
+    }
+    return this;
+  }
+
   get(model_id, version) {
     const rec = this.#models.get(`${model_id}@${version}`);
     return rec ? JSON.parse(JSON.stringify(rec)) : null;

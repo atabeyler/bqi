@@ -15,7 +15,7 @@
   "ingested_time":  "ISO-8601 UTC",           // when BQI stored it                  (>= available_time)
   "source":         "kap" | "spk" | "bist" | "vendor:<name>" | "upload:<hash>" | ...,
   "revision":       0,                        // restatements increment; old revisions are never deleted
-  "hash":           "sha256 of canonical content (all fields above except id/hash)",
+  "hash":           "sha256 of canonical content (all fields above except id, hash and ingested_time: re-importing the same fact dedupes)",
   "quality_flags":  ["ESTIMATED","RESTATED","STALE","SPLIT_UNADJUSTED", ...]
 }
 ```

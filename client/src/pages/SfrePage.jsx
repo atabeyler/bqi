@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { sfreApi } from '../services/api.js';
@@ -31,6 +31,13 @@ export default function SfrePage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [evidence, setEvidence] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    sfreApi.health().then(setHealth).catch(() => setHealth(null));
+    sfreApi.dataStatus().then(setData).catch(() => setData(null));
+  }, []);
 
   async function run() {
     setBusy(true); setError(''); setEvidence(null);
@@ -55,6 +62,24 @@ export default function SfrePage() {
         <p className="text-sm text-slate-300">
           Analytical measurements under stated uncertainty. Not investment advice. All models are UNCALIBRATED unless governance says otherwise; unobserved data is never treated as zero.
         </p>
+        <div className="border border-cyan-300/25 rounded p-3 text-sm space-y-2" data-testid="sfre-status">
+          <div>
+            Storage: <b>{health ? health.storage : 'unavailable'}</b>
+            {health && <> - evidence ledger {health.ledger.ok ? 'verified' : 'BROKEN'} ({health.ledger.length ?? 0} entries) - {health.models} models (all non-production until approved)</>}
+          </div>
+          {health && (
+            <div>
+              Data providers:{' '}
+              {health.providers.map((p) => (<span key={p.id} className={`mr-3 ${p.configured ? 'text-cyan-200' : 'text-amber-300'}`}>{p.id}: {p.configured ? 'configured' : 'NOT CONFIGURED'}</span>))}
+            </div>
+          )}
+          <div>
+            Loaded datasets:{' '}
+            {data && data.datasets && data.datasets.length
+              ? data.datasets.map((d) => (<span key={`${d.source}/${d.field}`} className="mr-3">{d.source}/{d.field} ({d.n})</span>))
+              : <span className="text-amber-300">none - no observations ingested yet (golden-case replay stays BLOCKED_NO_DATA)</span>}
+          </div>
+        </div>
         <textarea aria-label="SFRE request JSON" className="w-full h-64 font-mono text-xs bg-black/40 border border-cyan-300/25 rounded p-2" value={text} onChange={(e) => setText(e.target.value)} />
         <button type="button" disabled={busy} onClick={run} className="border border-cyan-300/50 px-4 py-2 rounded hover:bg-cyan-400/10 disabled:opacity-50">{busy ? 'Running...' : 'Run'}</button>
         {error && <div role="alert" className="text-red-300 text-sm">{error}</div>}

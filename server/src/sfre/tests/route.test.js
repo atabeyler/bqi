@@ -63,3 +63,47 @@ describe('/api/sfre', () => {
     expect(n.status).toBe(200); expect(n.body.source).toBe('DETERMINISTIC_FALLBACK'); expect(n.body.text).not.toMatch(/AL\b/);
   });
 });
+
+describe('worker-thread execution', () => {
+  it('runs in a real worker thread (not inline) and returns the same result as inline; invalid input is rejected before the worker', async () => {
+    const { runInWorker } = await import('../jobs/runner.js'); const { computeRun } = await import('../pipeline.js');
+    const b = body(); const w = await runInWorker(b, null, { inline: false }); const i = computeRun(b);
+    expect(w.run.result_hash).toBe(i.run.result_hash);
+    await expect(runInWorker({ seed: 'x', engines: [] }, null, { inline: false })).rejects.toThrow(/seed/);
+  });
+  it('timeout terminates the worker and maps to 504; saturation maps to 429', async () => {
+    const a = app({ runner: async () => { throw Object.assign(new Error('t'), { code: 'TIMEOUT' }); } });
+    const r = await request(a).post('/api/sfre/runs').set('Authorization', `Bearer ${token('analyst')}`).send(body()); expect(r.status).toBe(504);
+    const b = app({ runner: async () => { throw Object.assign(new Error('b'), { code: 'BUSY' }); } });
+    expect((await request(b).post('/api/sfre/runs').set('Authorization', `Bearer ${token('analyst')}`).send(body())).status).toBe(429);
+    const { runInWorker } = await import('../jobs/runner.js');
+    await expect(runInWorker({ seed: 1, engines: ['tailRisk'], tail: { returns: Array.from({ length: 5000 }, () => new Array(100).fill(0.01).map((x, k) => x * (k + 1))), exposures: [new Array(100).fill(1)], fundIds: ['a'], N: 100000 } }, null, { inline: false, timeoutMs: 50 })).rejects.toThrow(/exceeded|size|limits/);
+  });
+});
+
+const PG = process.env.SFRE_TEST_DATABASE_URL;
+(PG ? describe : describe.skip)('PostgreSQL-backed router survives a restart', () => {
+  it('runs, claims/explain, governance state and ledger persist across router instances', async () => {
+    const pgMod = await import('pg'); const admin0 = new pgMod.default.Pool({ connectionString: PG });
+    await admin0.query('DROP SCHEMA IF EXISTS sfre_route_test CASCADE; CREATE SCHEMA sfre_route_test'); await admin0.end(); // own schema: test files run in parallel
+    const pool = new pgMod.default.Pool({ connectionString: PG, options: '-c search_path=sfre_route_test' });
+    const q = (t, p) => pool.query(t, p);
+    const alice = { Authorization: `Bearer ${token('analyst', 'alice')}` }; const admin = { Authorization: `Bearer ${token('admin', 'root')}` };
+    const a1 = app({ pg: q });
+    const h = await request(a1).get('/api/sfre/health').set(alice); expect(h.body.storage).toBe('postgres');
+    const run = await request(a1).post('/api/sfre/runs').set(alice).send(body()); expect(run.status).toBe(201);
+    expect((await request(a1).post('/api/sfre/models/M10.cascade/transition').set(admin).send({ to: 'VALIDATION', evidence: { spec_ref: 's' } })).status).toBe(200);
+    const claim = Object.values(run.body.claims)[0];
+    // "restart": brand-new router + registry + ledger, loaded from the database only
+    const a2 = app({ pg: q });
+    const g = await request(a2).get(`/api/sfre/runs/${run.body.run.run_id}`).set(alice); expect(g.status).toBe(200); expect(g.body.run.result_hash).toBe(run.body.run.result_hash);
+    const ex = await request(a2).get(`/api/sfre/claims/${claim}/explain`).set(alice); expect(ex.status).toBe(200); expect(ex.body.chain_valid).toBe(true);
+    expect((await request(a2).get(`/api/sfre/runs/${run.body.run.run_id}`).set({ Authorization: `Bearer ${token('analyst', 'bob')}` })).status).toBe(404);
+    const models = await request(a2).get('/api/sfre/models').set(admin); expect(models.body.models.find((m) => m.model_id === 'M10.cascade').state).toBe('VALIDATION');
+    // a second run on the restarted instance appends to the SAME chain
+    const run2 = await request(a2).post('/api/sfre/runs').set(alice).send({ ...body(), seed: 6 }); expect(run2.status).toBe(201);
+    const a3 = app({ pg: q }); expect((await request(a3).get('/api/sfre/health').set(alice)).body.ledger.ok).toBe(true);
+    const ds = await request(a3).get('/api/sfre/data/status').set(alice); expect(ds.body.storage).toBe('postgres');
+    await pool.end();
+  });
+});

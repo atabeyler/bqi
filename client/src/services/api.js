@@ -455,6 +455,8 @@ export const cyberAnalysisApi = {
 
 // SFRE (docs/sfre): analytical risk measurement under stated uncertainty; never investment advice.
 export const sfreApi = {
+  health: () => req('/api/sfre/health'),
+  dataStatus: () => req('/api/sfre/data/status'),
   models: () => req('/api/sfre/models'),
   run: (body) => req('/api/sfre/runs', { method: 'POST', body: JSON.stringify(body), timeoutMs: 120000 }),
   getRun: (id) => req(`/api/sfre/runs/${encodeURIComponent(id)}`),
