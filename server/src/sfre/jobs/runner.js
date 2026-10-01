@@ -20,7 +20,7 @@ export function runInWorker(request, registryStates, { timeoutMs = DEFAULT_TIMEO
   if (active >= MAX_CONCURRENT) return Promise.reject(Object.assign(new Error('too many concurrent SFRE runs'), { code: 'BUSY' }));
   active += 1;
   return new Promise((resolve, reject) => {
-    const w = new Worker(WORKER, { workerData: { request, registryStates } });
+    const w = new Worker(WORKER, { workerData: { request, registryStates }, execArgv: [] }) // execArgv [] : do not inherit the server's `--import ./src/instrument.js` (a .ts file only tsx can load);
     const timer = setTimeout(() => { done(); w.terminate(); reject(Object.assign(new Error(`run exceeded ${timeoutMs}ms`), { code: 'TIMEOUT' })); }, timeoutMs);
     let finished = false;
     const done = () => { if (finished) return; finished = true; clearTimeout(timer); active -= 1; };

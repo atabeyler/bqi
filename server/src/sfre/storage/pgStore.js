@@ -15,7 +15,8 @@ const BATCH = 500;
 export class PgStore {
   constructor(query) { this.query = query; this.persistedLedger = 0; }
 
-  async ensureSchema() { await this.query(SCHEMA); }
+  // advisory xact lock: concurrent first requests / multiple instances must not race on CREATE OR REPLACE FUNCTION / CREATE TRIGGER
+  async ensureSchema() { await this.query(`SELECT pg_advisory_xact_lock(727501);\n${SCHEMA}`); }
 
   /** Validates (hash + PIT times) then bulk-inserts; duplicates (same hash) are ignored. Returns {inserted, rejected}. */
   async addObservations(list) {
@@ -67,7 +68,11 @@ export class PgStore {
     const entries = ledger.entries();
     for (let i = this.persistedLedger; i < entries.length; i++) {
       const e = entries[i];
-      await this.query('INSERT INTO sfre_ledger (seq,id,entry,prev_hash,hash) VALUES ($1,$2,$3::jsonb,$4,$5) ON CONFLICT (seq) DO NOTHING', [e.seq, e.id, JSON.stringify(e), e.prev_hash, e.hash]);
+      const r = await this.query('INSERT INTO sfre_ledger (seq,id,entry,prev_hash,hash) VALUES ($1,$2,$3::jsonb,$4,$5) ON CONFLICT (seq) DO NOTHING', [e.seq, e.id, JSON.stringify(e), e.prev_hash, e.hash]);
+      if (r.rowCount === 0) { // seq already stored: fine if identical, otherwise another writer forked the chain
+        const ex = await this.query('SELECT hash FROM sfre_ledger WHERE seq=$1', [e.seq]);
+        if (ex.rows[0]?.hash !== e.hash) throw new Error(`ledger fork detected at seq ${e.seq}: another instance wrote a different entry (SFRE ledger is single-writer)`);
+      }
     }
     this.persistedLedger = entries.length;
   }

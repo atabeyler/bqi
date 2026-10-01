@@ -92,7 +92,7 @@ export default function SfrePage() {
                 {out.results.map((r) => (
                   <tr key={r.result_hash} className="border-t border-white/10">
                     <td>{r.engine}</td><td>{r.model_id}</td><td className={TONE[r.status] || ''}>{r.status}</td><td>{r.calibration}</td>
-                    <td>{r.coverage ? `${r.coverage.observed}/${r.coverage.total}` : 'n/a'}</td><td>{r.unobserved.length}</td>
+                    <td>{r.coverage ? `${(r.coverage.fraction * 100).toFixed(r.coverage.fraction === 1 ? 0 : 1)}%` : 'n/a'}</td><td>{r.unobserved.length}</td>
                     <td><button type="button" className="underline" onClick={() => explain(r)}>why?</button></td>
                   </tr>
                 ))}

@@ -107,3 +107,41 @@ const PG = process.env.SFRE_TEST_DATABASE_URL;
     await pool.end();
   });
 });
+
+describe('REGRESSION: found by running the real server', () => {
+  it('worker threads do not inherit the server execArgv (a `--import ./src/instrument.js` .ts hook broke every real run)', async () => {
+    vi.resetModules();
+    const seen = [];
+    vi.doMock('node:worker_threads', async () => { const real = await vi.importActual('node:worker_threads'); return { ...real, Worker: class { constructor(f, o) { seen.push(o); return new real.Worker(f, o); } } }; });
+    const { runInWorker } = await import('../jobs/runner.js');
+    await runInWorker(body(), null, { inline: false });
+    expect(seen[0].execArgv).toEqual([]); vi.doUnmock('node:worker_threads');
+  });
+});
+
+(PG ? describe : describe.skip)('REGRESSION: concurrent first requests (found by a real browser hitting /health and /data/status together)', () => {
+  it('single-flight initialisation: parallel first requests on an empty database all succeed', async () => {
+    const pgMod = await import('pg'); const admin0 = new pgMod.default.Pool({ connectionString: PG });
+    await admin0.query('DROP SCHEMA IF EXISTS sfre_conc_test CASCADE; CREATE SCHEMA sfre_conc_test'); await admin0.end();
+    const pool = new pgMod.default.Pool({ connectionString: PG, options: '-c search_path=sfre_conc_test' });
+    const a = app({ pg: (t, p) => pool.query(t, p) }); const h = { Authorization: `Bearer ${token('analyst')}` };
+    const rs = await Promise.all([1, 2, 3, 4, 5].map(() => request(a).get('/api/sfre/health').set(h)));
+    expect(rs.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+    // two separate router instances racing schema creation on a fresh schema (multi-instance deploy)
+    await pool.query('DROP SCHEMA sfre_conc_test CASCADE; CREATE SCHEMA sfre_conc_test');
+    const pool2 = new pgMod.default.Pool({ connectionString: PG, options: '-c search_path=sfre_conc_test' });
+    const r2 = await Promise.all([app({ pg: (t, p) => pool2.query(t, p) }), app({ pg: (t, p) => pool2.query(t, p) })].map((x) => request(x).get('/api/sfre/health').set(h)));
+    expect(r2.map((r) => r.status)).toEqual([200, 200]);
+    await pool.end(); await pool2.end();
+  });
+  it('a forked ledger (second writer) is detected instead of silently dropped', async () => {
+    const { PgStore } = await import('../storage/pgStore.js'); const { EvidenceLedger } = await import('../evidence/ledger.js'); const { makeResult, STATUS, coverageOf } = await import('../../sfre/core/result.js');
+    const pgMod = await import('pg'); const admin0 = new pgMod.default.Pool({ connectionString: PG });
+    await admin0.query('DROP SCHEMA IF EXISTS sfre_fork_test CASCADE; CREATE SCHEMA sfre_fork_test'); await admin0.end();
+    const pool = new pgMod.default.Pool({ connectionString: PG, options: '-c search_path=sfre_fork_test' }); const st = new PgStore((t, p) => pool.query(t, p)); await st.ensureSchema();
+    const mk = (v) => { const l = new EvidenceLedger({ clock: () => '2026-01-01T00:00:00Z' }); l.recordClaim({ claim: 'c', result: makeResult({ engine: 'e', modelId: 'm', status: STATUS.MEASURED, value: { v }, coverage: coverageOf(1, 1) }) }); return l; };
+    await st.saveLedger(mk(1)); st.persistedLedger = 0; await st.saveLedger(mk(1)); // identical re-save is fine
+    st.persistedLedger = 0; await expect(st.saveLedger(mk(2))).rejects.toThrow(/ledger fork detected/);
+    await pool.end();
+  });
+});

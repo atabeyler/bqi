@@ -25,8 +25,14 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   const mem = store || new MemoryStore();
   const db = pg ? new PgStore(pg) : null;
   let state = null; // {ledger, registry}
-  const ready = async () => {
-    if (state) return state;
+  let initializing = null;
+  const ready = () => {
+    if (state) return Promise.resolve(state);
+    // single-flight: concurrent first requests share one initialisation; a failure is not cached (next request retries)
+    initializing ||= init().finally(() => { initializing = null; });
+    return initializing;
+  };
+  const init = async () => {
     let l = ledger; let r = registry;
     if (db) {
       await db.ensureSchema();
