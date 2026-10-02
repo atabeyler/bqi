@@ -41,6 +41,10 @@ Dürüst yorum: motor krizi **olayla eş zamanlı** işaretledi ve önceki iki h
 
 EVDS kurunda basit şok motoru 5 olaydan 4'ünü yakaladı, E6'yı (2023 seçimi, kur kontrollü tutuldu) kaçırdı. Gecikme ve yanlış alarm bu veriyle ölçülemiyor. Ayrıntı ve sınırlar: `results/fx-shock-events.md`.
 
+## Üçüncü sonuç: açık veri (FRED), 7 yabancı kur olayı
+
+Aynı motor, parametreler değişmeden: 7/7 yakalandı (Meksika 1994, Tayland 1997, Kore 1997, Brezilya 1999, İsviçre frangı 2015, Brexit 2016, Güney Afrika 2015). Olaylar büyük ve ani olduğu için kolay bir test; yalnız şok tanıma kanıtıdır. Ayrıntı: `results/fx-shock-open-data.md`.
+
 ## Gerekli veri (olay başına)
 
 | Veri | Kaynak | Durum |
