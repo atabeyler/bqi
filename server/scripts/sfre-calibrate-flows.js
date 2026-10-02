@@ -15,6 +15,7 @@ const NAMES_DIR = arg('names', path.join(homedir(), 'sfre-data', 'raw'));
 const SPLIT = arg('split', '2026-04-01');
 const OUT = arg('out', path.join('..', 'docs', 'sfre', 'results'));
 const MIN_AUM = Number(arg('min-aum', 1e7)); // funds below 10M TRY are noise for systemic purposes
+const MIN_INV = Number(arg('min-investors', 100)); // a handful of holders can move a tiny fund by 30% in a week: not a retail run
 const DAY = 86400000;
 if (!process.env.DATABASE_URL) { console.error('DATABASE_URL is required'); process.exit(2); }
 
@@ -41,10 +42,10 @@ if (existsSync(NAMES_DIR)) for (const f of readdirSync(NAMES_DIR).filter((x) => 
 }
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL }); await client.connect();
-const res = await client.query("SELECT entity, to_char(event_time, 'YYYY-MM-DD') AS d, field, (value #>> '{}')::float8 AS v FROM sfre_observations WHERE source = 'tefas:tarihsel' AND field IN ('net_flow_ratio','nav_price','aum')");
+const res = await client.query("SELECT entity, to_char(event_time, 'YYYY-MM-DD') AS d, field, (value #>> '{}')::float8 AS v FROM sfre_observations WHERE source = 'tefas:tarihsel' AND field IN ('net_flow_ratio','nav_price','aum','investors')");
 await client.end();
 const funds = new Map(); // code -> Map(dateStr -> {nav,aum,flow})
-for (const r of res.rows) { const code = r.entity.replace('FUND:', ''); if (!funds.has(code)) funds.set(code, new Map()); const m = funds.get(code); if (!m.has(r.d)) m.set(r.d, {}); const o = m.get(r.d); if (r.field === 'nav_price') o.nav = r.v; else if (r.field === 'aum') o.aum = r.v; else o.flow = r.v; }
+for (const r of res.rows) { const code = r.entity.replace('FUND:', ''); if (!funds.has(code)) funds.set(code, new Map()); const m = funds.get(code); if (!m.has(r.d)) m.set(r.d, {}); const o = m.get(r.d); if (r.field === 'nav_price') o.nav = r.v; else if (r.field === 'aum') o.aum = r.v; else if (r.field === 'investors') o.inv = r.v; else o.flow = r.v; }
 const dstr = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 // ---- data quality ----
@@ -59,12 +60,14 @@ for (const [code, m] of funds) {
     const t = Date.parse(`${d}T00:00:00Z`); const prevDay = m.get(dstr(t - DAY)); if (prevDay?.nav > 0 && o.nav > 0 && Math.abs(o.nav / prevDay.nav - 1) > 0.5) dq.navDayJumpGt50++;
     if (o.flow === undefined) continue;
     dq.fundWeeks++; if (Math.abs(o.flow) > 1) dq.flowAbsGt1++; if (Math.abs(o.flow) > 5) dq.flowAbsGt5++;
-    const prev = m.get(dstr(t - 7 * DAY)); if (!prev || !(prev.aum >= MIN_AUM)) continue;
+    const prev = m.get(dstr(t - 7 * DAY)); if (!prev || !(prev.aum >= MIN_AUM) || !(prev.inv >= MIN_INV)) continue;
     const prev2 = m.get(dstr(t - 14 * DAY)); const ret = prev?.nav > 0 && prev2?.nav > 0 ? prev.nav / prev2.nav - 1 : null; // return over the week BEFORE the flow week
     obs.push({ code, group: g, d, flow: o.flow, ret, aumPrev: prev.aum });
   }
 }
 
+// AUM-weighted quantile: the flow level that a given share of AUM (not of funds) experienced
+const wq = (rows, p) => { const r = rows.slice().sort((a, b) => a.flow - b.flow); const tot = r.reduce((s2, x) => s2 + x.aumPrev, 0); let acc = 0; for (const x of r) { acc += x.aumPrev; if (acc / tot >= p) return x.flow; } return r.length ? r[r.length - 1].flow : null; };
 // ---- per group stats ----
 const stat = (rows) => {
   const f = sorted(rows.map((r) => r.flow)); const n = f.length; if (n < 50) return { n };
@@ -74,12 +77,12 @@ const stat = (rows) => {
   const neg = pairs.filter((r) => r.ret < 0); const pos = pairs.filter((r) => r.ret >= 0);
   return {
     n, funds: new Set(rows.map((r) => r.code)).size, quantiles: { p01: q(f, 0.001), p1: q(f, 0.01), p5: q(f, 0.05), p25: q(f, 0.25), p50: q(f, 0.5), p75: q(f, 0.75), p95: q(f, 0.95), p99: q(f, 0.99) },
-    aumWeightedMeanFlow: wmean, outflowFreq: { gt5pct: out.filter((r) => r.flow < -0.05).length / n, gt10pct: out.filter((r) => r.flow < -0.1).length / n, gt20pct: out.filter((r) => r.flow < -0.2).length / n },
+    aumWeightedMeanFlow: wmean, aumWeightedQuantiles: { p1: wq(rows, 0.01), p5: wq(rows, 0.05), p95: wq(rows, 0.95), p99: wq(rows, 0.99) }, outflowFreq: { gt5pct: out.filter((r) => r.flow < -0.05).length / n, gt10pct: out.filter((r) => r.flow < -0.1).length / n, gt20pct: out.filter((r) => r.flow < -0.2).length / n },
     flowVsReturn: { whenReturnNegative: ols(neg.map((r) => clip(r.ret, 0.2)), neg.map((r) => clip(r.flow, 0.5))), whenReturnPositive: ols(pos.map((r) => clip(r.ret, 0.2)), pos.map((r) => clip(r.flow, 0.5))) },
   };
 };
 const groups = [...new Set(obs.map((o) => o.group))].sort();
-const report = { generated: new Date().toISOString(), source: 'tefas:tarihsel (PostgreSQL)', minAumTRY: MIN_AUM, split: SPLIT, dataQuality: dq, all: stat(obs), groups: {}, outOfSample: {} };
+const report = { generated: new Date().toISOString(), source: 'tefas:tarihsel (PostgreSQL)', minAumTRY: MIN_AUM, minInvestors: MIN_INV, split: SPLIT, dataQuality: dq, all: stat(obs), groups: {}, outOfSample: {} };
 for (const g of groups) report.groups[g] = stat(obs.filter((o) => o.group === g));
 
 // ---- out-of-sample: fit p1/p5/p95/p99 before SPLIT, measure exceedance after ----
@@ -97,8 +100,8 @@ report.recommendedRedemptionFractions = Object.fromEntries(Object.entries(report
 mkdirSync(OUT, { recursive: true });
 writeFileSync(path.join(OUT, 'calibration-tefas-flows.json'), JSON.stringify(report, null, 2));
 const pct = (x) => (x === null || x === undefined ? '—' : `${(x * 100).toFixed(2)}%`);
-let md = `# BFI akış kalibrasyonu (TEFAS tarihsel, ${report.generated.slice(0, 10)})\n\nKaynak: \`tefas:tarihsel\` (PostgreSQL). En az ${MIN_AUM.toLocaleString('tr-TR')} TL fon büyüklüğü. Tarihsel dağılımı ölçer; tahmin değildir.\n\n## Veri kalitesi\n\n| Kontrol | Sayı |\n|---|---|\n${Object.entries(dq).map(([k, v]) => `| ${k} | ${v.toLocaleString('tr-TR')} |`).join('\n')}\n\n## Haftalık net akış (fon büyüklüğüne oran)\n\n| Grup | Fon | Fon-hafta | p0.1 | p1 | p5 | medyan | p95 | p99 | >%10 çıkış sıklığı |\n|---|---|---|---|---|---|---|---|---|---|\n`;
-for (const [g, s] of [['TÜMÜ', report.all], ...Object.entries(report.groups)]) if (s.quantiles) md += `| ${g} | ${s.funds ?? ''} | ${s.n} | ${pct(s.quantiles.p01)} | ${pct(s.quantiles.p1)} | ${pct(s.quantiles.p5)} | ${pct(s.quantiles.p50)} | ${pct(s.quantiles.p95)} | ${pct(s.quantiles.p99)} | ${pct(s.outflowFreq.gt10pct)} |\n`;
+let md = `# BFI akış kalibrasyonu (TEFAS tarihsel, ${report.generated.slice(0, 10)})\n\nKaynak: \`tefas:tarihsel\` (PostgreSQL). En az ${MIN_AUM.toLocaleString('tr-TR')} TL fon büyüklüğü ve ${MIN_INV} yatırımcı. Tarihsel dağılımı ölçer; tahmin değildir.\n\n## Veri kalitesi\n\n| Kontrol | Sayı |\n|---|---|\n${Object.entries(dq).map(([k, v]) => `| ${k} | ${v.toLocaleString('tr-TR')} |`).join('\n')}\n\n## Haftalık net akış (fon büyüklüğüne oran)\n\n| Grup | Fon | Fon-hafta | p0.1 | p1 | p5 | medyan | p95 | p99 | >%10 çıkış sıklığı | büyüklük-ağırlıklı p1 | büyüklük-ağırlıklı p5 |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
+for (const [g, s] of [['TÜMÜ', report.all], ...Object.entries(report.groups)]) if (s.quantiles) md += `| ${g} | ${s.funds ?? ''} | ${s.n} | ${pct(s.quantiles.p01)} | ${pct(s.quantiles.p1)} | ${pct(s.quantiles.p5)} | ${pct(s.quantiles.p50)} | ${pct(s.quantiles.p95)} | ${pct(s.quantiles.p99)} | ${pct(s.outflowFreq.gt10pct)} | ${pct(s.aumWeightedQuantiles.p1)} | ${pct(s.aumWeightedQuantiles.p5)} |\n`;
 md += `\n## Getiri → akış duyarlılığı (önceki hafta getirisi, eğim ± std. hata)\n\n| Grup | Getiri < 0 eğimi | t | Getiri ≥ 0 eğimi | t |\n|---|---|---|---|---|\n`;
 for (const [g, s] of Object.entries(report.groups)) if (s.flowVsReturn) { const a = s.flowVsReturn.whenReturnNegative; const b = s.flowVsReturn.whenReturnPositive; md += `| ${g} | ${a ? a.slope.toFixed(3) : '—'} | ${a ? a.t.toFixed(1) : '—'} | ${b ? b.slope.toFixed(3) : '—'} | ${b ? b.t.toFixed(1) : '—'} |\n`; }
 md += `\n## Örneklem dışı doğrulama (eğitim < ${SPLIT} ≤ test)\n\nBeklenen aşım ile gözlenen aşım yakınsa dağılım kararlıdır.\n\n| Grup | Eğitim | Test | p1 altı (bekl. 1%) | p5 altı (bekl. 5%) | p95 üstü (bekl. 5%) | p99 üstü (bekl. 1%) |\n|---|---|---|---|---|---|---|\n`;

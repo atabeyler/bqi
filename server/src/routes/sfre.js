@@ -169,15 +169,20 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     if (!ok) return res.status(400).json({ error: 'only .xlsx, .xls or .csv files whose content matches the extension are accepted' });
     const lag = req.body?.lagDays !== undefined && req.body.lagDays !== '' ? Number(req.body.lagDays) : undefined;
     if (lag !== undefined && !(Number.isFinite(lag) && lag >= 0 && lag <= 90)) return res.status(400).json({ error: 'lagDays must be between 0 and 90' });
+    let out;
+    try { out = importer(f.buffer, { lagDays: lag }); } catch (e) {
+      logger.error({ err: e }, '[SFRE] ingest parse failed');
+      return res.status(422).json({ error: 'file could not be parsed' }); // no parser internals leaked
+    }
     try {
-      const out = importer(f.buffer, { lagDays: lag });
       const saved = await db.addObservations(out.observations);
       const record = { id: `ingest_${createHash('sha256').update(f.buffer).digest('hex').slice(0, 20)}_${Date.now()}`, kind: req.params.kind, filename: String(f.originalname).slice(0, 200), bytes: f.size, lagDays: lag ?? null, report: out.report, skipped: out.skipped, inserted: saved.inserted, duplicates: saved.duplicates, rejected: saved.rejected.length, created_by: req.user.userCode };
       await db.append('ingests', record);
       res.status(201).json(record);
     } catch (e) {
-      logger.error({ err: e }, '[SFRE] ingest failed');
-      res.status(422).json({ error: 'file could not be parsed' }); // no parser internals leaked
+      // the file parsed fine: this is a storage failure (disk/quota/connection), which must not be reported as a bad file
+      logger.error({ err: e }, '[SFRE] ingest storage write failed');
+      res.status(503).json({ error: 'storage write failed: the file was read but could not be saved (database full, quota or connection problem); part of it may already be stored, re-uploading is safe (duplicates are ignored)' });
     }
   });
 
