@@ -1,13 +1,14 @@
 import { mkObs, num } from './parse.js';
 
 /**
- * TCMB EVDS (evds2.tcmb.gov.tr) client: daily macro series (FX, rates) as point-in-time observations.
+ * TCMB EVDS (evds3.tcmb.gov.tr) client: daily macro series (FX, rates) as point-in-time observations.
  * Auth: the API key travels in the `key` header (never in the URL, so it cannot leak into logs).
  * EVDS has no per-observation publication timestamp, so every value is available from event day + lagDays (default 1) and flagged
  * ESTIMATED. Missing values (holidays) are skipped, never read as zero. Anything that is not JSON (an HTML error page for a bad key
  * or an unknown series code) is reported, not guessed.
  */
-export const EVDS_BASE = 'https://evds2.tcmb.gov.tr/service/evds';
+// TCMB moved EVDS to evds3 (the old evds2.tcmb.gov.tr/service/evds path now redirects to the website). Key goes in the `key` header only.
+export const EVDS_BASE = 'https://evds3.tcmb.gov.tr/igmevdsms-dis';
 export const DEFAULT_EVDS_SERIES = Object.freeze(['TP.DK.USD.A.YTL', 'TP.DK.EUR.A.YTL']); // USD / EUR indicative buying rate (TRY)
 const DAY = 86400000;
 const ddmmyyyy = (iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
@@ -42,7 +43,8 @@ export class EvdsClient {
     const wait = this.last + this.cfg.minIntervalMs - Date.now(); if (wait > 0) await this.sleep(wait);
     this.last = Date.now();
     const url = `${this.cfg.baseUrl}/series=${code}&startDate=${ddmmyyyy(startIso)}&endDate=${ddmmyyyy(endIso)}&type=json`;
-    const res = await this.fetchImpl(url, { headers: { key: this.cfg.apiKey, Accept: 'application/json' }, signal: AbortSignal.timeout(this.cfg.timeoutMs) });
+    const res = await this.fetchImpl(url, { headers: { key: this.cfg.apiKey, Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(this.cfg.timeoutMs) }); // never follow a redirect with the key attached
+    if (res.status >= 300 && res.status < 400) throw Object.assign(new Error(`EVDS redirected (HTTP ${res.status}): the API address has probably moved`), { code: 'MOVED' });
     if (res.status === 401 || res.status === 403) throw Object.assign(new Error(`EVDS refused the key (HTTP ${res.status})`), { code: 'AUTH' });
     if (!res.ok) throw Object.assign(new Error(`EVDS HTTP ${res.status}`), { code: 'HTTP' });
     const text = await res.text(); let body;

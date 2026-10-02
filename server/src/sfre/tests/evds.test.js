@@ -34,6 +34,12 @@ describe('TCMB EVDS importer', () => {
     expect(r.perSeries[CODE].ok).toBe(true); expect(r.perSeries['BAD.CODE']).toMatchObject({ ok: false, code: 'SCHEMA' }); expect(r.observations).toHaveLength(2);
     const bad = await new EvdsClient({ config: cfg(), fetchImpl: async () => json(403, {}) }).sync({ series: [CODE] }); expect(bad.perSeries[CODE]).toMatchObject({ ok: false, code: 'AUTH' });
   });
+  it('uses the evds3 address and refuses to follow a redirect with the key attached', async () => {
+    let seen; const c = new EvdsClient({ config: cfg(), fetchImpl: async (url, o) => { seen = { url: String(url), redirect: o.redirect }; return { ok: false, status: 302, text: async () => '' }; } });
+    const r = await c.sync({ series: [CODE], startIso: '2018-08-01', endIso: '2018-08-31' });
+    expect(seen.url.startsWith('https://evds3.tcmb.gov.tr/igmevdsms-dis/series=')).toBe(true); expect(seen.redirect).toBe('manual');
+    expect(r.perSeries[CODE]).toMatchObject({ ok: false, code: 'MOVED' });
+  });
   it('rejects unsafe series codes and does nothing without a key', async () => {
     const c = new EvdsClient({ config: cfg(), fetchImpl: async () => json(200, { items }) });
     expect((await c.sync({ series: ['x&key=1'] })).perSeries['x&key=1']).toMatchObject({ ok: false, code: 'BAD_CODE' });
