@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EvdsClient, evdsConfig, evdsItemToObservation, DEFAULT_EVDS_SERIES } from '../ingest/evds.js';
+import { EvdsClient, evdsConfig, evdsItemToObservation, DEFAULT_EVDS_SERIES, dateWindows } from '../ingest/evds.js';
 import { SfreSyncService } from '../ingest/syncService.js';
 import { validateObservation } from '../data/observation.js';
 
@@ -33,6 +33,15 @@ describe('TCMB EVDS importer', () => {
     const r = await c.sync({ series: [CODE, 'BAD.CODE'], startIso: '2018-08-01', endIso: '2018-08-31' });
     expect(r.perSeries[CODE].ok).toBe(true); expect(r.perSeries['BAD.CODE']).toMatchObject({ ok: false, code: 'SCHEMA' }); expect(r.observations).toHaveLength(2);
     const bad = await new EvdsClient({ config: cfg(), fetchImpl: async () => json(403, {}) }).sync({ series: [CODE] }); expect(bad.perSeries[CODE]).toMatchObject({ ok: false, code: 'AUTH' });
+  });
+  it('requests long ranges in windows of <= 900 days because EVDS truncates at 1000 rows', async () => {
+    const w = dateWindows('2018-01-01', '2026-10-02'); expect(w.length).toBe(4);
+    expect(w[0]).toEqual({ startIso: '2018-01-01', endIso: '2020-06-18' }); expect(w[3].endIso).toBe('2026-10-02');
+    for (let i = 1; i < w.length; i++) expect(Date.parse(w[i].startIso) - Date.parse(w[i - 1].endIso)).toBe(86400000); // contiguous, no gap, no overlap
+    expect(dateWindows('2026-09-01', '2026-09-30')).toEqual([{ startIso: '2026-09-01', endIso: '2026-09-30' }]);
+    const calls = []; const c = new EvdsClient({ config: cfg(), fetchImpl: async (url) => { calls.push(String(url)); return json(200, { items }); } });
+    const r = await c.sync({ series: [CODE], startIso: '2018-01-01', endIso: '2026-10-02' });
+    expect(calls).toHaveLength(4); expect(r.perSeries[CODE].items).toBe(16); // 4 windows x 4 items
   });
   it('uses the evds3 address and refuses to follow a redirect with the key attached', async () => {
     let seen; const c = new EvdsClient({ config: cfg(), fetchImpl: async (url, o) => { seen = { url: String(url), redirect: o.redirect }; return { ok: false, status: 302, text: async () => '' }; } });

@@ -11,6 +11,15 @@ import { mkObs, num } from './parse.js';
 export const EVDS_BASE = 'https://evds3.tcmb.gov.tr/igmevdsms-dis';
 export const DEFAULT_EVDS_SERIES = Object.freeze(['TP.DK.USD.A.YTL', 'TP.DK.EUR.A.YTL']); // USD / EUR indicative buying rate (TRY)
 const DAY = 86400000;
+export const EVDS_MAX_ROWS = 1000; // EVDS silently truncates a response at 1000 rows, so a long range must be requested in windows
+const WINDOW_DAYS = 900;
+
+/** Splits [startIso, endIso] into consecutive windows of at most `days` days (inclusive ISO dates). */
+export function dateWindows(startIso, endIso, days = WINDOW_DAYS) {
+  const out = []; let a = Date.parse(`${startIso}T00:00:00Z`); const end = Date.parse(`${endIso}T00:00:00Z`);
+  while (a <= end) { const b = Math.min(a + (days - 1) * DAY, end); out.push({ startIso: new Date(a).toISOString().slice(0, 10), endIso: new Date(b).toISOString().slice(0, 10) }); a = b + DAY; }
+  return out;
+}
 const ddmmyyyy = (iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
 
 export function evdsConfig(env = process.env) {
@@ -21,7 +30,7 @@ export function evdsConfig(env = process.env) {
     start: env.SFRE_EVDS_START || '2018-01-01',
     lagDays: env.SFRE_EVDS_LAG_DAYS ? Number(env.SFRE_EVDS_LAG_DAYS) : 1,
     timeoutMs: Number(env.SFRE_EVDS_TIMEOUT_MS) || 60000,
-    minIntervalMs: Number(env.SFRE_EVDS_MIN_INTERVAL_MS) || 1000,
+    minIntervalMs: env.SFRE_EVDS_MIN_INTERVAL_MS !== undefined && env.SFRE_EVDS_MIN_INTERVAL_MS !== '' ? Number(env.SFRE_EVDS_MIN_INTERVAL_MS) : 1000, // 0 is a valid setting
   };
 }
 
@@ -58,7 +67,8 @@ export class EvdsClient {
     const observations = []; const perSeries = {};
     for (const code of series) {
       try {
-        const items = await this.fetchSeries(code, { startIso, endIso }); let n = 0;
+        const items = []; for (const w of dateWindows(startIso, endIso)) items.push(...await this.fetchSeries(code, w));
+        let n = 0;
         for (const it of items) { const o = evdsItemToObservation(it, code, { lagDays: this.cfg.lagDays, ingestedMs }); if (o) { observations.push(o); n++; } }
         perSeries[code] = { ok: true, items: items.length, observations: n };
       } catch (e) { perSeries[code] = { ok: false, error: e.message, code: e.code ?? null }; }
