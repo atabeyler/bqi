@@ -832,5 +832,7 @@
   "cyberScanExportTitle": "نتيجة فحص BCI",
   "cyberBciReportTitle": "تقرير BCI",
   "cyberReportContentTitle": "محتوى التقرير",
-  "cyberBciUnavailable": "خدمة BCI غير متاحة حالياً (قد تكون في وضع السكون). حاول مجدداً عبر «تحديث» بعد بضع دقائق، وإذا استمرت المشكلة فأبلغ المسؤول."
+  "cyberBciUnavailable": "خدمة BCI غير متاحة حالياً (قد تكون في وضع السكون). حاول مجدداً عبر «تحديث» بعد بضع دقائق، وإذا استمرت المشكلة فأبلغ المسؤول.",
+  "cyberCoverageReason_no_assets": "لا توجد أصول مسجلة.",
+  "cyberCoverageReason_no_expected_categories": "لا توجد فئات تحليل متوقعة."
 }

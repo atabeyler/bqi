@@ -832,5 +832,7 @@
   "cyberScanExportTitle": "BCI Scan Result",
   "cyberBciReportTitle": "BCI Report",
   "cyberReportContentTitle": "Report Content",
-  "cyberBciUnavailable": "The BCI service is currently unreachable (it may be asleep). Try Refresh in a few minutes; if it persists, tell an administrator."
+  "cyberBciUnavailable": "The BCI service is currently unreachable (it may be asleep). Try Refresh in a few minutes; if it persists, tell an administrator.",
+  "cyberCoverageReason_no_assets": "No assets are registered.",
+  "cyberCoverageReason_no_expected_categories": "No expected analysis categories are available."
 }

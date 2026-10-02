@@ -832,5 +832,7 @@
   "cyberScanExportTitle": "BCI Tarama Sonucu",
   "cyberBciReportTitle": "BCI Raporu",
   "cyberReportContentTitle": "Rapor İçeriği",
-  "cyberBciUnavailable": "BCI servisine şu an ulaşılamıyor (uyku modunda olabilir). Birkaç dakika sonra Yenile ile tekrar deneyin; sürerse yöneticiye bildirin."
+  "cyberBciUnavailable": "BCI servisine şu an ulaşılamıyor (uyku modunda olabilir). Birkaç dakika sonra Yenile ile tekrar deneyin; sürerse yöneticiye bildirin.",
+  "cyberCoverageReason_no_assets": "Kayıtlı varlık yok.",
+  "cyberCoverageReason_no_expected_categories": "Beklenen analiz kategorisi bulunmuyor."
 }

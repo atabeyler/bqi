@@ -832,5 +832,7 @@
   "cyberScanExportTitle": "Résultat d’analyse BCI",
   "cyberBciReportTitle": "Rapport BCI",
   "cyberReportContentTitle": "Contenu du rapport",
-  "cyberBciUnavailable": "Le service BCI est actuellement inaccessible (il est peut-être en veille). Réessayez avec Actualiser dans quelques minutes ; si le problème persiste, prévenez un administrateur."
+  "cyberBciUnavailable": "Le service BCI est actuellement inaccessible (il est peut-être en veille). Réessayez avec Actualiser dans quelques minutes ; si le problème persiste, prévenez un administrateur.",
+  "cyberCoverageReason_no_assets": "Aucun actif enregistré.",
+  "cyberCoverageReason_no_expected_categories": "Aucune catégorie d’analyse attendue."
 }

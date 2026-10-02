@@ -832,5 +832,7 @@
   "cyberScanExportTitle": "BCI-Scanergebnis",
   "cyberBciReportTitle": "BCI-Bericht",
   "cyberReportContentTitle": "Berichtsinhalt",
-  "cyberBciUnavailable": "Der BCI-Dienst ist derzeit nicht erreichbar (möglicherweise im Ruhezustand). Versuchen Sie es in einigen Minuten mit Aktualisieren erneut; bei anhaltendem Problem informieren Sie einen Administrator."
+  "cyberBciUnavailable": "Der BCI-Dienst ist derzeit nicht erreichbar (möglicherweise im Ruhezustand). Versuchen Sie es in einigen Minuten mit Aktualisieren erneut; bei anhaltendem Problem informieren Sie einen Administrator.",
+  "cyberCoverageReason_no_assets": "Keine Assets registriert.",
+  "cyberCoverageReason_no_expected_categories": "Keine erwarteten Analysekategorien vorhanden."
 }

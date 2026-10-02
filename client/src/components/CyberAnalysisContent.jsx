@@ -120,6 +120,12 @@ function GuideNote({ children }) {
   );
 }
 
+// BCI returns a machine reason code with the coverage score; show a localized sentence, and the code itself only when it is unknown.
+function coverageReasonText(t, reason) {
+  const text = t(`cyberCoverageReason_${reason}`);
+  return text && text !== `cyberCoverageReason_${reason}` ? text : reason;
+}
+
 // Server error codes that reach the user as raw text get a localized sentence instead.
 const ERROR_TEXT_KEYS = { bci_unavailable: 'cyberBciUnavailable' };
 function ErrorNote({ error }) {
@@ -227,7 +233,7 @@ function DashboardTab({ t, lang, onNewAnalysis }) {
         <div className="hud-panel rounded-xl p-4 flex flex-col items-center gap-1">
           <span className="text-cyan-100/60 text-xs tracking-widest uppercase">{t('cyberCoverageScore')}</span>
           <span className={`text-3xl font-serif ${scoreTone(coverage?.score)}`}>{coverage?.score ?? '—'}</span>
-          {coverage?.reason && <span className="text-cyan-100/40 text-[11px]">{coverage.reason}</span>}
+          {coverage?.reason && <span className="text-cyan-100/40 text-[11px]">{coverageReasonText(t, coverage.reason)}</span>}
         </div>
         <Tile label={t('cyberOpenFindings')} value={security?.openFindingCount} />
         <Tile label={t('cyberActiveAssets')} value={activeAssetCount} />
