@@ -1,0 +1,60 @@
+{
+  "params": {
+    "window": 104,
+    "warmup": 52,
+    "z": 5,
+    "minMove": 0.01
+  },
+  "rows": [
+    {
+      "id": "M1",
+      "t0": "2008-09-16",
+      "name": "Reserve Primary Fund \"broke the buck\" (Lehman sonrası)",
+      "detected": true,
+      "flagDate": "2008-09-22",
+      "leadDays": -6,
+      "move": -0.05058365758754868,
+      "series": "WIMFNS"
+    },
+    {
+      "id": "M2",
+      "t0": "2020-03-18",
+      "name": "Mart 2020 prime fon kaçışı (Fed MMLF açıldı)",
+      "detected": true,
+      "flagDate": "2020-03-16",
+      "leadDays": 2,
+      "move": 0.03806887004672088,
+      "series": "WIMFNS"
+    },
+    {
+      "id": "M1",
+      "t0": "2008-09-16",
+      "name": "Reserve Primary Fund \"broke the buck\" (Lehman sonrası)",
+      "detected": false,
+      "flagDate": null,
+      "leadDays": null,
+      "move": null,
+      "series": "WRMFNS"
+    },
+    {
+      "id": "M2",
+      "t0": "2020-03-18",
+      "name": "Mart 2020 prime fon kaçışı (Fed MMLF açıldı)",
+      "detected": false,
+      "flagDate": null,
+      "leadDays": null,
+      "move": null,
+      "series": "WRMFNS"
+    },
+    {
+      "id": "M3",
+      "t0": "2023-03-13",
+      "name": "SVB çöküşü sonrası para piyasası fonlarına akın",
+      "detected": false,
+      "flagDate": null,
+      "leadDays": null,
+      "move": null,
+      "series": "WRMFNS"
+    }
+  ]
+}

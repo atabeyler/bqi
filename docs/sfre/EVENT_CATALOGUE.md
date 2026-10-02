@@ -45,6 +45,10 @@ EVDS kurunda basit şok motoru 5 olaydan 4'ünü yakaladı, E6'yı (2023 seçimi
 
 Aynı motor, parametreler değişmeden: 7/7 yakalandı (Meksika 1994, Tayland 1997, Kore 1997, Brezilya 1999, İsviçre frangı 2015, Brexit 2016, Güney Afrika 2015). Olaylar büyük ve ani olduğu için kolay bir test; yalnız şok tanıma kanıtıdır. Ayrıntı: `results/fx-shock-open-data.md`.
 
+## Dördüncü sonuç: ABD para piyasası fonu akışı (açık veri, toplam seri)
+
+Kurumsal seri: 2008 ve 2020 yakalandı (2/2). Bireysel seri: 2008, 2020, 2023 üçü de kaçırıldı (0/3). Toplam 2/5. Bu seri fon kesiti değil, toplamdır; Türkiye breadth motoru (M21) test edilmedi. Ayrıntı: `results/mmf-flow-open-data.md`.
+
 ## Gerekli veri (olay başına)
 
 | Veri | Kaynak | Durum |
