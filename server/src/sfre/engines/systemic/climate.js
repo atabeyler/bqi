@@ -1,7 +1,8 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNonNeg, isFrac, unobs, probitShift } from '../../core/numeric.js';
+import { isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { aggregateCredit, probitContribution, unobservedContribution } from './creditShocks.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
 import { propagate } from './crossSector.js';
 
@@ -64,7 +65,13 @@ export function climateSectors(system, scenario, p) {
     if (ebitdaDrop !== null && ebitdaDrop > 0) { if (unobs(p.valuationPassThrough)) { unobserved.push('climate_param:valuationPassThrough'); lb.add('valuationPassThrough unobserved: earnings-to-valuation channel excluded'); } else vEb = Math.min(1, p.valuationPassThrough * ebitdaDrop); }
     let pdShift = 0;
     if (ebitdaDrop !== null && ebitdaDrop > 0) { if (unobs(p.pdSensitivity)) { unobserved.push('climate_param:pdSensitivity'); lb.add('pdSensitivity unobserved: PD channel excluded'); } else pdShift = p.pdSensitivity * ebitdaDrop; }
-    out[s] = { ...row, transitionCostRatio: tCost, natureRevenueLoss: natLoss, ebitdaDrop, physicalDamage: phys, physicalInsured: phys * insured, physicalUninsured: physUninsured, valuationHaircut: 1 - (1 - vEb) * (1 - physUninsured), pdShift };
+    // PD channel bookkeeping: what was requested, what could be observed (UNOBSERVED is never a zero; a scenario without earnings channels is a real "no shock")
+    const reqT = !!sc.transition; const reqN = !!sc.nature; const tObs = reqT && row.channels.transition !== 'UNOBSERVED'; const nObs = reqN && row.channels.nature !== 'UNOBSERVED';
+    const pdUnobservedParts = [];
+    if (reqT && !tObs) pdUnobservedParts.push('transition channel'); if (reqN && !nObs) pdUnobservedParts.push('nature channel');
+    if (ebitdaDrop === null) pdUnobservedParts.push('ebitdaMargin'); else if (ebitdaDrop > 0 && unobs(p.pdSensitivity)) pdUnobservedParts.push('pdSensitivity');
+    const pdObserved = !(ebitdaDrop === null || (ebitdaDrop > 0 && unobs(p.pdSensitivity))) && (tObs || nObs || (!reqT && !reqN));
+    out[s] = { ...row, pdObserved, pdUnobservedParts, transitionCostRatio: tCost, natureRevenueLoss: natLoss, ebitdaDrop, physicalDamage: phys, physicalInsured: phys * insured, physicalUninsured: physUninsured, valuationHaircut: 1 - (1 - vEb) * (1 - physUninsured), pdShift };
   }
   return { sectors: out, unobserved, lb };
 }
@@ -73,13 +80,15 @@ export function climateSectors(system, scenario, p) {
 export function climateTransmission(system, scenario, p, ix = indexSystem(system)) {
   const c = system.climate; const { sectors, unobserved, lb } = climateSectors(system, scenario, p);
   const priceShocks = {}; for (const [a, s] of Object.entries(c.assetSector || {})) if (sectors[s].valuationHaircut > 0) priceShocks[a] = sectors[s].valuationHaircut;
-  const dA = new Array(ix.n).fill(0); const effects = []; const pdShifts = [];
+  const dA = new Array(ix.n).fill(0); const effects = []; const creditContributions = [];
   ix.E.forEach((e, i) => {
     if (e.riskSector && !unobs(e.externalAssets)) { const l = e.externalAssets * sectors[e.riskSector].valuationHaircut; dA[i] -= l; if (l > 0) effects.push({ entity: e.id, channel: 'VALUATION_EXTERNAL_ASSETS', loss: l }); }
     for (const b of e.creditBook || []) {
-      const s = sectors[b.riskSector]; if (!s || !(s.pdShift > 0)) continue;
-      if (unobs(b.pd) || unobs(b.lgd)) { unobserved.push(`climate_credit_inputs:${e.id}:${b.id}`); lb.add('credit book entries with unobserved pd/lgd are excluded'); continue; }
-      const pd1 = probitShift(b.pd, s.pdShift); const l = b.amount * b.lgd * (pd1 - b.pd); dA[i] -= l; effects.push({ entity: e.id, channel: 'PD_SHIFT', book: b.id, pd0: b.pd, pd1, loss: l }); pdShifts.push({ entity: e.id, book: b.id, pd0: b.pd, pd1 });
+      const s = sectors[b.riskSector]; if (!s) continue;
+      const base = { source: MODEL_ID, entity: e.id, book: b.id };
+      if ((s.pdShift > 0 || !s.pdObserved) && (unobs(b.pd) || unobs(b.lgd))) { unobserved.push(`climate_credit_inputs:${e.id}:${b.id}`); lb.add('credit book entries with unobserved pd/lgd are excluded'); }
+      if (s.pdObserved) creditContributions.push(probitContribution({ ...base, shockId: `CLIMATE:${b.riskSector}:PD`, magnitude: s.pdShift, transformation: 'probit shift = pdSensitivity x EBITDA drop', inputs: { pdSensitivity: p.pdSensitivity, ebitdaDrop: s.ebitdaDrop } }));
+      if (s.pdUnobservedParts.length) creditContributions.push(unobservedContribution({ ...base, shockId: `CLIMATE:${b.riskSector}:PD:UNOBSERVED`, reason: `unobserved: ${s.pdUnobservedParts.join(', ')}` }));
     }
   });
   // insurer channel: insured physical loss = coverage * damaged insured value, shared by insurer according to book shares
@@ -94,7 +103,7 @@ export function climateTransmission(system, scenario, p, ix = indexSystem(system
     const i = ix.eIdx.get(id); let l = 0; for (const [s, sh] of Object.entries(m)) l += sh * (insuredLossBySector[s] || 0);
     if (l > 0) { dA[i] -= l; effects.push({ entity: id, channel: 'INSURED_PHYSICAL_LOSS', loss: l }); }
   }
-  return { sectors, priceShocks, extAssetsDelta: dA, effects, pdShifts, insuredLossBySector, unobserved: [...new Set(unobserved)], lowerBoundReasons: [...lb] };
+  return { sectors, priceShocks, extAssetsDelta: dA, effects, creditContributions, insuredLossBySector, unobserved: [...new Set(unobserved)], lowerBoundReasons: [...lb] };
 }
 
 export function climateParams(system, options = {}) {
@@ -108,7 +117,16 @@ export function runClimate(system, scenario = {}, options = {}) {
   const err = validateSystemState(system) || validateClimate(system, scenario);
   if (err) return failed(ENGINE, MODEL_ID, err);
   const ix = indexSystem(system); const p = climateParams(system, options);
-  const run = (pp) => { const t = climateTransmission(system, scenario, pp, ix); const prop = propagate(system, { priceShocks: t.priceShocks }, { alpha: 1, beta: 1, maxIter: 50000 }, { ix, extAssetsDelta: t.extAssetsDelta }); return { t, prop }; };
+  const run = (pp) => {
+    const t = climateTransmission(system, scenario, pp, ix);
+    const ag = aggregateCredit(ix, t.creditContributions); // standalone: only this engine's contributions
+    t.extAssetsDelta = t.extAssetsDelta.map((v, i) => v - ag.lossByEntity[i]);
+    t.unobserved = [...new Set([...t.unobserved, ...ag.unobserved])];
+    t.pdShifts = ag.books.filter((b) => b.observed && b.pdFinal !== b.pd0).map((b) => ({ entity: b.entity, book: b.book, pd0: b.pd0, pd1: b.pdFinal, provenance: b.contributions }));
+    for (const b of ag.books) if (b.observed && b.pdFinal !== b.pd0) t.effects.push({ entity: b.entity, channel: 'PD_SHIFT', book: b.book, pd0: b.pd0, pd1: b.pdFinal, loss: b.loss });
+    const prop = propagate(system, { priceShocks: t.priceShocks }, { alpha: 1, beta: 1, maxIter: 50000 }, { ix, extAssetsDelta: t.extAssetsDelta });
+    return { t, prop };
+  };
   const { t, prop } = run(p);
   const unobserved = [...new Set([...t.unobserved, ...prop.unobserved])];
   let status = STATUS.UNCALIBRATED; const notes = ['Climate/nature transmission is a reduced-form scenario model (caller-supplied sector parameters, pass-through and sensitivities): UNCALIBRATED, not a forecast of climate outcomes or prices.'];
@@ -120,7 +138,7 @@ export function runClimate(system, scenario = {}, options = {}) {
   return makeResult({
     engine: ENGINE, modelId: MODEL_ID, status,
     value: { sectors: t.sectors, assetHaircuts: t.priceShocks, effects: t.effects, insuredLossBySector: t.insuredLossBySector, totals: { creditAndValuationLoss: -sumArr(t.extAssetsDelta), systemLoss: prop.system.systemLoss }, contagion, lowerBound: unobserved.length > 0, handoff: { priceShocks: t.priceShocks, extAssetsDelta: t.extAssetsDelta, pdShifts: t.pdShifts } },
-    uncertainty, coverage: coverageOf(Object.keys(system.climate.sectors).length - new Set(unobserved.filter((x) => /:/.test(x)).map((x) => x.split(':')[1])).size, Object.keys(system.climate.sectors).length), unobserved, calibration: CALIBRATION.UNCALIBRATED,
+    uncertainty, coverage: coverageOf(Object.keys(system.climate.sectors).length - new Set(unobserved.map((x) => x.split(':')[1]).filter((k) => k in system.climate.sectors)).size, Object.keys(system.climate.sectors).length), unobserved, calibration: CALIBRATION.UNCALIBRATED,
     parameters: { ...p, scenario: scenario.climate, ebitdaDrop: '(transition cost + nature revenue loss)/ebitdaMargin, capped at 1 (ASSUMED)', valuation: 'haircut = passThrough x EBITDA drop (constant multiple, ASSUMED)' },
     inputHashes: [hashOf(system.climate)], notes,
   });

@@ -1,6 +1,6 @@
 {
   "name": "bqi-client",
-  "version": "3.3.77",
+  "version": "3.3.78",
   "type": "module",
   "scripts": {
     "dev": "vite",

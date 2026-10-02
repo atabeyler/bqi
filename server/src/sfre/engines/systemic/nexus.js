@@ -1,7 +1,8 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNum, isNonNeg, isFrac, unobs, probitShift } from '../../core/numeric.js';
+import { isNum, isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { aggregateCredit, probitContribution, unobservedContribution } from './creditShocks.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
 import { propagate } from './crossSector.js';
 
@@ -69,18 +70,25 @@ export function nexusLoop(system, scenario, p, options = {}, ix = indexSystem(sy
       dc[i] = (has('passThrough') ? p.passThrough * dy : 0) + (has('capitalCostSensitivity') ? p.capitalCostSensitivity * sr : 0);
       if (!unobs(rwa) && !unobs(e.bank.minCapitalRatio) && !unobs(e.bank.corporateRwaShare) && has('creditCrunchPdSensitivity')) crunch[i] = Math.min(1, prevShort[i] / e.bank.minCapitalRatio / rwa) * e.bank.corporateRwaShare;
     }
-    const delta = new Array(n).fill(0); const elByBank = new Array(n).fill(0); const pdShifts = [];
-    for (const { e, i } of banks) for (const c of e.creditBook || []) {
+    // credit channel: this engine only EMITS creditShockContributions; the central aggregator stresses the PD (together with contributions that
+    // other engines already produced for the same books, passed in `pre`) and the resulting expected loss is what the bank sees
+    const delta = new Array(n).fill(0); const own = [];
+    for (const { e } of banks) for (const c of e.creditBook || []) {
       if (c.riskSector !== 'CORPORATE') continue;
-      if (unobs(c.pd) || unobs(c.lgd) || unobs(c.debtToEbitda)) { unobserved.push(`nexus_credit_inputs:${e.id}:${c.id}`); lb.add('corporate credit book entries with unobserved pd/lgd/debtToEbitda are excluded'); continue; }
+      const b = { source: MODEL_ID, shockId: `NEXUS:SOVEREIGN_SPREAD:${scenario.sovereign.spreadShockBps}`, entity: e.id, book: c.id };
+      if (unobs(c.pd) || unobs(c.lgd) || unobs(c.debtToEbitda)) { unobserved.push(`nexus_credit_inputs:${e.id}:${c.id}`); lb.add('corporate credit book entries with unobserved pd/lgd/debtToEbitda are excluded'); own.push(unobservedContribution({ ...b, reason: 'pd, lgd or debtToEbitda unobserved' })); continue; }
+      if (!has('pdSensitivity') && !has('creditCrunchPdSensitivity')) { own.push(unobservedContribution({ ...b, reason: 'pdSensitivity and creditCrunchPdSensitivity unobserved' })); continue; }
+      const i = ix.eIdx.get(e.id);
       const shift = (has('pdSensitivity') ? p.pdSensitivity * dc[i] * c.debtToEbitda : 0) + (has('creditCrunchPdSensitivity') ? p.creditCrunchPdSensitivity * crunch[i] : 0);
-      const pd1 = probitShift(c.pd, shift);
-      const l = c.amount * c.lgd * (pd1 - c.pd);
-      elByBank[i] += l; delta[i] -= l; pdShifts.push({ bank: e.id, book: c.id, pd0: c.pd, pd1, shift, loss: l });
+      own.push(probitContribution({ ...b, magnitude: shift, transformation: 'probit shift = pdSensitivity x fundingCostIncrease x debtToEbitda + creditCrunchPdSensitivity x crunch', inputs: { fundingCostIncrease: dc[i], debtToEbitda: c.debtToEbitda, crunch: crunch[i] } }));
     }
+    const agg = aggregateCredit(ix, [...own, ...(pre?.creditContributions ?? [])], { excludeBooks: pre?.excludeBooks });
+    agg.unobserved.forEach((u) => unobserved.push(u));
+    const elByBank = agg.lossByEntity.slice(); const pdShifts = agg.books.filter((b) => b.observed && b.contributions.some((c) => c.source === MODEL_ID && c.applied)).map((b) => ({ bank: b.entity, book: b.book, pd0: b.pd0, pd1: b.pdFinal, shift: b.contributions.find((c) => c.source === MODEL_ID && c.applied).magnitude, loss: b.loss, provenance: b.contributions }));
     // corporate entities: earnings hit on floating-rate debt (assumed horizon), structural channel into the network
     let corpEarnings = 0;
     E.forEach((e, i) => { if (e.corporate) { const l = (has('passThrough') ? p.passThrough * dy : 0) * e.corporate.floatingDebt * horizon; delta[i] -= l; corpEarnings += l; } });
+    const deltaExCredit = delta.slice(); for (let i = 0; i < n; i++) delta[i] -= agg.lossByEntity[i];
     // `pre` = effects of OTHER engines already applied by the Digital Twin (climate, FX, ...): the loop sees total bank losses
     const shocks = { ...(pre?.priceShocks ?? {}) }; shocks[bond.id] = 1 - (1 - (shocks[bond.id] ?? 0)) * f;
     const totalDelta = delta.map((v, i) => v + (pre?.extAssetsDelta?.[i] ?? 0));
@@ -104,7 +112,7 @@ export function nexusLoop(system, scenario, p, options = {}, ix = indexSystem(sy
     const debtGdp1 = gdpOk ? (s.debt + backstop) / gdp1 : null;
     if (gdpOk && has('spreadPerDebtGdpPp')) dyNext = dy0 + (p.spreadPerDebtGdpPp * 100 * (debtGdp1 - debtGdp0)) / 1e4;
     const diverged = !gdpOk || !Number.isFinite(dyNext) || dyNext > MAX_SPREAD;
-    last = { f, bankRows, pdShifts, corpEarnings, sumShort, backstop, gdp1, debtGdp0, debtGdp1, prop, delta, htmUnrealised, crunch };
+    last = { f, bankRows, pdShifts, corpEarnings, sumShort, backstop, gdp1, debtGdp0, debtGdp1, prop, delta, deltaExCredit, creditContributions: own, htmUnrealised, crunch };
     trace.push({ iteration: it + 1, spreadBps: dy * 1e4, bondPriceFactor: f, bankCapitalShortfall: sumShort, corporateELIncrease: sumArr(elByBank), sovereignBackstop: backstop, debtGdp: debtGdp1 });
     hist.push(dy);
     prevShort = short;
@@ -134,7 +142,7 @@ export function runSovNexus(system, scenario = {}, options = {}) {
   const p = nexusParams(system, options);
   const out = nexusLoop(system, scenario, p, options, ix);
   if (out.error) return failed(ENGINE, MODEL_ID, out.error);
-  const { last, ...core } = out; const { prop, delta, ...lastView } = last;
+  const { last, ...core } = out; const { prop, delta } = last; const lastView = last;
   const contagion = prop;
   const unobserved = [...new Set([...out.unobserved, ...prop.unobserved])];
   let status = STATUS.UNCALIBRATED; const notes = ['Reduced-form feedback loop with caller-supplied sensitivities: UNCALIBRATED scenario model, not a sovereign-risk forecast.'];
@@ -147,7 +155,7 @@ export function runSovNexus(system, scenario = {}, options = {}) {
   return makeResult({
     engine: ENGINE, modelId: MODEL_ID, status,
     value: { ...core, banks: lastView.bankRows, pdShifts: lastView.pdShifts, sovereign: { debtGdp0: lastView.debtGdp0, debtGdp1: lastView.debtGdp1, backstop: lastView.backstop, gdp1: lastView.gdp1 }, htmUnrealisedLoss: lastView.htmUnrealised, bondPriceFactor: lastView.f, contagion, lowerBound: unobserved.length > 0,
-      handoff: { priceShocks: { [system.sovereign.bondAsset]: 1 - lastView.f }, extAssetsDelta: delta, creditSupplyContraction: Object.fromEntries(system.entities.map((e, i) => [e.id, lastView.crunch[i]]).filter((x) => x[1] > 0)) } },
+      handoff: { priceShocks: { [system.sovereign.bondAsset]: 1 - lastView.f }, extAssetsDelta: delta, creditContributions: last.creditContributions, creditSupplyContraction: Object.fromEntries(system.entities.map((e, i) => [e.id, lastView.crunch[i]]).filter((x) => x[1] > 0)) } },
     uncertainty, coverage: coverageOf(det, system.entities.length), unobserved, calibration: CALIBRATION.UNCALIBRATED,
     parameters: { ...p, spreadShockBps: scenario.sovereign.spreadShockBps, horizonYears: options.horizonYears ?? 1, bondValuation: 'duration-convexity second order', htm: 'HTM losses unrecognised in accounting capital; recognised economically' },
     inputHashes: [hashOf(system)], notes,

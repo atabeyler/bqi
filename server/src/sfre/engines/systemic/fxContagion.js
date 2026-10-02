@@ -1,7 +1,8 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNum, isNonNeg, isFrac, unobs, probitShift } from '../../core/numeric.js';
+import { isNum, isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { aggregateCredit, probitContribution, unobservedContribution } from './creditShocks.js';
 import { priceImpact } from '../impact.js';
 import { validateSystemState, indexSystem, holdingsValue, sumArr } from './state.js';
 import { propagate } from './crossSector.js';
@@ -95,14 +96,14 @@ export function fxChain(system, scenario, p, ix = indexSystem(system)) {
     if (unobs(raw.fxHedged)) { unobserved.push(`fx_hedged_fraction:exposure:${raw.creditor}->${raw.debtor}`); lb.add('FCY exposures with unobserved hedge ratio are revalued as unhedged (upper-side treatment flagged)'); }
     return x.amount * (1 + d * (1 - hh));
   });
-  // ---- 5) credit losses on FX-sensitive credit books (PD shift; sensitivity must be supplied, else UNOBSERVED not zero)
-  let creditLoss = 0; const creditEffects = [];
+  // ---- 5) FX-sensitive credit books: this engine only EMITS a creditShockContribution (probit shift s*d*fxExposure); the central aggregator
+  //         (creditShocks.js) stresses the PD and books the loss once. A missing input is an UNOBSERVED contribution, never a zero.
+  const creditContributions = [];
   for (let i = 0; i < n; i++) for (const c of E[i].creditBook || []) {
     if (!c.fcy) continue;
-    if (unobs(p.sensitivity) || unobs(c.pd) || unobs(c.lgd) || unobs(c.fxExposure)) { unobserved.push(`fx_credit_inputs:${E[i].id}:${c.id}`); lb.add('FX-sensitive credit book entries with unobserved pd/lgd/fxExposure/sensitivity are excluded'); continue; }
-    const pd1 = probitShift(c.pd, p.sensitivity * d * c.fxExposure);
-    const l = c.amount * c.lgd * (pd1 - c.pd);
-    extAssetsDelta[i] -= l; creditLoss += l; creditEffects.push({ entity: E[i].id, book: c.id, pd0: c.pd, pd1, loss: l });
+    const base = { source: MODEL_ID, shockId: `FX:DEPRECIATION:${d}`, entity: E[i].id, book: c.id };
+    if (unobs(p.sensitivity) || unobs(c.pd) || unobs(c.lgd) || unobs(c.fxExposure)) { unobserved.push(`fx_credit_inputs:${E[i].id}:${c.id}`); lb.add('FX-sensitive credit book entries with unobserved pd/lgd/fxExposure/sensitivity are excluded'); creditContributions.push(unobservedContribution({ ...base, reason: 'pd, lgd, fxExposure or pdSensitivity unobserved' })); continue; }
+    creditContributions.push(probitContribution({ ...base, magnitude: p.sensitivity * d * c.fxExposure, transformation: 'probit shift = pdSensitivity x depreciation x fxExposure', inputs: { pdSensitivity: p.sensitivity, depreciation: d, fxExposure: c.fxExposure } }));
   }
   return {
     stages: {
@@ -110,8 +111,9 @@ export function fxChain(system, scenario, p, ix = indexSystem(system)) {
       fxLiquidity: { debtRolloverDemand: demandDebt, totalDemand: demand, officialSupply: supply, excessDemand: excess, entityGaps: gaps },
       exchangeRate: { exogenous: d0, endogenous: dEndo, depreciation: d, spot0: fx.spot, spot1: fx.spot * (1 + d) },
       balanceSheet: { effects: fxEffects, netLossSystem: sumArr(fxEffects.map((x) => x.netLoss)) },
-      creditLiquidity: { creditLoss, creditEffects, liquidityGapsFcy: gaps },
+      creditLiquidity: { creditLoss: null, creditEffects: [], liquidityGapsFcy: gaps },
     },
+    creditContributions,
     handoff: { depreciation: d, extAssetsDelta, extLiabDelta, edgeAmounts, domesticAssetSales, entityFcyGap: gaps },
     unobserved: [...new Set(unobserved)], lowerBoundReasons: [...lb], upperBoundExtraLoss: upperExtra,
   };
@@ -130,7 +132,11 @@ export function runFxContagion(system, scenario = {}, options = {}) {
   const p = fxParams(system, options);
   const run = (pp) => {
     const ch = fxChain(system, scenario, pp, ix);
-    const prop = propagate(system, {}, { alpha: options.alpha ?? 1, beta: options.beta ?? 1, maxIter: 50000 }, { ix, extAssetsDelta: ch.handoff.extAssetsDelta, extLiabDelta: ch.handoff.extLiabDelta, edgeAmounts: ch.handoff.edgeAmounts });
+    const ag = aggregateCredit(ix, ch.creditContributions); // standalone: only this engine's contributions
+    const dA = ch.handoff.extAssetsDelta.map((v, i) => v - ag.lossByEntity[i]);
+    ch.stages.creditLiquidity = { creditLoss: ag.totalLoss, creditEffects: ag.books.filter((b) => b.observed && b.contributions.some((c) => c.applied)).map((b) => ({ entity: b.entity, book: b.book, pd0: b.pd0, pd1: b.pdFinal, loss: b.loss, provenance: b.contributions })), liquidityGapsFcy: ch.stages.creditLiquidity.liquidityGapsFcy };
+    ch.unobserved = [...new Set([...ch.unobserved, ...ag.unobserved])];
+    const prop = propagate(system, {}, { alpha: options.alpha ?? 1, beta: options.beta ?? 1, maxIter: 50000 }, { ix, extAssetsDelta: dA, extLiabDelta: ch.handoff.extLiabDelta, edgeAmounts: ch.handoff.edgeAmounts });
     return { ch, prop };
   };
   const { ch, prop } = run(p);

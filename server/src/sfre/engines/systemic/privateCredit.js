@@ -4,6 +4,7 @@ import { Rng } from '../../core/prng.js';
 import { quantile, std } from '../../core/stats.js';
 import { isNum, isNonNeg, isFrac, unobs, normalInv, vasicekConditionalPd } from '../../core/numeric.js';
 import { hhi } from '../concentration.js';
+import { aggregateCredit, factorContribution } from './creditShocks.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
 import { propagate } from './crossSector.js';
 
@@ -68,9 +69,17 @@ function fundStep(system, ix, pc, fd, sc, params) {
   const e = system.entities.find((x) => x.id === fd.entity); const ei = ix.eIdx.get(fd.entity);
   const unobserved = []; const lb = new Set();
   const loans = e.creditBook; const loans0 = sumArr(loans.map((c) => c.amount));
-  const { loss: creditLoss, unobserved: u1 } = analyticLoss(loans, pc.factor.rhoGlobal, sc.stressFactor);
-  u1.forEach((x) => { unobserved.push(x); lb.add('loans with unobserved pd/lgd are excluded from credit loss'); });
-  const mc = simulateLoss(loans, pc.factor, sc.stressFactor, sc.nSim ?? 2000, new Rng(params.seed).child(`pc:${fd.entity}`));
+  // PD stress goes through the central aggregator: PD shifts other engines contributed for these loans (params.creditContributions) are
+  // combined in latent space first, then this engine's systematic factor is applied: z = (z_pre - sqrt(rho) g)/sqrt(1-rho). With no other
+  // contribution this is exactly the Vasicek conditional PD.
+  const obsLoans = loans.filter((c) => !(unobs(c.pd) || unobs(c.lgd)));
+  loans.filter((c) => unobs(c.pd) || unobs(c.lgd)).forEach((c) => { unobserved.push(`loan_inputs:${c.id}`); lb.add('loans with unobserved pd/lgd are excluded from credit loss'); });
+  const own = obsLoans.map((c) => factorContribution({ source: MODEL_ID, shockId: `PC:FACTOR:${sc.stressFactor}`, entity: fd.entity, book: c.id, rho: pc.factor.rhoGlobal, g: sc.stressFactor, transformation: 'conditional PD: z = (z_pre - sqrt(rho) g) / sqrt(1 - rho)', inputs: { rhoGlobal: pc.factor.rhoGlobal, stressFactor: sc.stressFactor } }));
+  const agg = aggregateCredit(ix, [...own, ...(params.creditContributions ?? []).filter((c) => c.entity === fd.entity)]);
+  agg.unobserved.forEach((u) => unobserved.push(u));
+  const pdBook = new Map(agg.books.filter((b) => b.observed).map((b) => [b.book, b]));
+  const creditLoss = sumArr(obsLoans.map((c) => c.amount * c.lgd * pdBook.get(c.id).pdFinal));
+  const mc = simulateLoss(obsLoans.map((c) => ({ ...c, pd: pdBook.get(c.id).pdPre })), pc.factor, sc.stressFactor, sc.nSim ?? 2000, new Rng(params.seed).child(`pc:${fd.entity}`));
   // debt = bank facilities (network edges into this fund)
   const into = []; let debt0 = 0; let debtKnown = true;
   ix.edges.forEach((x, k) => { if (x.d === ei) { if (x.amount === null) { debtKnown = false; unobserved.push(`exposure:${ix.E[x.c].id}->${fd.entity}`); } else { debt0 += x.amount; into.push({ k, c: x.c, amount: x.amount }); } } });
@@ -121,7 +130,7 @@ function fundStep(system, ix, pc, fd, sc, params) {
   const sp = hhi(Object.entries(bySponsor).map(([id, w]) => ({ id, w })), { entity: fd.entity }).value;
   const q = (arr, p) => quantile(arr, p); const mean = sumArr(mc) / mc.length;
   return {
-    fund: fd.entity, nav0, loans0, cash0, debt0, creditLoss, liquidationLoss: liqLoss, equityLoss, navFinal: cash + loansV - debt - extLiab,
+    creditProvenance: agg.books, fund: fd.entity, nav0, loans0, cash0, debt0, creditLoss, liquidationLoss: liqLoss, equityLoss, navFinal: cash + loansV - debt - extLiab,
     leverage0: nav0 > 0 ? debt0 / nav0 : null, covenant, redemption: { requested, payable, paidOut, gated, drawnOnFacility: drawn, unfundedDraw, loansSold: S2, liquiditySurplusAfter: Math.max(0, -shortfallAfter) },
     stressedLossDistribution: { n: mc.length, mean, se: std(mc) / Math.sqrt(mc.length), analyticMean: creditLoss, p05: q(mc, 0.05), p50: q(mc, 0.5), p95: q(mc, 0.95), probLossExceedsNav: mc.filter((x) => x > nav0).length / mc.length },
     concentration: { borrower: hl, sponsor: sp }, deltaExt: ext1 - ext0, repaidToLenders: repaid, drawn, into, debtFinal: debt, unobserved, lb: [...lb],

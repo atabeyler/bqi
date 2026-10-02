@@ -106,3 +106,23 @@ Corrected after audit (regression tests in `tests/vnextAudit.test.js`):
 * Silent defaults removed (now `UNOBSERVED` + `lowerBound`): omitted collateral haircut, omitted AMM pool fee, omitted CCP member positions, omitted bank funding profile, null bond convexity, null corporate RWA share, omitted wrong-way LGD.
 * Surveillance sessions closing after `asOf` are rejected (nested look-ahead); string tie-breaks use codepoint order instead of the host locale.
 * `fx.entities` must list only **non-network** FCY positions; FCY loans present in `exposures` are revalued through the edges.
+
+## 8. Credit Risk Shock Aggregator (`engines/systemic/creditShocks.js`)
+
+Engines no longer stress PDs. M61 (FX), M62 (sovereign funding cost / credit crunch), M68 (climate/nature) and M65 (systematic factor) emit `creditShockContribution`s `{source, shockId, entity, book, kind, magnitude, transformation, inputs}`; the aggregator is the only place where a creditBook PD is stressed and where the expected-credit-loss increment is derived and booked (M71 books it once and attributes it to the source engine's ledger channel).
+
+For a row with base PD `p0` (preserved, `z0 = Φ⁻¹(p0)`):
+
+```
+z_pre   = z0 + Σ_k δ_k                         over de-duplicated PROBIT_SHIFT contributions
+z_final = f_m(…f_1(z_pre)),  f(z) = (z − √ρ·g)/√(1−ρ)   FACTOR contributions (M65), applied in shockId order
+PD      = Φ(z_final) ∈ [0,1]            ΔEL = EAD · LGD · (PD − p0)
+attribution_k = δ_k · ΔEL / Σδ          (Aumann–Shapley along z0→z_final; Σδ→0: δ_k·EAD·LGD·φ(z0))
+```
+
+* **De-duplication:** contributions with the same `(book, shockId)` are one economic shock; the largest `|magnitude|` is applied (ties by source name), the rest stay in the provenance as `applied:false, deduplicatedInto`.
+* **Missing vs zero:** `observed:false` contributions are listed (`credit_shock:<source>:<entity>:<book>`), flag the book `incomplete` and apply nothing; an observed contribution with magnitude 0 is a real "no shock". Missing base PD/LGD ⇒ `credit_book_inputs:…`.
+* **Why not `PD += shock`:** additive PD shocks are not bounded (PD>1 or <0 for large/negative shocks), are order/ordering-of-booking dependent when each engine mutates the PD in turn, and ignore that PD responds convexly to a common latent factor, so two shocks that each look small add more than the sum of their separately booked losses; the latent-space sum is bounded by construction, associative and commutative, and keeps offsetting shocks offsetting.
+* PIT: a contribution with `availableAt` later than the aggregation `asOf` is rejected (`look-ahead guard`); engines derive theirs from the request already bounded by `systemic.asOf`.
+* Private-credit loans: other engines' shifts enter first, M65's factor is applied on top; M65 books those loans itself (absolute stressed loss), so the central aggregator skips booking them (`excludedFromBooking`) but still reports their provenance (`credit.fundBooks`).
+* Limitation: shifts from different engines are assumed additive in latent space (no interaction terms); sensitivities remain caller-supplied and UNCALIBRATED.

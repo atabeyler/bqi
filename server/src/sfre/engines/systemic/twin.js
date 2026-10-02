@@ -6,6 +6,7 @@ import { priceImpact } from '../impact.js';
 import { runCascade, validateSystem as validateFundSystem } from '../cascade.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
 import { propagate, validateScenario } from './crossSector.js';
+import { aggregateCredit } from './creditShocks.js';
 import { validateFx, fxChain, fxParams } from './fxContagion.js';
 import { validateNexus, nexusLoop, nexusParams } from './nexus.js';
 import { validateCollateral, collateralStress, collateralParams } from './collateral.js';
@@ -105,17 +106,22 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
   for (const [id, s] of Object.entries(scenario.priceShocks || {})) shock(ix.aIdx.get(id), s);
 
   // ================= SHOCK (round 0): exogenous engines in dependency order; each one sees what the previous ones produced
-  const stage0 = []; let nexusConverged = true;
+  const stage0 = []; let nexusConverged = true; let pcRows = [];
+  // central credit-shock aggregation: engines emit contributions, the PD of a creditBook row is stressed exactly once (creditShocks.js).
+  // Books of private-credit funds are booked by M65 itself (absolute stressed loss), so the central aggregator does not book them again.
+  const creditContribs = [];
+  const pcBooks = new Set(act.has('privateCredit') ? system.privateCredit.funds.flatMap((f) => (E[ix.eIdx.get(f.entity)].creditBook || []).map((b) => `${f.entity}|${b.id}`)) : []);
   if (act.has('climate')) {
     const t = climateTransmission(system, scenario, climateParams(system, options), ix);
     for (const [a, s] of Object.entries(t.priceShocks)) shock(ix.aIdx.get(a), s);
-    addInto(dA[mod('climate')], t.extAssetsDelta); flag(t.unobserved, t.lowerBoundReasons.join('; ') || null);
+    addInto(dA[mod('climate')], t.extAssetsDelta); creditContribs.push(...t.creditContributions); flag(t.unobserved, t.lowerBoundReasons.join('; ') || null);
     stage0.push({ module: MODULE_MODELS.climate, priceShocks: t.priceShocks, effects: t.effects.length });
     dataflow.push({ from: 'M68.climate', to: 'price vector', field: 'assetHaircuts', n: Object.keys(t.priceShocks).length }, { from: 'M68.climate', to: 'balance sheets', field: 'extAssetsDelta', total: -sumArr(t.extAssetsDelta) });
   }
   if (act.has('fx')) {
     const ch = fxChain(system, scenario, fxParams(system, options), ix);
     addInto(dA[mod('fx')], ch.handoff.extAssetsDelta); addInto(dL.fx, ch.handoff.extLiabDelta); mulEdges(ch.handoff.edgeAmounts);
+    creditContribs.push(...ch.creditContributions);
     for (const [a, v] of Object.entries(ch.handoff.domesticAssetSales)) flowsR0[ix.aIdx.get(a)] += v;
     for (const [id, g] of Object.entries(ch.handoff.entityFcyGap)) needR0[ix.eIdx.get(id)] += g;
     flag(ch.unobserved, ch.lowerBoundReasons.join('; ') || null);
@@ -123,21 +129,21 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     dataflow.push({ from: 'M61.fx', to: 'funding stage', field: 'entityFcyGap', total: sumArr(Object.values(ch.handoff.entityFcyGap)) }, { from: 'M61.fx', to: 'market impact', field: 'domesticAssetSales', total: sumArr(Object.values(ch.handoff.domesticAssetSales)) });
   }
   if (act.has('nexus')) {
-    const pre = { priceShocks: priceMap(), extAssetsDelta: sumDelta(dA), extLiabDelta: sumDelta(dL), edgeAmounts: edgeAmounts() };
+    const pre = { priceShocks: priceMap(), extAssetsDelta: sumDelta(dA), extLiabDelta: sumDelta(dL), edgeAmounts: edgeAmounts(), creditContributions: creditContribs.slice(), excludeBooks: pcBooks };
     const out = nexusLoop(system, scenario, nexusParams(system, options), options, ix, pre);
     if (out.error) throw Object.assign(new Error(`nexus: ${out.error}`), { code: 'INVALID_REQUEST' });
     shock(ix.aIdx.get(system.sovereign.bondAsset), 1 - out.last.f);
-    addInto(dA[mod('nexus')], out.last.delta); flag(out.unobserved, out.lowerBoundReasons.join('; ') || null);
+    addInto(dA[mod('nexus')], out.last.deltaExCredit); creditContribs.push(...out.last.creditContributions); flag(out.unobserved, out.lowerBoundReasons.join('; ') || null);
     stage0.push({ module: MODULE_MODELS.nexus, spreadBpsFinal: out.spreadBpsFinal, amplification: out.amplification, converged: out.converged });
     dataflow.push({ from: 'M68/M61 losses', to: 'M62.nexus', field: 'pre-applied bank losses', total: -sumArr(pre.extAssetsDelta) }, { from: 'M62.nexus', to: 'price vector', field: 'bond price shock', value: 1 - out.last.f });
     if (!out.converged) { nexusConverged = false; notes.push('sovereign-bank loop did not converge'); }
   }
   if (act.has('privateCredit')) {
-    const eff = privateCreditEffects(system, scenario, { liquidationDiscount: scenario.privateCredit.liquidationDiscount ?? 0.15, seed: opt.seed }, ix);
+    const eff = privateCreditEffects(system, scenario, { liquidationDiscount: scenario.privateCredit.liquidationDiscount ?? 0.15, seed: opt.seed, creditContributions: creditContribs.slice() }, ix);
     const d = eff.dA.slice();
     eff.amounts.forEach((a, e) => { if (a === null || nominal[e] === null) return; const delta = a - nominal[e]; const c = ix.edges[e].c; if (delta > 0) { needR0N[c] += delta; d[c] += delta; } else if (delta < 0) { W.cash[c] += -delta; d[c] -= -delta; } }); // facility draws/repayments are liquidity flows (asset swaps), not equity
     addInto(dA[mod('privateCredit')], d); addInto((dT.privateCredit ||= zeros(n)), eff.dT); mulEdges(eff.amounts);
-    eff.rows.forEach((r) => flag(r.unobserved, r.lb.join('; ') || null));
+    eff.rows.forEach((r) => flag(r.unobserved, r.lb.join('; ') || null)); pcRows = eff.rows;
     stage0.push({ module: MODULE_MODELS.privateCredit, creditLoss: sumArr(eff.rows.map((r) => r.creditLoss)), gated: sumArr(eff.rows.map((r) => r.redemption.gated)) });
     dataflow.push({ from: 'M65.private_credit', to: 'funding stage', field: 'bank facility draws', total: sumArr(Object.values(eff.bankOutflow)) });
   }
@@ -164,6 +170,13 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     dataflow.push({ from: 'M67.operational', to: 'funding stage', field: 'incrementalLiquidityGap', total: sumArr(ch.entities.map((x) => Math.max(0, x.incrementalLiquidityGap))) });
     if (ch.marginFailures.length) notes.push('operational margin-delivery failures are REPORTED but not propagated as defaults');
   }
+  // ---- booking of expected credit loss: one aggregation over every contribution, attributed to its source engine (Aumann-Shapley)
+  const SRC_KEY = Object.fromEntries(Object.entries(MODULE_MODELS).map(([k, v]) => [v, k]));
+  const credit = aggregateCredit(ix, creditContribs, { excludeBooks: pcBooks });
+  flag(credit.unobserved, credit.unobserved.length ? 'credit-shock contributions or base PD/LGD unobserved: those books carry no stress (not zero stress)' : null);
+  const booked = zeros(n);
+  for (const [src, arr] of Object.entries(credit.lossBySourceEntity)) { const key = SRC_KEY[src]; if (!key) throw new Error(`credit shock from unregistered source ${src}`); for (let i = 0; i < n; i++) { dA[mod(key)][i] -= arr[i]; booked[i] += arr[i]; } }
+  for (let i = 0; i < n; i++) { const res = credit.lossByEntity[i] - booked[i]; if (res !== 0) dA[mod('creditAggregation')][i] -= res; } // floating-point residual of the attribution, kept explicit
   let crowd = null; let crowdLoss = zeros(n); let pendingCrowd = zeros(nA);
   if (act.has('crowding')) {
     crowd = crowdingSetup(system, scenario, { responseScale: scenario.crowding.responseScale, deleverageFraction: options.deleverageFraction ?? 0.5 }, ix);
@@ -344,6 +357,7 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     { stage: 'STATE(t+n)', equityBySector: trajectory[trajectory.length - 1].equityBySector, defaults: sys.defaults, systemLoss: sys.systemLoss },
   ];
   return {
+    credit: { totalBookedLoss: credit.totalLoss, lossBySource: credit.lossBySource, books: credit.books, fundBooks: pcRows.flatMap((r) => r.creditProvenance), unobserved: credit.unobserved },
     stages, trajectory, entities, sectors: prop.sectors, waves: prop.waves, system: sys, channels, reconciliation, finalPrices: Object.fromEntries(A.map((a, k) => [a.id, W.price[k]])), converged, nexusConverged, rounds: roundsOut.length, activeModules: [...act], dataflow,
     fundCascade: fundCascade ? { totalLoss: fundCascade.value.system.totalLoss, failedFunds: fundCascade.value.system.failedFunds, result_hash: fundCascade.result_hash } : null,
     unobserved: [...unobserved], lowerBoundReasons: [...lowerBound], notes,
@@ -366,7 +380,7 @@ export function runSystemTwin(system, scenario = {}, options = {}, fundSystem = 
   const det = out.entities.filter((x) => !x.indeterminate).length;
   return makeResult({
     engine: ENGINE, modelId: MODEL_ID, status,
-    value: { stages: out.stages, trajectory: out.trajectory, entities: out.entities, sectors: out.sectors, system: out.system, channels: out.channels, reconciliation: out.reconciliation, finalPrices: out.finalPrices, rounds: out.rounds, activeModules: out.activeModules, models: Object.fromEntries(out.activeModules.map((m) => [m, MODULE_MODELS[m]])), dataflow: out.dataflow, fundCascade: out.fundCascade, lowerBound: out.unobserved.length > 0, lowerBoundReasons: out.lowerBoundReasons },
+    value: { credit: out.credit, stages: out.stages, trajectory: out.trajectory, entities: out.entities, sectors: out.sectors, system: out.system, channels: out.channels, reconciliation: out.reconciliation, finalPrices: out.finalPrices, rounds: out.rounds, activeModules: out.activeModules, models: Object.fromEntries(out.activeModules.map((m) => [m, MODULE_MODELS[m]])), dataflow: out.dataflow, fundCascade: out.fundCascade, lowerBound: out.unobserved.length > 0, lowerBoundReasons: out.lowerBoundReasons },
     uncertainty, coverage: coverageOf(det, system.entities.length), unobserved: out.unobserved, calibration: CALIBRATION.UNCALIBRATED,
     parameters: { ...p, maxRounds: options.maxRounds ?? 20, activeModules: out.activeModules, assumptions: ['sales execute at start-of-round marks; impact falls on remaining holdings (as M10)', 'one aggregate price impact per asset per round from all sellers', 'fund-cascade price effect composed multiplicatively', 'crowding buy-side flows ignored (conservative)', 'operational margin failures reported, not propagated'], scenarioHash: hashOf(scenario) },
     inputHashes: [hashOf(system), ...(fundSystem ? [hashOf(fundSystem)] : [])], notes,
