@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import path from 'path';
 import pinoHttp from 'pino-http';
 import { fileURLToPath } from 'url';
-import { logger } from './lib/logger.js';
+import { logger, HTTP_LOG_REDACT } from './lib/logger.js';
 import { logEnvValidationWarnings } from './lib/validateEnv.js';
 import { attachSentryErrorHandler } from './lib/sentry.js';
 import { initDatabase, initMemoryTables, query } from './services/database.js';
@@ -136,8 +136,8 @@ app.use(helmet({
 }));
 app.use(pinoHttp({
   logger,
-  // Authorization headers (raw JWTs) must never land in log output.
-  redact: ['req.headers.authorization', 'res.headers["set-cookie"]'],
+  // Credentials (Authorization header, the bqi_jwt session cookie, API keys, Set-Cookie) must never land in log output.
+  redact: HTTP_LOG_REDACT,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
