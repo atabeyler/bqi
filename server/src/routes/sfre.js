@@ -16,6 +16,7 @@ import { analysisLimiter, uploadLimiter } from '../middleware/rateLimit.js';
 import multer from 'multer';
 import { createHash } from 'node:crypto';
 import { matchesDeclaredFileType } from '../lib/fileSignature.js';
+import { detectFxShocks, scoreEvents } from '../sfre/engines/fxShock.js';
 import { importTefas } from '../sfre/ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
 import { importHoldings } from '../sfre/ingest/holdings.js';
@@ -190,6 +191,14 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   });
 
   const idStamp = (id) => Number(String(id).split('_').pop()) || 0; // ingest ids end with the epoch ms of the upload
+  router.get('/data/fx-shocks', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db) return res.json({ storage: 'memory', series: null });
+    const code = String(req.query.series || 'TP.DK.USD.A.YTL'); if (!/^[A-Za-z0-9._]+$/.test(code)) return res.status(400).json({ error: 'bad series code' });
+    const r = await pg("SELECT to_char(event_time AT TIME ZONE 'UTC','YYYY-MM-DD') AS d, value FROM sfre_observations WHERE entity=$1 AND field='value' ORDER BY event_time", [`EVDS:${code}`]);
+    const seen = new Map(); for (const x of r.rows) seen.set(x.d, Number(x.value));
+    const det = detectFxShocks([...seen].map(([date, value]) => ({ date, value })));
+    res.json({ series: code, ...det, ...scoreEvents(det.flags) });
+  });
   router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
     if (!db) return res.json({ ingests: [] });
     const lastPurgeMs = Math.max(0, ...(await db.list('purges', 50)).map((x) => Date.parse(x.at) || 0));
