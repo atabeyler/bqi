@@ -1,90 +1,150 @@
 {
-  "generated": "2026-10-02T10:45:44.829Z",
-  "funds": 883,
+  "generated": "2026-10-02T18:53:16.213Z",
+  "funds": 910,
   "referenceWeeks": 30,
-  "evaluationWeeks": 9,
+  "evaluationWeeks": 19,
   "baseline": {
-    "meanBreadth": 0.04420245585054066,
-    "sdBreadth": 0.010890142920862643
+    "meanBreadth": 0.04361275837530184,
+    "sdBreadth": 0.01506186987587245
   },
-  "alarmLevel": 0.09420245585054066,
+  "alarmLevel": 0.10386023787879164,
   "weeks": [
     {
-      "date": "2026-07-17",
-      "breadth": 0.03500583430571762,
+      "date": "2026-04-24",
+      "breadth": 0.05724299065420561,
       "flagged": false,
-      "aumWeightedFlow": 0.014828891504981128
+      "aumWeightedFlow": 0.027062270409635495
+    },
+    {
+      "date": "2026-05-15",
+      "breadth": 0.03976608187134503,
+      "flagged": false,
+      "aumWeightedFlow": 0.01633709704746485
+    },
+    {
+      "date": "2026-05-22",
+      "breadth": 0.0468384074941452,
+      "flagged": false,
+      "aumWeightedFlow": 0.009417846725055605
+    },
+    {
+      "date": "2026-06-12",
+      "breadth": 0.051643192488262914,
+      "flagged": false,
+      "aumWeightedFlow": -0.010343974298157758
+    },
+    {
+      "date": "2026-06-19",
+      "breadth": 0.05737704918032787,
+      "flagged": false,
+      "aumWeightedFlow": 0.021072520570133067
+    },
+    {
+      "date": "2026-06-26",
+      "breadth": 0.05263157894736842,
+      "flagged": false,
+      "aumWeightedFlow": 0.01667904495402405
+    },
+    {
+      "date": "2026-07-03",
+      "breadth": 0.06440281030444965,
+      "flagged": false,
+      "aumWeightedFlow": -0.0014049143445685334
+    },
+    {
+      "date": "2026-07-10",
+      "breadth": 0.04789719626168224,
+      "flagged": false,
+      "aumWeightedFlow": 0.016544629521540368
+    },
+    {
+      "date": "2026-07-17",
+      "breadth": 0.03387850467289719,
+      "flagged": false,
+      "aumWeightedFlow": 0.01475116175285222
     },
     {
       "date": "2026-07-24",
-      "breadth": 0.044444444444444446,
+      "breadth": 0.04800936768149883,
       "flagged": false,
-      "aumWeightedFlow": 0.013653561740487959
+      "aumWeightedFlow": 0.013641638596328444
     },
     {
       "date": "2026-07-31",
-      "breadth": 0.0514018691588785,
+      "breadth": 0.05497076023391813,
       "flagged": false,
-      "aumWeightedFlow": 0.002583657363137445
+      "aumWeightedFlow": 0.002599204208326883
+    },
+    {
+      "date": "2026-08-07",
+      "breadth": 0.045990566037735846,
+      "flagged": false,
+      "aumWeightedFlow": 0.007685862050147031
     },
     {
       "date": "2026-08-14",
-      "breadth": 0.04322429906542056,
+      "breadth": 0.0456140350877193,
       "flagged": false,
-      "aumWeightedFlow": 0.019045400439001627
+      "aumWeightedFlow": 0.018422712162466492
     },
     {
       "date": "2026-08-21",
-      "breadth": 0.05509964830011723,
+      "breadth": 0.05046948356807512,
       "flagged": false,
-      "aumWeightedFlow": 0.008953874961853124
+      "aumWeightedFlow": 0.009739017644418401
     },
     {
       "date": "2026-08-28",
-      "breadth": 0.04215456674473068,
+      "breadth": 0.03985932004689332,
       "flagged": false,
-      "aumWeightedFlow": 0.009947210848081837
+      "aumWeightedFlow": 0.010041129046944154
+    },
+    {
+      "date": "2026-09-04",
+      "breadth": 0.059788980070339975,
+      "flagged": false,
+      "aumWeightedFlow": 0.009716484764990178
     },
     {
       "date": "2026-09-11",
-      "breadth": 0.07502930832356389,
+      "breadth": 0.07042253521126761,
       "flagged": false,
-      "aumWeightedFlow": -0.0091035134726789
+      "aumWeightedFlow": -0.009604247766032943
     },
     {
       "date": "2026-09-18",
-      "breadth": 0.11840562719812427,
+      "breadth": 0.107981220657277,
       "flagged": true,
-      "aumWeightedFlow": -0.011178126631455107
+      "aumWeightedFlow": -0.01221719582083133
     },
     {
       "date": "2026-09-25",
-      "breadth": 0.2102803738317757,
+      "breadth": 0.20935672514619882,
       "flagged": true,
-      "aumWeightedFlow": -0.014454478179143773
+      "aumWeightedFlow": -0.014602198463797528
     }
   ],
   "plantedSystemic": {
     "0.02": {
       "shockedFunds": 18,
       "weekCaught": 0,
-      "perFundCaught": 0.6511111111111111
+      "perFundCaught": 0.6292592592592593
     },
     "0.05": {
-      "shockedFunds": 44,
-      "weekCaught": 0.17333333333333334,
-      "perFundCaught": 0.673939393939394
+      "shockedFunds": 46,
+      "weekCaught": 0.006666666666666667,
+      "perFundCaught": 0.6352173913043478
     },
     "0.1": {
-      "shockedFunds": 88,
-      "weekCaught": 0.98,
-      "perFundCaught": 0.6652272727272728
+      "shockedFunds": 91,
+      "weekCaught": 0.84,
+      "perFundCaught": 0.6406593406593407
     },
     "0.2": {
-      "shockedFunds": 177,
+      "shockedFunds": 182,
       "weekCaught": 1,
-      "perFundCaught": 0.6721657250470809
+      "perFundCaught": 0.6362271062271062
     }
   },
-  "calmWeeks": 7
+  "calmWeeks": 17
 }
