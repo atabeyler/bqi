@@ -43,12 +43,12 @@ Dürüst yorum: motor krizi **olayla eş zamanlı** işaretledi ve önceki iki h
 |---|---|---|
 | TEFAS fon akışı (E1–E7: 2018–2025) | TEFAS arayüzü (aylık 1 ay sınırı, hız sınırı var) | Yerelde Tem 2025 → Eyl 2026 (15 ay); E1–E7 için gerekli geçmiş yok |
 | BIST günlük fiyat | Borsa İstanbul DataStore | Yok (lisans) |
-| Kur, faiz, makro | TCMB EVDS (ücretsiz API anahtarı) | Yok (anahtar gerekli) |
+| Kur (USD/TRY, EUR/TRY günlük, 2018→bugün) | TCMB EVDS (evds3) | **Var (bulutta, 2 Ekim 2026): 2×2.198 gözlem.** Faiz/makro serileri henüz eklenmedi |
 | Fon portföyü | KAP / MKK API | Yok (başvuru) |
 
 ## Sen yapacaksın: kontrol listesi
 
 - [x] Olay tarihlerinin kaynaklarla teyidi (yukarıda). **E2'de Borsa İstanbul etkisini ayrıca doğrula.**
-- [ ] **TCMB EVDS:** evds2.tcmb.gov.tr → ücretsiz hesap → profil sayfasından **API anahtarı**. `server/.env` içine `TCMB_EVDS_KEY=` olarak yaz (sohbete yazma).
+- [x] **TCMB EVDS:** anahtar Render ortamında (`TCMB_EVDS_KEY`); veriyi bulut sunucusu çeker (`POST /api/sfre/sync/run`). Yeni seri için `SFRE_EVDS_SERIES` ile kod eklenir.
 - [ ] **MKK API Portal:** apiportal.mkk.com.tr → Kayıt Ol → hesap onayı → uygulama oluştur → KAP Veri Yayın Servisi ürününe kaydol. Başvuru taslağı: `DATA_REQUESTS.md`.
 - [ ] **Borsa İstanbul DataStore:** datastore.borsaistanbul.com → giriş → Pay Piyasası Verileri → günlük fiyat paketinin fiyat ve koşullarını ilet.
