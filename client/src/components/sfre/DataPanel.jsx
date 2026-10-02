@@ -77,6 +77,24 @@ function PurgeCard({ size, onDone }) {
   );
 }
 
+// Results pushed by a local BFI node (heavy data and compute stay on that machine; only results reach the cloud).
+function FederationList() {
+  const { t } = useLang();
+  const [items, setItems] = useState(null);
+  useEffect(() => { sfreApi.federation().then((r) => setItems(r.items || [])).catch(() => setItems([])); }, []);
+  return (
+    <section aria-labelledby="sfre-fed-h" data-testid="sfre-federation">
+      <h2 id="sfre-fed-h" className="font-semibold mb-1">{t('sfre_fed_title')}</h2>
+      <p className="text-xs text-slate-400 mb-1">{t('sfre_fed_hint')}</p>
+      {items === null ? <p className="text-sm text-slate-400">{t('sfre_loading')}</p> : items.length === 0 ? <p className="text-sm text-slate-400">{t('sfre_fed_empty')}</p> : (
+        <ul className="text-sm space-y-1 list-none p-0 m-0">
+          {items.map((i) => (<li key={i.id} className="break-words"><b>{i.title}</b> · {i.node} · {String(i.created_at).slice(0, 10)}{i.summary ? ` · ${i.summary}` : ''}</li>))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default function DataPanel({ isAdmin, onChanged }) {
   const { t } = useLang();
   const [ingests, setIngests] = useState([]);
@@ -93,6 +111,7 @@ export default function DataPanel({ isAdmin, onChanged }) {
       <div className="grid gap-4 md:grid-cols-2">
         {KINDS.map(({ kind, key, defaultLag }) => (<UploadCard key={kind} kind={kind} k={key} defaultLag={defaultLag} enabled={isAdmin} onDone={() => { load(); onChanged?.(); }} />))}
       </div>
+      <FederationList />
       {isAdmin && <PurgeCard size={size} onDone={() => { load(); onChanged?.(); }} />}
       <section aria-labelledby="sfre-ing-h">
         <h2 id="sfre-ing-h" className="font-semibold mb-1">{t('sfre_recent_ingests')}</h2>

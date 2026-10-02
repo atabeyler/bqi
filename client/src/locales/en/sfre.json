@@ -149,5 +149,8 @@
   "sfre_purge_button": "Delete database",
   "sfre_purge_busy": "Deleting…",
   "sfre_purge_done": "Rows removed / space freed",
-  "sfre_storage_size": "Observations table / database size"
+  "sfre_storage_size": "Observations table / database size",
+  "sfre_fed_title": "Results from local nodes",
+  "sfre_fed_hint": "Heavy data and compute stay on the local machine; only signed results reach the cloud.",
+  "sfre_fed_empty": "No results received from a local node yet."
 }

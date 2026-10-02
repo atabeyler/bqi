@@ -6,7 +6,7 @@ import DataPanel from './DataPanel.jsx';
 import ResultsPanel from './ResultsPanel.jsx';
 import { LangProvider } from '../../services/langContext.jsx';
 
-vi.mock('../../services/api.js', () => ({ sfreApi: { ingests: async () => ({ ingests: [] }), explain: vi.fn(), upload: vi.fn() } }));
+vi.mock('../../services/api.js', () => ({ sfreApi: { federation: async () => ({ items: [] }), ingests: async () => ({ ingests: [] }), explain: vi.fn(), upload: vi.fn() } }));
 
 const wrap = (ui) => render(<LangProvider>{ui}</LangProvider>);
 

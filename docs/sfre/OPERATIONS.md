@@ -67,3 +67,19 @@ API: `GET /api/sfre/sync/status`, `POST /api/sfre/sync/run` (yalnız admin). Tes
 - **MKK API Portal (apiportal.mkk.com.tr):** KAP için "KAP Data Dissemination Services" (REST) ürünü var. Adımlar: portalda hesap aç (Sign in / Register) -> hesap onayı -> uygulama oluştur (API key üretir) -> ürüne kaydol -> gerekirse token üret. Test ağ geçidi \`https://apigwdev.mkk.com.tr/\`, istekte \`Authorization\` başlığı gerekir. Bu değerler \`SFRE_KAP_BASE_URL\` / \`SFRE_KAP_API_KEY\` olarak girilir; ilk çağrıda \`kap-probe\` ile alan adları doğrulanmalı. Hesap açma ve onay kullanıcıya aittir.
 - **Borsa İstanbul DataStore:** Pay Piyasası, Endeks, Borçlanma, VİOP, Halka Arz, Kıymetli Maden kategorileri var; ürün/abonelik ve fiyat listesi giriş yapmadan görünmüyor ("abonelik mevcut değil"). Fiyat ve satın alma adımları için hesapla giriş gerekir; satın alma kullanıcıya aittir. Alınan veri \`SFRE_FEED_BIST_EOD_URL\` beslemesiyle ya da \`bist-eod_*.csv\` olarak inbox'a bırakılarak içeri alınır.
 - **Doğrulama:** \`PGlite\` (bellek içi PostgreSQL) üzerinde gerçek \`PgStore\` + senkron servisiyle bir aylık gerçek TEFAS dosyası (213.836 gözlem) yüklendi; yeniden yükleme 0 yeni kayıt, PIT filtresi gelecekteki gözlemleri gizledi.
+
+## Yerel düğüm + bulut: yalnızca sonuçlar senkronlanır
+
+Ağır veri (milyonlarca gözlem), kalibrasyon ve deneyler **yerel** PostgreSQL'de kalır; buluta yalnızca **sonuçlar** (rapor, kalibrasyon özeti, koşu kaydı) gider. Böylece bulut veritabanı (Neon 1 GB) dolmaz.
+
+1. **Ortak gizli anahtar** (en az 32 karakter) üret: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+2. **Bulut:** bu değeri `SFRE_FEDERATION_SECRET` olarak sunucu ortamına ekle (Render → Environment) ve yeniden dağıt. Ayar yoksa uç nokta 503 verir ve hiçbir şey kabul etmez.
+3. **Yerel:** aynı anahtarı `server/.env` içine yaz ve gönder:
+   `SFRE_CLOUD_URL=https://bqi.onrender.com node scripts/sfre-export-results.js --node benim-pc [--runs 20] [--dry-run]`
+4. Bulutta **BFI → Veri → "Yerel düğümden gelen sonuçlar"** listesinde görünür.
+
+Güvenlik: paket HMAC-SHA256 ile imzalanır (zaman damgası + içerik özeti), 10 dakikadan eski paket ve yanlış imza reddedilir, oturum gerekmez ama anahtar olmadan hiçbir şey yazılamaz. Belgeler içerik adresli olduğundan aynı sonucu tekrar göndermek mükerrer kayıt yaratmaz. Ham gözlem asla buluta çıkmaz. Hesaplama sırasında yerel makine açık olmalı; sonuçlar buluttayken makine kapalı olsa da görülür.
+
+## M21 yaygınlık (breadth) alarmı
+
+Sistem seviyesi tespit: bir fon yerine "aynı hafta fonların hangi payı kendi normalinin altında çıkış yaptı" ölçülür. Alarm seviyesi referans dönemden öğrenilir. Gerçek TEFAS verisinde (zaman dışı 9 hafta) yalnızca 18 ve 25 Eylül 2026 alarm verdi, fonların %10'u eş zamanlı −%10 çıkış yapınca haftayı %98–100 yakaladı (tek fon bazında ~%66). Küçük örneklem: 7 sakin hafta, yanlış alarm oranı kesin ölçülemez. Ayrıntı: `docs/sfre/results/breadth-trial-tefas.md`.

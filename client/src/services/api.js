@@ -464,6 +464,8 @@ export const sfreApi = {
   explain: (claimId) => req(`/api/sfre/claims/${encodeURIComponent(claimId)}/explain`),
   universe: (asOf) => req(`/api/sfre/data/universe?asOf=${encodeURIComponent(asOf)}`),
   ingests: () => req('/api/sfre/data/ingests'),
+  federation: () => req('/api/sfre/federation'),
+  federationItem: (id) => req(`/api/sfre/federation/${encodeURIComponent(id)}`),
   purge: () => req('/api/sfre/data/purge', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE-BFI-OBSERVATIONS' }), timeoutMs: 120000 }),
   runFromData: (body) => req('/api/sfre/runs/from-data', { method: 'POST', body: JSON.stringify(body), timeoutMs: 120000 }),
   upload: async (kind, file, lagDays) => {

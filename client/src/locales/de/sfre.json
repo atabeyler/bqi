@@ -149,5 +149,8 @@
   "sfre_purge_button": "Datenbank löschen",
   "sfre_purge_busy": "Wird gelöscht…",
   "sfre_purge_done": "Gelöschte Zeilen / freigegebener Platz",
-  "sfre_storage_size": "Größe Beobachtungstabelle / Datenbank"
+  "sfre_storage_size": "Größe Beobachtungstabelle / Datenbank",
+  "sfre_fed_title": "Ergebnisse lokaler Knoten",
+  "sfre_fed_hint": "Schwere Daten und Berechnung bleiben auf dem lokalen Rechner; nur signierte Ergebnisse erreichen die Cloud.",
+  "sfre_fed_empty": "Noch keine Ergebnisse von einem lokalen Knoten empfangen."
 }

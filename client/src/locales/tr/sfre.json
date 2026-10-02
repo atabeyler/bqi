@@ -149,5 +149,8 @@
   "sfre_purge_button": "Veritabanını sil",
   "sfre_purge_busy": "Siliniyor…",
   "sfre_purge_done": "Silinen satır / boşalan yer",
-  "sfre_storage_size": "Gözlem tablosu / veritabanı boyutu"
+  "sfre_storage_size": "Gözlem tablosu / veritabanı boyutu",
+  "sfre_fed_title": "Yerel düğümden gelen sonuçlar",
+  "sfre_fed_hint": "Ağır veri ve hesaplama yerel makinede kalır; buluta yalnızca sonuçlar (imzalı) gönderilir.",
+  "sfre_fed_empty": "Henüz yerel düğümden sonuç gelmedi."
 }

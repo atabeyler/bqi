@@ -196,6 +196,17 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     res.json({ ingests: (await db.list('ingests', 50)).map((i) => ({ ...i, purged: idStamp(i.id) <= lastPurgeMs })) });
   });
 
+  // Results pushed by local BFI nodes (see routes/sfreFederation.js): list without payloads, then one payload on demand.
+  router.get('/federation', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
+    if (!db) return res.json({ items: [] });
+    res.json({ items: (await db.list('federated', 50)).map(({ payload, ...rest }) => { void payload; return rest; }) });
+  });
+  router.get('/federation/:id', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db || !/^fed_[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).json({ error: 'not found' });
+    const item = await db.get('federated', req.params.id);
+    return item ? res.json(item) : res.status(404).json({ error: 'not found' });
+  });
+
   // Admin-only purge of ALL ingested market/fund observations (the append-only table is dropped and recreated empty).
   // Runs, evidence ledger and model governance are untouched. The action itself is recorded (who, when, how many rows).
   router.post('/data/purge', requireRole(ROLES.ADMIN), async (req, res) => {

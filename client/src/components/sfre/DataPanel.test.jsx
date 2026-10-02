@@ -6,6 +6,7 @@ const purge = vi.fn(async () => ({ ok: true, removedRows: 1234, freedBytes: 5242
 vi.mock('../../services/langContext.jsx', () => ({ useLang: () => ({ t: (k) => (k === 'sfre_purge_word' ? 'SİL' : k) }) }));
 vi.mock('../../services/api.js', () => ({
   sfreApi: {
+    federation: async () => ({ items: [{ id: 'fed_x', title: 'breadth-trial', node: 'my-pc', created_at: '2026-10-02T00:00:00Z', summary: 'ok' }] }),
     ingests: async () => ({ ingests: [{ id: 'ingest_a_1', kind: 'tefas', filename: 'f.xlsx', inserted: 5, duplicates: 0, rejected: 0, purged: true }] }),
     dataStatus: async () => ({ size: { observationsBytes: 3145728, databaseBytes: 9437184 } }),
     purge: (...a) => purge(...a),

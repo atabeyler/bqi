@@ -149,5 +149,8 @@
   "sfre_purge_button": "Supprimer la base",
   "sfre_purge_busy": "Suppression…",
   "sfre_purge_done": "Lignes supprimées / espace libéré",
-  "sfre_storage_size": "Taille table d’observations / base"
+  "sfre_storage_size": "Taille table d’observations / base",
+  "sfre_fed_title": "Résultats des nœuds locaux",
+  "sfre_fed_hint": "Les données lourdes et le calcul restent sur la machine locale ; seuls les résultats signés atteignent le cloud.",
+  "sfre_fed_empty": "Aucun résultat reçu d’un nœud local pour le moment."
 }
