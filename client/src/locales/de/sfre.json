@@ -172,5 +172,8 @@
   "sfre_rep_pdf": "PDF herunterladen",
   "sfre_rep_word": "Word herunterladen",
   "sfre_rep_share": "Teilen",
-  "sfre_rep_file_fail": "Datei konnte nicht erstellt werden"
+  "sfre_rep_file_fail": "Datei konnte nicht erstellt werden",
+  "sfre_rep_level_0": "NORMAL",
+  "sfre_rep_level_1": "BEOBACHTUNG",
+  "sfre_rep_level_2": "ALARM"
 }

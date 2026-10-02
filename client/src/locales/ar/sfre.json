@@ -172,5 +172,8 @@
   "sfre_rep_pdf": "تنزيل PDF",
   "sfre_rep_word": "تنزيل Word",
   "sfre_rep_share": "مشاركة",
-  "sfre_rep_file_fail": "تعذّر تجهيز الملف"
+  "sfre_rep_file_fail": "تعذّر تجهيز الملف",
+  "sfre_rep_level_0": "عادي",
+  "sfre_rep_level_1": "مراقبة",
+  "sfre_rep_level_2": "إنذار"
 }

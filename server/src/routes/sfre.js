@@ -18,6 +18,8 @@ import { createHash } from 'node:crypto';
 import { matchesDeclaredFileType } from '../lib/fileSignature.js';
 import { detectFxShocks, scoreEvents } from '../sfre/engines/fxShock.js';
 import { gatherReportInputs, buildReport, notifyIfChanged } from '../sfre/report/service.js';
+import { normLang } from '../sfre/report/i18n.js';
+import { renderReportHtml } from '../sfre/report/situationReport.js';
 import { archiveReport, listReports, getReport, deleteReport } from '../sfre/report/archive.js';
 import { buildDocModel } from '../sfre/report/docModel.js';
 import { renderReportPdf, renderReportDocx } from '../sfre/report/exportFiles.js';
@@ -207,7 +209,8 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   // Situation report: one level + reasons + printable HTML (open in a browser and print to PDF). ?format=json returns the assessment only.
   router.get('/report', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
     try {
-      const report = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null });
+      const lang = normLang(req.query.lang);
+      const report = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null, lang });
       if (req.query.format === 'json') return res.json({ assessment: report.assessment });
       await sendReport(res, { html: report.html, model: report.model }, req.query.format);
     } catch (e) { logger.error({ err: e }, '[SFRE] report failed'); res.status(503).json({ error: 'report could not be built' }); }
@@ -218,7 +221,7 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     const f = FORMATS[format]; if (!f) return res.status(400).json({ error: 'format must be html, pdf or docx' });
     if (!model) return res.status(404).json({ error: 'this format is not available for an older archived report' });
     const buf = format === 'pdf' ? await renderReportPdf(model) : await renderReportDocx(model);
-    res.set({ 'Content-Type': f[0], 'Content-Disposition': `attachment; filename="BFI-Durum-Raporu-${model.id}.${f[1]}"`, 'Cache-Control': 'no-store' }).send(buf);
+    res.set({ 'Content-Type': f[0], 'Content-Disposition': `attachment; filename="BFI-Report-${model.id}-${model.lang}.${f[1]}"`, 'Cache-Control': 'no-store' }).send(buf);
   }
   // Archive: a manual "archive now" snapshot, the list (no bodies), one stored report, and a soft delete (records are append-only: a tombstone hides it).
   const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" };
@@ -235,7 +238,7 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   });
   router.get('/reports/:id', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
     if (!db) return res.status(404).json({ error: 'not found' });
-    try { const r = await getReport(db, req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); await sendReport(res, { html: r.html, model: r.data ? buildDocModel({ assessment: r.data.assessment, breadth: r.data.breadth, fx: r.data.fx, meta: r.data.meta }) : null }, req.query.format); }
+    try { const r = await getReport(db, req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); const lang = normLang(req.query.lang); const parts = r.data ? { assessment: r.data.assessment, breadth: r.data.breadth, fx: r.data.fx, meta: r.data.meta } : null; await sendReport(res, { html: parts ? renderReportHtml(parts, lang) : r.html, model: parts ? buildDocModel(parts, lang) : null }, req.query.format); }
     catch (e) { logger.error({ err: e }, '[SFRE] report open failed'); res.status(503).json({ error: 'archive unavailable' }); }
   });
   router.delete('/reports/:id', requireRole(ROLES.ADMIN), async (req, res) => {
@@ -246,7 +249,7 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     } catch (e) { logger.error({ err: e }, '[SFRE] report delete failed'); res.status(503).json({ error: 'delete failed; nothing was removed' }); }
   });
   router.post('/report/notify', requireRole(ROLES.ADMIN), async (req, res) => {
-    try { res.json(await notifyIfChanged({ db, pg, registry: state.registry, send: sendSfreReportEmail, force: req.body?.force === true, version: process.env.npm_package_version || null })); }
+    try { res.json(await notifyIfChanged({ db, pg, registry: state.registry, send: sendSfreReportEmail, force: req.body?.force === true, version: process.env.npm_package_version || null, lang: process.env.SFRE_REPORT_LANG || 'tr' })); }
     catch (e) { logger.error({ err: e }, '[SFRE] report notify failed'); res.status(503).json({ error: 'notification failed' }); }
   });
   router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {

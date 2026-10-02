@@ -172,5 +172,8 @@
   "sfre_rep_pdf": "Download PDF",
   "sfre_rep_word": "Download Word",
   "sfre_rep_share": "Share",
-  "sfre_rep_file_fail": "Could not prepare the file"
+  "sfre_rep_file_fail": "Could not prepare the file",
+  "sfre_rep_level_0": "NORMAL",
+  "sfre_rep_level_1": "WATCH",
+  "sfre_rep_level_2": "ALARM"
 }

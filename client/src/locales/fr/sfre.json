@@ -172,5 +172,8 @@
   "sfre_rep_pdf": "Télécharger le PDF",
   "sfre_rep_word": "Télécharger le Word",
   "sfre_rep_share": "Partager",
-  "sfre_rep_file_fail": "Impossible de préparer le fichier"
+  "sfre_rep_file_fail": "Impossible de préparer le fichier",
+  "sfre_rep_level_0": "NORMAL",
+  "sfre_rep_level_1": "SURVEILLANCE",
+  "sfre_rep_level_2": "ALERTE"
 }

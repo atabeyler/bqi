@@ -172,5 +172,8 @@
   "sfre_rep_pdf": "PDF indir",
   "sfre_rep_word": "Word indir",
   "sfre_rep_share": "Paylaş",
-  "sfre_rep_file_fail": "Dosya hazırlanamadı"
+  "sfre_rep_file_fail": "Dosya hazırlanamadı",
+  "sfre_rep_level_0": "NORMAL",
+  "sfre_rep_level_1": "İZLEME",
+  "sfre_rep_level_2": "ALARM"
 }

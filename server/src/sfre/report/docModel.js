@@ -1,52 +1,49 @@
-import { LEVELS, LEVEL_TR, reportId } from './situationReport.js';
+import { LEVELS, FX_RECENT_DAYS, driverText, reportId } from './assess.js';
+import { tr, normLang, RTL_LANGS, fmtPct, fmtDate } from './i18n.js';
 
 /**
- * Format-neutral document model of a situation report, rendered to PDF and Word by exportFiles.js. The prose here mirrors the HTML report
- * (same numbers, same limits notice); charts are carried as data ("bars"/"line") so each renderer draws what it can.
+ * Format-neutral, language-aware document model of a situation report. HTML, PDF and Word are all rendered from it, so the same words
+ * and numbers appear in every format. Charts are carried as data ("bars"/"line") so each renderer draws what it can.
  */
-const pct = (x, d = 1) => (Number.isFinite(x) ? `${(x * 100).toFixed(d).replace('.', ',')}%` : 'n/a');
-const dateTr = (iso) => (iso && String(iso).length >= 10 ? `${String(iso).slice(8, 10)}.${String(iso).slice(5, 7)}.${String(iso).slice(0, 4)}` : 'n/a');
-const FX_RECENT_DAYS = 5;
-
-export function buildDocModel({ assessment: a, breadth = null, fx = null, meta = {} }) {
+export function buildDocModel({ assessment: a, breadth = null, fx = null, meta = {} }, langIn = 'tr') {
+  const lang = normLang(langIn); const T = (k, p) => tr(lang, k, p); const D = (iso) => fmtDate(iso, lang); const P = (x, d) => fmtPct(x, lang, d);
   const id = meta.documentId || reportId(a, meta); const gen = meta.generatedAt || new Date().toISOString();
   const bi = a.breadth; const fi = a.fx; const sections = [];
-  const rows = [];
-  rows.push(['Fon çıkışı yaygınlığı (TEFAS)', bi ? LEVEL_TR[bi.level] : '–', bi ? `${dateTr(bi.date)} haftası: ${pct(bi.breadth)} (${bi.funds ?? '?'} fon izleniyor)` : 'Veri yok']);
-  rows.push(['Kur şoku (TCMB EVDS)', fi ? LEVEL_TR[fi.level] : '–', fi ? (fi.lastDate ? `Son veri ${dateTr(fi.lastDate)}; son ${FX_RECENT_DAYS} günde ${fi.recentShocks.length} şok` : 'Veri yok') : 'Veri yok']);
-  sections.push({ h: 'Genel Durum', blocks: [{ t: 'status', level: a.level, levelTr: a.levelTr, drivers: a.drivers }, { t: 'table', head: ['Gösterge', 'Seviye', 'Açıklama'], rows, levelCol: 1 }] });
+  const lvl = (l) => T(`level${l}`);
+  const drivers = a.items ? a.items.map((i) => driverText(i, lang)) : a.drivers;
+  sections.push({ key: 'status', h: T('sStatus'), blocks: [
+    { t: 'status', level: a.level, levelText: lvl(a.level), drivers },
+    { t: 'table', head: [T('thIndicator'), T('thLevel'), T('thDesc')], levelCol: 1, levels: [bi ? bi.level : null, fi ? fi.level : null], rows: [
+      [T('rowBreadth'), bi ? lvl(bi.level) : '–', bi ? T('weekLine', { date: D(bi.date), b: P(bi.breadth), n: bi.funds ?? '?' }) : T('noData')],
+      [T('rowFx'), fi ? lvl(fi.level) : '–', fi ? (fi.lastDate ? T('fxLine', { date: D(fi.lastDate), d: FX_RECENT_DAYS, n: fi.recentShocks.length }) : T('noData')) : T('noData')],
+    ] },
+  ] });
   if (bi) {
-    const weeks = (breadth?.weeks || []).slice(-26).map((w) => ({ date: w.date, breadth: w.breadth, flagged: !!w.flagged }));
-    sections.push({ h: '1. Fon çıkışı yaygınlığı', blocks: [
-      { t: 'p', text: 'Aynı hafta içinde fonların ne kadarının kendi normalinin belirgin altında çıkış yaşadığını gösterir. Tek bir fonun gürültüsü bu ölçüyü bozmaz; piyasa genelinde ortak bir hareket yaygınlığı yükseltir.' },
-      { t: 'kpis', items: [{ v: pct(bi.breadth), l: `Son hafta (${dateTr(bi.date)})` }, { v: pct(bi.baseline), l: 'Normal dönem ortalaması' }, { v: pct(bi.alarmLevel), l: 'Alarm seviyesi' }] },
-      { t: 'bars', weeks, alarm: bi.alarmLevel },
-      { t: 'small', text: `Kırmızı sütunlar alarm üreten haftalardır.${bi.watchLevel !== null ? ` İzleme seviyesi ${pct(bi.watchLevel)} ve üzeridir.` : ''}` },
+    const weeks = (breadth?.weeks || []).slice(-26).map((w) => ({ date: w.date, label: D(w.date), breadth: w.breadth, flagged: !!w.flagged }));
+    sections.push({ key: 'breadth', h: T('s1'), blocks: [
+      { t: 'p', text: T('p1') },
+      { t: 'kpis', items: [{ v: P(bi.breadth), l: T('kpiLast', { date: D(bi.date) }) }, { v: P(bi.baseline), l: T('kpiBase') }, { v: P(bi.alarmLevel), l: T('kpiAlarm') }] },
+      { t: 'bars', weeks, alarm: bi.alarmLevel, alarmLabel: T('alarmLine', { a: P(bi.alarmLevel) }), pctLabel: (v) => P(v, 0) },
+      { t: 'small', text: T('barsNote') + (bi.watchLevel !== null ? T('watchNote', { w: P(bi.watchLevel) }) : '') },
     ] });
   }
   if (fi && fx?.recent?.length > 1) {
-    sections.push({ h: '2. Kur hareketi', blocks: [
-      { t: 'p', text: `${fi.series} serisinde günlük hareketin, önceki 250 günün olağan oynaklığına göre büyüklüğü izlenir. Kırmızı noktalar şok günleridir.` },
-      { t: 'line', points: fx.recent, flags: (fx.flags || []).map((f) => f.date) },
-    ] });
+    sections.push({ key: 'fx', h: T('s2'), blocks: [{ t: 'p', text: T('p2', { series: fi.series }) }, { t: 'line', points: fx.recent, flags: (fx.flags || []).map((f) => f.date), first: D(fx.recent[0].date), last: D(fx.recent[fx.recent.length - 1].date) }] });
   }
-  const cov = (meta.coverage || []).map((c) => [c.source, c.field, String(c.n), dateTr(String(c.first || '').slice(0, 10)), dateTr(String(c.last || '').slice(0, 10))]);
-  sections.push({ h: '3. Veri kapsamı', blocks: [{ t: 'table', head: ['Kaynak', 'Alan', 'Gözlem', 'İlk', 'Son'], rows: cov.length ? cov : [['Kayıt yok', '', '', '', '']] }] });
-  sections.push({ h: '4. Bakılacaklar', blocks: [
-    { t: 'ul', items: a.level === LEVELS.NORMAL ? ['Şu an için bir işlem gerekmiyor; bir sonraki veri güncellemesini bekleyin.'] : ['Çıkışı en yüksek fonların listesini ve para piyasası fonlarındaki hareketi kontrol edin.', 'Kur ve faiz gelişmelerini (TCMB duyuruları, KAP) aynı gün içinde karşılaştırın.', 'Alarm sürerse bir sonraki hafta verisiyle teyit edin; tek haftalık alarm kesin sonuç değildir.'] },
-    { t: 'small', text: 'Bu liste yatırım tavsiyesi değildir; incelenecek noktaları gösterir.' },
-  ] });
+  const cov = (meta.coverage || []).map((c) => [c.source, c.field, String(c.n), D(String(c.first || '').slice(0, 10)), D(String(c.last || '').slice(0, 10))]);
+  sections.push({ key: 'coverage', h: T('s3'), blocks: [{ t: 'table', head: [T('thSource'), T('thField'), T('thCount'), T('thFirst'), T('thLast')], rows: cov.length ? cov : [[T('noRecords'), '', '', '', '']] }] });
+  sections.push({ key: 'todo', h: T('s4'), blocks: [{ t: 'ul', items: a.level === LEVELS.NORMAL ? [T('todoNormal')] : [T('todo1'), T('todo2'), T('todo3')] }, { t: 'small', text: T('todoNote') }] });
   const models = meta.models || [];
-  sections.push({ h: '5. Güvenilirlik ve sınırlar', blocks: [{ t: 'note', text: `Önemli: Bu sistemdeki modeller henüz kalibre edilmemiştir (${models.length ? models.map((m) => `${m.id}: ${m.state}`).join(', ') : 'durum bilgisi yok'}). Fon çıkışı alarmı şu ana kadar yalnız tek bir gerçek olayda (Eylül 2026) test edilmiş ve alarm olayla aynı hafta gelmiştir; erken uyarı süresi kanıtlanmamıştır. Kur şoku tanıma 5 olayın 4'ünde başarılıdır, ancak şoku önceden öngörmez. Bağımsız doğrulama yapılmamıştır. Raporu karar için tek başına dayanak yapmayın.` }] });
-  sections.push({ h: '6. Yöntem', blocks: [{ t: 'table', head: ['Konu', 'Açıklama'], rows: [
-    ['Fon yaygınlığı', "Her fon için haftalık net akışın kendi medyan/MAD'ine göre z skoru; z ≤ −3 olan fonların payı. Alarm seviyesi referans döneminden öğrenilir (ortalama + 4σ, ortalamanın 2 katı ya da +5 puanın en büyüğü). İzleme seviyesi ortalama + 2σ'dır (kabul edilmiş bir eşik, kalibre değil)."],
-    ['Kur şoku', 'Günlük log getirinin önceki 250 günün medyan/MAD\'ine göre ≥ 5 robust sigma ve ≥ %2 olması. Yalnız geçmiş veri kullanılır.'],
-    ['Veri', 'TEFAS fon verileri, TCMB EVDS kurları. Gözlemler yayın zamanı damgalıdır; sonradan düzeltmeler eski sonucu değiştirmez.'],
-  ] }] });
-  return { id, title: 'BFI Durum Raporu', subtitle: 'BOLD FINANCIAL INTELLIGENCE · SİSTEMİK RİSK İZLEME', generatedAt: gen, level: a.level, levelTr: a.levelTr, sections, footer: `BFI Durum Raporu · Belge No ${id} · Otomatik üretilmiştir ve ${gen.slice(0, 10)} tarihine kadar olan veriyi yansıtır. Sürüm ${meta.version || 'n/a'}. Yatırım tavsiyesi değildir.`, dateText: `${dateTr(gen)} ${gen.slice(11, 16)} UTC` };
+  sections.push({ key: 'limits', h: T('s5'), blocks: [{ t: 'note', text: T('note', { models: models.length ? models.map((m) => `${m.id}: ${m.state}`).join(', ') : T('unknownModels') }) }] });
+  sections.push({ key: 'method', h: T('s6'), blocks: [{ t: 'table', head: [T('thTopic'), T('thDescription')], rows: [[T('mBreadthK'), T('mBreadth')], [T('mFxK'), T('mFx')], [T('mDataK'), T('mData')]] }] });
+  return {
+    id, lang, rtl: RTL_LANGS.has(lang), title: T('docTitle'), brand: 'BFI', subtitle: T('brandSub'), generatedAt: gen, level: a.level, levelText: lvl(a.level),
+    labels: { docNo: T('docNo'), generated: T('generated'), page: (i, n) => T('page', { i, n }) },
+    sections, footer: T('footer', { id, date: gen.slice(0, 10), v: meta.version || 'n/a' }), dateText: `${D(gen)} ${gen.slice(11, 16)} UTC`,
+  };
 }
 
-/** Compact, self-sufficient snapshot stored with an archived report so it can be re-rendered as HTML, PDF or Word later. */
+/** Compact, self-sufficient snapshot stored with an archived report so it can be re-rendered later in any language and format. */
 export function snapshotOf({ assessment, breadth, fx, meta }) {
   return {
     assessment, meta: { ...meta },

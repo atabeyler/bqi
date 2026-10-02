@@ -1,5 +1,6 @@
 import { detectFxShocks } from '../engines/fxShock.js';
 import { assessSituation, renderReportHtml, reportId, LEVELS, LEVEL_TR } from './situationReport.js';
+import { tr, normLang } from './i18n.js';
 import { archiveReport, archiveDailyIfDue } from './archive.js';
 import { buildDocModel, snapshotOf } from './docModel.js';
 
@@ -26,13 +27,13 @@ export async function gatherReportInputs({ db, pg, registry, now = new Date() })
   return { breadth, fx, coverage, models, now };
 }
 
-export function buildReport(inputs, { version = null } = {}) {
+export function buildReport(inputs, { version = null, lang = 'tr' } = {}) {
   const now = inputs.now || new Date();
   const assessment = assessSituation({ breadth: inputs.breadth, fx: inputs.fx, now });
   const meta = { generatedAt: now.toISOString(), version, models: inputs.models, coverage: inputs.coverage, dataAsOf: assessment.breadth?.date ?? assessment.fx?.lastDate ?? null };
   meta.documentId = reportId(assessment, meta);
   const parts = { assessment, breadth: inputs.breadth, fx: inputs.fx, meta };
-  return { assessment, html: renderReportHtml(parts), model: buildDocModel(parts), snapshot: snapshotOf(parts), meta };
+  return { assessment, html: renderReportHtml(parts, lang), model: buildDocModel(parts, lang), snapshot: snapshotOf(parts), meta };
 }
 
 /**
@@ -41,25 +42,29 @@ export function buildReport(inputs, { version = null } = {}) {
  * `send({subject, text, html, attachments})` is injected (e-mail in production, a fake in tests).
  */
 /** Called after every sync round: one archived snapshot per day, then the level-change check (which also archives and may mail). */
-export async function dailyArchiveAndNotify({ db, pg, registry, send, version = null, now = new Date() }) {
+export async function dailyArchiveAndNotify({ db, pg, registry, send, version = null, lang = 'tr', now = new Date() }) {
   if (!db) return { archived: false, reason: 'no database' };
   const report = buildReport(await gatherReportInputs({ db, pg, registry, now }), { version });
   const daily = await archiveDailyIfDue(db, { report, now });
-  return { archived: !!daily, notify: await notifyIfChanged({ db, pg, registry, send, version, now }) };
+  return { archived: !!daily, notify: await notifyIfChanged({ db, pg, registry, send, version, lang, now }) };
 }
 
-export async function notifyIfChanged({ db, pg, registry, send, force = false, version = null, now = new Date() }) {
+export async function notifyIfChanged({ db, pg, registry, send, force = false, version = null, lang = 'tr', now = new Date() }) {
+  lang = normLang(lang);
   if (!db) return { sent: false, reason: 'no database' };
-  const inputs = await gatherReportInputs({ db, pg, registry, now }); const report = buildReport(inputs, { version }); const { assessment, html } = report;
+  const inputs = await gatherReportInputs({ db, pg, registry, now }); const report = buildReport(inputs, { version, lang }); const { assessment, html } = report;
   const last = (await db.list('alert_state', 1))[0] ?? null;
   const changed = !last || last.level !== assessment.level;
   if (changed) await archiveReport(db, { report, trigger: 'level-change', now });
   const first = !last && assessment.level === LEVELS.NORMAL; // first ever run at NORMAL: record it, do not mail
   if (!force && (!changed || first)) { if (first) await db.append('alert_state', { id: `st_${now.getTime()}`, level: assessment.level, at: now.toISOString() }); return { sent: false, reason: first ? 'baseline recorded' : 'level unchanged', level: assessment.levelTr }; }
-  const dir = last ? (assessment.level > last.level ? 'yükseldi' : 'düştü') : 'ilk değerlendirme';
-  const subject = `[BFI] Sistem seviyesi: ${assessment.levelTr}${last ? ` (${LEVEL_TR[last.level]} → ${assessment.levelTr})` : ''}`;
-  const text = `BFI sistem seviyesi ${dir}: ${assessment.levelTr}.\n\n${assessment.drivers.map((d) => `- ${d}`).join('\n')}\n\nAyrıntılı rapor ektedir. Modeller henüz kalibre edilmemiştir; bu bildirim yatırım tavsiyesi değildir.`;
-  await send({ subject, text, html: `<p><b>BFI sistem seviyesi ${dir}: ${assessment.levelTr}</b></p><ul>${assessment.drivers.map((d) => `<li>${d.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</li>`).join('')}</ul><p>Ayrıntılı rapor ektedir (tarayıcıda açıp yazdırarak PDF alabilirsiniz).</p><p style="color:#667085;font-size:12px">Modeller henüz kalibre edilmemiştir; bu bildirim yatırım tavsiyesi değildir.</p>`, attachments: [{ filename: `BFI-Durum-Raporu-${now.toISOString().slice(0, 10)}.html`, content: Buffer.from(html, 'utf8') }] });
+  const dir = tr(lang, !last ? 'mailFirst' : assessment.level > last.level ? 'mailRaised' : 'mailLowered');
+  const lv = (l) => tr(lang, `level${l}`); const levelNow = lv(assessment.level);
+  const subject = tr(lang, 'mailSubject', { level: levelNow }) + (last ? ` ${tr(lang, 'mailChange', { from: lv(last.level), to: levelNow })}` : '');
+  const reasons = report.model.sections[0].blocks[0].drivers; const head = tr(lang, 'mailHead', { dir, level: levelNow });
+  const text = [head, "", ...reasons.map((d) => `- ${d}`), "", `${tr(lang, 'mailAttached')} ${tr(lang, 'mailDisclaimer')}`].join('\n');
+  const esc = (x) => String(x).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  await send({ subject, text, html: `<div dir="${report.model.rtl ? 'rtl' : 'ltr'}"><p><b>${esc(head)}</b></p><ul>${reasons.map((d) => `<li>${esc(d)}</li>`).join('')}</ul><p>${esc(tr(lang, 'mailAttached'))}</p><p style="color:#667085;font-size:12px">${esc(tr(lang, 'mailDisclaimer'))}</p></div>`, attachments: [{ filename: `${tr(lang, 'mailFile')}-${now.toISOString().slice(0, 10)}.html`, content: Buffer.from(html, 'utf8') }] });
   await db.append('alert_state', { id: `st_${now.getTime()}`, level: assessment.level, at: now.toISOString() });
   return { sent: true, level: assessment.levelTr, previous: last ? LEVEL_TR[last.level] : null };
 }
