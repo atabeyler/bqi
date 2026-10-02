@@ -1,0 +1,125 @@
+{
+  "generated": "2026-10-02T08:15:26.834Z",
+  "funds": 200,
+  "eligibleFunds": 806,
+  "windows": 392,
+  "windowsTotal": 592,
+  "noVerdict": 200,
+  "elapsedSec": 0,
+  "volatilityTerciles": {
+    "lowMaxSd": 0.03287846884095219,
+    "midMaxSd": 0.07353967111606284
+  },
+  "falseAlarms": {
+    "n": 392,
+    "signal": 59,
+    "majority": 101,
+    "any": 140
+  },
+  "detection": {
+    "0.1": {
+      "n": 392,
+      "signal": 202,
+      "majority": 265,
+      "any": 298
+    },
+    "0.2": {
+      "n": 392,
+      "signal": 290,
+      "majority": 341,
+      "any": 366
+    },
+    "0.3": {
+      "n": 392,
+      "signal": 340,
+      "majority": 373,
+      "any": 384
+    }
+  },
+  "byVolatility": {
+    "low": {
+      "sdAvg": 1.234510483992944,
+      "funds": 67,
+      "control": {
+        "n": 134,
+        "majority": 19
+      },
+      "shocks": {
+        "0.1": {
+          "n": 134,
+          "majority": 128
+        },
+        "0.2": {
+          "n": 134,
+          "majority": 134
+        },
+        "0.3": {
+          "n": 134,
+          "majority": 134
+        }
+      }
+    },
+    "mid": {
+      "sdAvg": 3.494694885162916,
+      "funds": 67,
+      "control": {
+        "n": 134,
+        "majority": 42
+      },
+      "shocks": {
+        "0.1": {
+          "n": 134,
+          "majority": 88
+        },
+        "0.2": {
+          "n": 134,
+          "majority": 125
+        },
+        "0.3": {
+          "n": 134,
+          "majority": 134
+        }
+      }
+    },
+    "high": {
+      "sdAvg": 8.343504959079194,
+      "funds": 66,
+      "control": {
+        "n": 124,
+        "majority": 40
+      },
+      "shocks": {
+        "0.1": {
+          "n": 124,
+          "majority": 49
+        },
+        "0.2": {
+          "n": 124,
+          "majority": 82
+        },
+        "0.3": {
+          "n": 124,
+          "majority": 105
+        }
+      }
+    }
+  },
+  "topFlaggedWeeks": [
+    [
+      "2026-09-18",
+      53
+    ],
+    [
+      "2026-08-14",
+      45
+    ],
+    [
+      "2026-09-25",
+      2
+    ],
+    [
+      "2026-08-21",
+      1
+    ]
+  ]
+}
