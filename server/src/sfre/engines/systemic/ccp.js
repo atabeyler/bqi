@@ -1,7 +1,7 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNum, isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { isNum, isNonNeg, isFrac, unobs, cmp } from '../../core/numeric.js';
 import { priceImpact } from '../impact.js';
 import { hhi } from '../concentration.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
@@ -32,13 +32,19 @@ export function validateCcp(system, scenario) {
   return null;
 }
 
-/** One CCP: pooled default waterfall with survivor-default propagation. */
-export function ccpWaterfall(system, ccp, defaultersInit, shocks, ix = indexSystem(system)) {
+/**
+ * One CCP: pooled default waterfall with survivor-default propagation.
+ * opts.vmCollected {entity: amount}: variation margin the member already paid on these positions (e.g. by M63 in the twin); the price-move
+ * part of its loss is net of it, otherwise the same move would be charged twice (once as VM paid, once as default loss).
+ * Output `defaulterConsumed` = defaulter IM + DF actually used by the waterfall: those assets are gone for the defaulter's own creditors.
+ */
+export function ccpWaterfall(system, ccp, defaultersInit, shocks, ix = indexSystem(system), opts = {}) {
   const unobserved = []; const lb = new Set();
   const members = ccp.members; const price = ix.price;
   const lossOf = new Map(); const detail = new Map();
   for (const m of members) {
     let move = 0; let cost = 0;
+    if (m.positions === undefined || m.positions === null) { unobserved.push(`ccp_positions:${m.entity}`); lb.add('member positions unobserved: close-out loss excluded (not assumed zero); lower bound'); }
     for (const p of m.positions || []) {
       const k = ix.aIdx.get(p.asset); const s = shocks[p.asset] ?? 0;
       move += p.exposure * s; // long loses when price falls
@@ -46,10 +52,11 @@ export function ccpWaterfall(system, ccp, defaultersInit, shocks, ix = indexSyst
       if (d === null) { unobserved.push(`ccp_closeout_impact:${m.entity}:${p.asset}`); lb.add('close-out liquidity cost unobserved for some positions (excluded, not zero): losses are lower bounds'); } else cost += Math.abs(p.exposure) * d;
     }
     void price;
-    lossOf.set(m.entity, Math.max(0, move + cost)); detail.set(m.entity, { priceMoveLoss: move, closeoutCost: cost });
+    const vm = opts.vmCollected?.[m.entity] ?? 0;
+    lossOf.set(m.entity, Math.max(0, move - vm) + cost); detail.set(m.entity, { priceMoveLoss: move, variationMarginAlreadyPaid: vm, closeoutCost: cost });
   }
   const D = new Set(defaultersInit); const rounds = []; let charges = new Map(members.map((m) => [m.entity, 0]));
-  let layers = null;
+  let layers = null; let consumed = new Map();
   for (let r = 0; r <= members.length; r++) {
     const defs = members.filter((m) => D.has(m.entity)); const surv = members.filter((m) => !D.has(m.entity));
     const L = sumArr(defs.map((m) => lossOf.get(m.entity)));
@@ -68,6 +75,7 @@ export function ccpWaterfall(system, ccp, defaultersInit, shocks, ix = indexSyst
       const asShare = capTot > 0 ? assessUsed * (ccp.assessmentCap * m.dfContribution / capTot) : 0;
       charges.set(m.entity, dfShare + asShare);
     }
+    consumed = new Map(defs.map((m) => [m.entity, (imD > 0 ? imUsed * (m.im / imD) : 0) + (dfD > 0 ? dfDUsed * (m.dfContribution / dfD) : 0)]));
     layers = { totalLoss: L, defaulterIM: imUsed, defaulterDF: dfDUsed, skinInTheGame: sitgUsed, survivorDF: dfSUsed, assessments: assessUsed, unfunded };
     const newDef = [];
     for (const m of surv) {
@@ -81,12 +89,12 @@ export function ccpWaterfall(system, ccp, defaultersInit, shocks, ix = indexSyst
   // concentration and cover-N
   const imShares = members.map((m) => ({ id: m.entity, w: sumArr(members.map((x) => x.im)) > 0 ? m.im / sumArr(members.map((x) => x.im)) : 0 }));
   const conc = hhi(imShares, { entity: ccp.id });
-  const uncovered = members.map((m) => ({ id: m.entity, v: Math.max(0, lossOf.get(m.entity) - m.im) })).sort((a, b) => b.v - a.v || a.id.localeCompare(b.id));
+  const uncovered = members.map((m) => ({ id: m.entity, v: Math.max(0, lossOf.get(m.entity) - m.im) })).sort((a, b) => b.v - a.v || cmp(a.id, b.id));
   const cover2Need = sumArr(uncovered.slice(0, 2).map((x) => x.v));
   const resources = sumArr(members.map((m) => m.dfContribution)) + ccp.skinInTheGame;
   return {
     ccp: ccp.id, defaulters: [...D], initialDefaulters: [...defaultersInit], propagatedDefaults: [...D].filter((x) => !defaultersInit.includes(x)), rounds, finalLayers: layers,
-    memberCharges: Object.fromEntries([...charges.entries()].filter(([, v]) => v > 0)), memberLoss: Object.fromEntries([...lossOf.entries()].map(([k, v]) => [k, { loss: v, ...detail.get(k) }])),
+    memberCharges: Object.fromEntries([...charges.entries()].filter(([, v]) => v > 0)), defaulterConsumed: Object.fromEntries([...consumed.entries()].filter(([, v]) => v > 0)), memberLoss: Object.fromEntries([...lossOf.entries()].map(([k, v]) => [k, { loss: v, ...detail.get(k) }])),
     concentration: { memberIm: conc.value, top2UncoveredLoss: cover2Need, resourcesDfPlusSitg: resources, cover2Ratio: cover2Need > 0 ? resources / cover2Need : null, cover2Satisfied: cover2Need <= resources + 1e-12 },
     unobserved, lowerBoundReasons: [...lb],
   };

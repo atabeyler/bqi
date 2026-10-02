@@ -53,11 +53,12 @@ export function makeSystem(seed = 1, { equityRatio = 0.08, scale = 1 } = {}) {
     if (e.leverage) e.leverage.debt = Math.min(e.leverage.debt, e.externalLiabilities * 0.5);
   }
   const byId = Object.fromEntries(entities.map((e) => [e.id, e]));
+  // fx.entities lists NON-network FCY positions only: FCY loans that appear in `exposures` (B1->C1, FI->B1) are revalued through the edges and must not be repeated here
   const fx = {
     spot: 30, market: { Y: 1, sigma: 0.012, advValue: 3e8 }, official: { reserves: 4e8, swapLines: 1e8, usableShare: 0.5 },
     entities: {
-      B1: { fcyAssets: j(3e7), fcyLiabilities: j(8e7), hedgedFraction: 0.5, fcyShortTermDebt: j(5e7), fcyLiquidAssets: j(1e7), rolloverRate: 0.8 },
-      C1: { fcyAssets: j(1e7), fcyLiabilities: j(6e7), hedgedFraction: 0, fcyShortTermDebt: j(2e7), fcyLiquidAssets: j(5e6), rolloverRate: 0.7 },
+      B1: { fcyAssets: j(3e7), fcyLiabilities: j(3e7), hedgedFraction: 0.5, fcyShortTermDebt: j(2e7), fcyLiquidAssets: j(1e7), rolloverRate: 0.8 },
+      C1: { fcyAssets: j(1e7), fcyLiabilities: j(2e7), hedgedFraction: 0, fcyShortTermDebt: j(1e7), fcyLiquidAssets: j(5e6), rolloverRate: 0.7 },
       C2: { fcyAssets: 0, fcyLiabilities: j(3e7), hedgedFraction: 0.2, fcyShortTermDebt: j(1e7), fcyLiquidAssets: j(2e6), rolloverRate: 0.7 },
     }, pdSensitivity: 1.5,
   };

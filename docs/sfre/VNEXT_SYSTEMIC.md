@@ -94,3 +94,15 @@ Documented simplifications: sales execute at start-of-round marks; crowding buy-
 * Digital: reserve composition attestations, on-chain positions/oracles/bridges.
 * Surveillance: labelled real order-book episodes (≥30 confirmed positives per pattern, locked hold-out) to calibrate thresholds; until then thresholds stay `UNCALIBRATED`.
 * Governance: per model, a real-data validation report, shadow period, negative controls and a distinct human approver (existing rules).
+
+## 7. Pre-merge audit notes (b77c8ac)
+
+Corrected after audit (regression tests in `tests/vnextAudit.test.js`):
+* **Funding stage booked asset-swap cash flows as liability repayments** (facility draws, edge-booked deposit withdrawals) and so created equity; now only payments that settle an outside liability reduce liabilities.
+* **Negative external balance was clipped to zero** inside the clearing input (value destroyed silently, identity broken); the net external position is now preserved (a negative asset balance becomes an outside liability and vice versa).
+* **Investor stake losses were counted again as value destroyed** next to the fund's own asset loss; they are now *transfers* (`transferDelta`): equity effect for the investor, not additional system loss.
+* **CCP**: variation margin already paid by a member is netted from its close-out loss; the defaulter's IM/DF consumed by the waterfall is removed from its assets; unpaid CCP margin is no longer also booked as a liability of the defaulter when the CCP module is active.
+* **M62** diverging feedback (GDP wiped out / unbounded spread) no longer yields non-finite output; it stops at the last finite iterate and is `MODEL_UNCERTAIN`.
+* Silent defaults removed (now `UNOBSERVED` + `lowerBound`): omitted collateral haircut, omitted AMM pool fee, omitted CCP member positions, omitted bank funding profile, null bond convexity, null corporate RWA share, omitted wrong-way LGD.
+* Surveillance sessions closing after `asOf` are rejected (nested look-ahead); string tie-breaks use codepoint order instead of the host locale.
+* `fx.entities` must list only **non-network** FCY positions; FCY loans present in `exposures` are revalued through the edges.

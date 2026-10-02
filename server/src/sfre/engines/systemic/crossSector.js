@@ -13,6 +13,8 @@ export const MODEL_ID = 'M60.cross_sector';
  * (not re-implemented) by the Financial System Digital Twin for its network-contagion stage.
  *  ctx.extAssetsDelta[i]  signed change (LCY) of entity i's external assets caused by other engines (FX revaluation, climate, ...)
  *  ctx.extLiabDelta[i]    signed change of entity i's liabilities outside the network
+ *  ctx.transferDelta[i]   signed change of external assets that merely TRANSFERS a loss already counted elsewhere (e.g. an investor's
+ *                         stake in a fund whose assets already lost the value): hits the entity's equity but is NOT value destroyed
  *  ctx.edgeAmounts[e]     revalued amount of exposure e (aligned with system.exposures); default = nominal
  *  ctx.work               {cash[], q[][], price[]}: live working state of the Digital Twin (sales already executed, current marks);
  *                         when given, holdings/cash/prices are read from it instead of system + scenario.priceShocks
@@ -30,7 +32,7 @@ export function propagate(system, scenario, { alpha, beta, maxIter }, ctx = {}) 
   const sectorShock = scenario.sectorShocks || {}; const entShock = scenario.externalShocks || {};
 
   const ext0 = new Array(n).fill(0); const ext = new Array(n).fill(0); const direct = new Array(n).fill(0);
-  const dA = ctx.extAssetsDelta ?? new Array(n).fill(0); const dL = ctx.extLiabDelta ?? new Array(n).fill(0);
+  const dA = ctx.extAssetsDelta ?? new Array(n).fill(0); const dL = ctx.extLiabDelta ?? new Array(n).fill(0); const dT = ctx.transferDelta ?? new Array(n).fill(0);
   E.forEach((e, i) => {
     if (unobs(e.externalAssets)) { indeterminate[i] = true; unobserved.push(`externalAssets:${e.id}`); lowerBoundReasons.add('entities with unobserved external assets are excluded from the network'); }
     if (unobs(e.externalLiabilities)) { indeterminate[i] = true; unobserved.push(`externalLiabilities:${e.id}`); lowerBoundReasons.add('entities with unobserved external liabilities are excluded from the network'); }
@@ -42,8 +44,8 @@ export function propagate(system, scenario, { alpha, beta, maxIter }, ctx = {}) 
     const h = 1 - (1 - (entShock[e.id] ?? 0)) * (1 - (sectorShock[e.sector] ?? 0));
     const nonMarket = nonMarket0 * (1 - h);
     ext0[i] = e.cash + base.market + base.htmMark + nonMarket0;
-    ext[i] = cashAfter + after.market + after.htmMark + nonMarket + dA[i];
-    direct[i] = ext0[i] - ext[i] + dL[i];
+    ext[i] = cashAfter + after.market + after.htmMark + nonMarket + dA[i] + dT[i];
+    direct[i] = ext0[i] - ext[i] + dL[i] + dT[i]; // transfers are excluded from value destroyed
   });
 
   // edges: known amounts only, between determinate entities
@@ -54,12 +56,21 @@ export function propagate(system, scenario, { alpha, beta, maxIter }, ctx = {}) 
     edges.push({ ...x, nominal: x.amount, amount: ctx.edgeAmounts ? ctx.edgeAmounts[e] : x.amount });
   });
   const extLiab0 = E.map((e, i) => (indeterminate[i] ? 0 : e.externalLiabilities));
-  const extLiab = extLiab0.map((v, i) => v + dL[i]);
+  // Net external position is preserved exactly: a negative external-asset balance (losses beyond the entity's assets) becomes a liability
+  // to outside creditors, a negative outside-liability balance (over-repayment) becomes an asset. Clipping would silently destroy value.
+  const extLiab = new Array(n).fill(0); const extEff = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    if (indeterminate[i]) continue;
+    let L = extLiab0[i] + dL[i]; let a = ext[i];
+    if (a < 0) { L -= a; a = 0; }
+    if (L < 0) { a -= L; L = 0; }
+    extLiab[i] = L; extEff[i] = a;
+  }
   // determinate sub-network
   const det = []; for (let i = 0; i < n; i++) if (!indeterminate[i]) det.push(i);
   const map = new Map(det.map((g, l) => [g, l]));
   const sub = {
-    n: det.length, ext: det.map((g) => Math.max(0, ext[g])), extLiab: det.map((g) => extLiab[g]),
+    n: det.length, ext: det.map((g) => extEff[g]), extLiab: det.map((g) => extLiab[g]),
     edges: edges.map((x) => ({ c: map.get(x.c), d: map.get(x.d), amount: x.amount })), alpha, beta, maxIter,
   };
   const clr = clearNetwork(sub);
@@ -90,7 +101,8 @@ export function propagate(system, scenario, { alpha, beta, maxIter }, ctx = {}) 
   const outsideNominal = sumArr(det.map((g) => extLiab[g]));
   const equityLoss = sumArr(detE.map((x) => x.equity0 - x.equityFinal));
   const outsideLoss = outsideNominal - outsidePay;
-  const identityResidual = (directLoss + deadweight) - (equityLoss + outsideLoss);
+  const transferLoss = -sumArr(det.map((g) => dT[g]));
+  const identityResidual = (directLoss + deadweight + transferLoss) - (equityLoss + outsideLoss);
   const scale = Math.max(1, sumArr(det.map((g) => ext0[g])));
 
   // sector aggregates + cross-sector transmission matrix (debtor sector -> creditor sector shortfall)
@@ -110,7 +122,7 @@ export function propagate(system, scenario, { alpha, beta, maxIter }, ctx = {}) 
   return {
     entities, waves, sectors: Object.fromEntries(Object.entries(sectors).filter(([, v]) => v.entities > 0)), transmission,
     system: {
-      directLoss, deadweightLoss: deadweight, systemLoss, equityLoss, outsideCreditorLoss: outsideLoss, identityResidual, identityTolerance: 1e-9 * scale,
+      directLoss, deadweightLoss: deadweight, systemLoss, transferLoss, equityLoss, outsideCreditorLoss: outsideLoss, identityResidual, identityTolerance: 1e-9 * scale,
       reconciled: Math.abs(identityResidual) <= 1e-9 * scale, defaults: detE.filter((x) => x.defaulted).length, waves: clr.waves,
       amplification: directLoss > 0 ? (equityLoss + outsideLoss) / directLoss : null, converged: clr.converged, iterations: clr.iterations,
     },

@@ -8,6 +8,7 @@ import { propagate } from './crossSector.js';
 const ENGINE = 'sovNexus';
 export const MODEL_ID = 'M62.sovereign_bank_corporate';
 export const MAX_LOOP = 200;
+export const MAX_SPREAD = 10; // decimal (100 000 bp): beyond this the doom-loop assumption set is treated as diverged
 
 /** Duration-convexity price factor for a yield change dy (decimal). Floors at 0. */
 export const bondPriceFactor = (dur, conv, dy) => Math.max(0, 1 - dur * dy + 0.5 * (conv ?? 0) * dy * dy);
@@ -43,19 +44,20 @@ export function validateNexus(system, scenario) {
 export function nexusLoop(system, scenario, p, options = {}, ix = indexSystem(system), pre = null) {
   const s = system.sovereign; const { E, n } = ix;
   const bond = ix.A[ix.aIdx.get(s.bondAsset)]; const bk = ix.aIdx.get(s.bondAsset);
-  const dur = bond.duration; const conv = bond.convexity ?? 0;
+  const dur = bond.duration; const conv = bond.convexity ?? 0; // null convexity: second-order term omitted -> flagged below (never silently zero)
   const unobserved = []; const lb = new Set();
   if (unobs(dur)) return { error: `bond asset ${bond.id} needs duration` };
   for (const k of ['passThrough', 'pdSensitivity', 'creditCrunchPdSensitivity', 'capitalCostSensitivity', 'spreadPerDebtGdpPp', 'backstopShare', 'growthSensitivity']) if (unobs(p[k])) { unobserved.push(`nexus_param:${k}`); lb.add(`parameter ${k} unobserved: its channel is excluded (not set to zero effect silently; result is a lower bound)`); }
   const has = (k) => !unobs(p[k]);
+  if (unobs(bond.convexity)) { unobserved.push(`bond_convexity:${bond.id}`); lb.add('bond convexity unobserved: second-order price term omitted (price loss overstated)'); }
   const horizon = options.horizonYears ?? 1;
   const dy0 = scenario.sovereign.spreadShockBps / 1e4;
   const banks = E.map((e, i) => ({ e, i })).filter((x) => x.e.bank);
-  banks.forEach(({ e }) => { if (unobs(e.bank.rwa) || unobs(e.bank.minCapitalRatio)) { unobserved.push(`bank_capital_inputs:${e.id}`); lb.add('banks with unobserved RWA/minimum ratio are excluded from the capital/credit-supply channel'); } });
+  banks.forEach(({ e }) => { if (unobs(e.bank.corporateRwaShare)) { unobserved.push(`corporate_rwa_share:${e.id}`); lb.add('banks with unobserved corporate RWA share: credit-crunch channel excluded'); } if (unobs(e.bank.rwa) || unobs(e.bank.minCapitalRatio)) { unobserved.push(`bank_capital_inputs:${e.id}`); lb.add('banks with unobserved RWA/minimum ratio are excluded from the capital/credit-supply channel'); } });
   const base = propagate(system, {}, { alpha: 1, beta: 1, maxIter: 50000 }, { ix });
   const eq0 = base.entities.map((x) => x.equity0);
 
-  let dy = dy0; let prevShort = new Array(n).fill(0); const trace = []; let converged = false; let last = null;
+  let dy = dy0; let prevShort = new Array(n).fill(0); const trace = []; let converged = false; let last = null; let divergedAt = null;
   const hist = [];
   for (let it = 0; it < MAX_LOOP; it++) {
     const f = bondPriceFactor(dur, conv, dy);
@@ -65,7 +67,7 @@ export function nexusLoop(system, scenario, p, options = {}, ix = indexSystem(sy
       const rwa = e.bank.rwa;
       const sr = !unobs(rwa) && rwa > 0 ? prevShort[i] / rwa : 0;
       dc[i] = (has('passThrough') ? p.passThrough * dy : 0) + (has('capitalCostSensitivity') ? p.capitalCostSensitivity * sr : 0);
-      if (!unobs(rwa) && !unobs(e.bank.minCapitalRatio) && has('creditCrunchPdSensitivity')) crunch[i] = Math.min(1, prevShort[i] / e.bank.minCapitalRatio / rwa) * (e.bank.corporateRwaShare ?? 1);
+      if (!unobs(rwa) && !unobs(e.bank.minCapitalRatio) && !unobs(e.bank.corporateRwaShare) && has('creditCrunchPdSensitivity')) crunch[i] = Math.min(1, prevShort[i] / e.bank.minCapitalRatio / rwa) * e.bank.corporateRwaShare;
     }
     const delta = new Array(n).fill(0); const elByBank = new Array(n).fill(0); const pdShifts = [];
     for (const { e, i } of banks) for (const c of e.creditBook || []) {
@@ -98,18 +100,21 @@ export function nexusLoop(system, scenario, p, options = {}, ix = indexSystem(sy
     let dyNext = dy0; const debtGdp0 = s.debt / s.gdp; let backstop = 0; let gdp1 = s.gdp;
     if (has('backstopShare')) { backstop = p.backstopShare * sumShort; }
     if (has('growthSensitivity') && rwaTot > 0) gdp1 = s.gdp * (1 - Math.min(1, p.growthSensitivity * (crunchW / rwaTot)));
-    const debtGdp1 = (s.debt + backstop) / gdp1;
-    if (has('spreadPerDebtGdpPp')) dyNext = dy0 + (p.spreadPerDebtGdpPp * 100 * (debtGdp1 - debtGdp0)) / 1e4;
+    const gdpOk = gdp1 > 1e-9 * s.gdp; // GDP wiped out by the credit-crunch assumption: debt/GDP undefined -> diverged
+    const debtGdp1 = gdpOk ? (s.debt + backstop) / gdp1 : null;
+    if (gdpOk && has('spreadPerDebtGdpPp')) dyNext = dy0 + (p.spreadPerDebtGdpPp * 100 * (debtGdp1 - debtGdp0)) / 1e4;
+    const diverged = !gdpOk || !Number.isFinite(dyNext) || dyNext > MAX_SPREAD;
     last = { f, bankRows, pdShifts, corpEarnings, sumShort, backstop, gdp1, debtGdp0, debtGdp1, prop, delta, htmUnrealised, crunch };
     trace.push({ iteration: it + 1, spreadBps: dy * 1e4, bondPriceFactor: f, bankCapitalShortfall: sumShort, corporateELIncrease: sumArr(elByBank), sovereignBackstop: backstop, debtGdp: debtGdp1 });
     hist.push(dy);
     prevShort = short;
+    if (diverged) { divergedAt = it + 1; break; } // keep the last FINITE iterate; the result is reported MODEL_UNCERTAIN
     if (Math.abs(dyNext - dy) < 1e-13) { converged = true; dy = dyNext; break; }
     dy = dyNext;
   }
   const d1 = hist.length >= 3 ? Math.abs(hist[hist.length - 1] - hist[hist.length - 2]) : null; const d0 = hist.length >= 3 ? Math.abs(hist[hist.length - 2] - hist[hist.length - 3]) : null;
   return {
-    converged, iterations: trace.length, trace, spreadBps0: dy0 * 1e4, spreadBpsFinal: dy * 1e4, amplification: dy0 > 0 ? dy / dy0 : null,
+    converged, divergedAt, iterations: trace.length, trace, spreadBps0: dy0 * 1e4, spreadBpsFinal: dy * 1e4, amplification: dy0 > 0 ? dy / dy0 : null,
     contractionRatio: d1 !== null && d0 > 0 ? d1 / d0 : null, last, unobserved: [...new Set(unobserved)], lowerBoundReasons: [...lb],
     firstRound: { spreadBps: dy0 * 1e4, bankCapitalShortfall: trace[0].bankCapitalShortfall, corporateELIncrease: trace[0].corporateELIncrease, debtGdp: trace[0].debtGdp },
   };
@@ -133,7 +138,7 @@ export function runSovNexus(system, scenario = {}, options = {}) {
   const contagion = prop;
   const unobserved = [...new Set([...out.unobserved, ...prop.unobserved])];
   let status = STATUS.UNCALIBRATED; const notes = ['Reduced-form feedback loop with caller-supplied sensitivities: UNCALIBRATED scenario model, not a sovereign-risk forecast.'];
-  if (!out.converged) { status = STATUS.MODEL_UNCERTAIN; notes.push(`loop did not converge in ${MAX_LOOP} iterations (contraction ratio ${out.contractionRatio ?? 'n/a'}): the doom-loop assumption set is unstable`); }
+  if (!out.converged) { status = STATUS.MODEL_UNCERTAIN; if (out.divergedAt) notes.push(`loop DIVERGED at iteration ${out.divergedAt} (spread/GDP feedback unbounded under these assumptions); the last finite iterate is shown`); notes.push(`loop did not converge in ${MAX_LOOP} iterations (contraction ratio ${out.contractionRatio ?? 'n/a'}): the doom-loop assumption set is unstable`); }
   else if (!prop.system.reconciled) status = STATUS.COMPUTATION_FAILED;
   else if (unobserved.length) { status = STATUS.INSUFFICIENT_OBSERVABILITY; notes.push('unobserved parameters/inputs exclude channels: lower bound'); }
   const u = options.uncertainty ?? {};

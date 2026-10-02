@@ -23,7 +23,10 @@ export function validateSurveillance(s) {
   if (refMax >= evMin) return 'reference events must strictly precede evaluation events (look-ahead guard)';
   for (const d of s.detectors ?? []) if (!DETECTOR_NAMES.includes(d)) return `detectors must be a subset of ${DETECTOR_NAMES.join(',')}`;
   for (const l of s.instrumentLinks ?? []) if (!l.a || !l.b) return 'instrumentLinks: {a,b} required';
-  for (const sess of s.sessions ?? []) if (!sess.day || !Number.isFinite(sess.openTs) || !Number.isFinite(sess.closeTs) || sess.closeTs <= sess.openTs) return 'sessions: {day, openTs, closeTs} invalid';
+  for (const sess of s.sessions ?? []) {
+    if (!sess.day || !Number.isFinite(sess.openTs) || !Number.isFinite(sess.closeTs) || sess.closeTs <= sess.openTs) return 'sessions: {day, openTs, closeTs} invalid';
+    if (sess.closeTs > asOf) return `look-ahead guard: session ${sess.day} closes at ${sess.closeTs}, after asOf ${s.asOf} (a close that has not happened yet cannot be inspected)`;
+  }
   const a = s.params?.alpha; if (a !== undefined && !(a > 0 && a <= 0.05)) return 'params.alpha must be in (0, 0.05]';
   for (const [k, v] of Object.entries(s.params ?? {})) {
     if (k === 'alpha') continue;

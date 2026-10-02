@@ -1,5 +1,6 @@
 import { poissonSf, quantile, robustZ, median, betaInc } from '../../core/stats.js';
 import { Rng } from '../../core/prng.js';
+import { cmp } from '../../core/numeric.js';
 import { detectAnomalies } from '../anomaly/ensemble.js';
 import { hypergeomSf, components } from '../coordination.js';
 import { groupBy, hashKey, participantFills } from './events.js';
@@ -211,7 +212,7 @@ export function detectCrossVenue(ref, ev, P, ctx) {
   const times = ev.sorted.map((e) => e.ts); const t0 = Math.min(...times); const t1 = Math.max(...times);
   const count = (fillSet) => { const idx = fillIndex(fillSet); const per = new Map(); for (const o of cand) { for (const q of partner.get(o.instrument)) if (hasFillIn(idx, o.participant, q, opposite(o.side), o.ts, o.cancelTs + p.windowMs)) { per.set(o.participant, (per.get(o.participant) || 0) + 1); break; } } return per; };
   const obs = count(fills); const findings = []; const rng = new Rng(ctx.seed ?? 1).child('cross');
-  const participants = [...obs.entries()].filter(([, k]) => k >= p.minEpisodes).sort((a, b) => a[0].localeCompare(b[0])); const m = Math.max(1, participants.length);
+  const participants = [...obs.entries()].filter(([, k]) => k >= p.minEpisodes).sort((a, b) => cmp(a[0], b[0])); const m = Math.max(1, participants.length);
   for (const [pt, k] of participants) {
     const own = fills.filter((f) => f.participant === pt); let ge = 0;
     for (let b = 0; b < p.permutations; b++) {
@@ -231,7 +232,7 @@ export function detectCoordinatedTrading(ev, P, ctx) {
   const t0 = Math.min(...fills.map((f) => f.ts)); const t1 = Math.max(...fills.map((f) => f.ts)); const nBins = Math.max(1, Math.ceil((t1 - t0 + 1) / p.binMs));
   const instruments = new Set(fills.map((f) => f.instrument)); const N = nBins * instruments.size * 2;
   const by = groupBy(fills, (f) => f.participant);
-  const parts = [...by.entries()].filter(([, v]) => v.length >= p.minTrades).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).slice(0, p.maxParticipants);
+  const parts = [...by.entries()].filter(([, v]) => v.length >= p.minTrades).sort((a, b) => b[1].length - a[1].length || cmp(a[0], b[0])).slice(0, p.maxParticipants);
   const sets = parts.map(([, v]) => new Set(v.map((f) => `${f.instrument}|${f.side}|${Math.floor((f.ts - t0) / p.binMs)}`)));
   const nPairs = (parts.length * (parts.length - 1)) / 2; const edges = [];
   for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {

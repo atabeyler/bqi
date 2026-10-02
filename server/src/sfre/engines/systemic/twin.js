@@ -94,7 +94,8 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
   const dA = {}; const dL = {}; // engine -> per-entity signed deltas (external assets / liabilities outside the network)
   const edgeFactor = ix.edges.map(() => 1);
   const Sexo = zeros(nA); // exogenous cumulative price decline
-  const flowsR0 = zeros(nA); const needR0 = zeros(n); // round-0 external sell flows (value) and cash obligations
+  const flowsR0 = zeros(nA); const needR0 = zeros(n); const needR0N = zeros(n); // round-0 external sell flows (value); cash obligations that settle an outside LIABILITY (needR0) vs cash that merely changes form or whose liability is already reduced elsewhere (needR0N: facility draws, edge-booked deposit withdrawals)
+  const dT = {}; // engine -> per-entity TRANSFER deltas (loss already counted at another entity): equity effect only, not value destroyed
   const mod = (name) => { dA[name] ||= zeros(n); dL[name] ||= zeros(n); return name; };
   const shock = (k, s) => { Sexo[k] = 1 - (1 - Sexo[k]) * (1 - s); };
   const mulEdges = (amounts) => amounts.forEach((a, e) => { if (a !== null && nominal[e] !== null && nominal[e] > 0) edgeFactor[e] *= a / nominal[e]; });
@@ -104,7 +105,7 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
   for (const [id, s] of Object.entries(scenario.priceShocks || {})) shock(ix.aIdx.get(id), s);
 
   // ================= SHOCK (round 0): exogenous engines in dependency order; each one sees what the previous ones produced
-  const stage0 = [];
+  const stage0 = []; let nexusConverged = true;
   if (act.has('climate')) {
     const t = climateTransmission(system, scenario, climateParams(system, options), ix);
     for (const [a, s] of Object.entries(t.priceShocks)) shock(ix.aIdx.get(a), s);
@@ -129,13 +130,13 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     addInto(dA[mod('nexus')], out.last.delta); flag(out.unobserved, out.lowerBoundReasons.join('; ') || null);
     stage0.push({ module: MODULE_MODELS.nexus, spreadBpsFinal: out.spreadBpsFinal, amplification: out.amplification, converged: out.converged });
     dataflow.push({ from: 'M68/M61 losses', to: 'M62.nexus', field: 'pre-applied bank losses', total: -sumArr(pre.extAssetsDelta) }, { from: 'M62.nexus', to: 'price vector', field: 'bond price shock', value: 1 - out.last.f });
-    if (!out.converged) notes.push('sovereign-bank loop did not converge');
+    if (!out.converged) { nexusConverged = false; notes.push('sovereign-bank loop did not converge'); }
   }
   if (act.has('privateCredit')) {
     const eff = privateCreditEffects(system, scenario, { liquidationDiscount: scenario.privateCredit.liquidationDiscount ?? 0.15, seed: opt.seed }, ix);
     const d = eff.dA.slice();
-    eff.amounts.forEach((a, e) => { if (a === null || nominal[e] === null) return; const delta = a - nominal[e]; const c = ix.edges[e].c; if (delta > 0) { needR0[c] += delta; d[c] += delta; } else if (delta < 0) { W.cash[c] += -delta; d[c] -= -delta; } }); // facility draws/repayments are liquidity flows (asset swaps), not equity
-    addInto(dA[mod('privateCredit')], d); mulEdges(eff.amounts);
+    eff.amounts.forEach((a, e) => { if (a === null || nominal[e] === null) return; const delta = a - nominal[e]; const c = ix.edges[e].c; if (delta > 0) { needR0N[c] += delta; d[c] += delta; } else if (delta < 0) { W.cash[c] += -delta; d[c] -= -delta; } }); // facility draws/repayments are liquidity flows (asset swaps), not equity
+    addInto(dA[mod('privateCredit')], d); addInto((dT.privateCredit ||= zeros(n)), eff.dT); mulEdges(eff.amounts);
     eff.rows.forEach((r) => flag(r.unobserved, r.lb.join('; ') || null));
     stage0.push({ module: MODULE_MODELS.privateCredit, creditLoss: sumArr(eff.rows.map((r) => r.creditLoss)), gated: sumArr(eff.rows.map((r) => r.redemption.gated)) });
     dataflow.push({ from: 'M65.private_credit', to: 'funding stage', field: 'bank facility draws', total: sumArr(Object.values(eff.bankOutflow)) });
@@ -145,7 +146,7 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
   if (act.has('digital')) {
     const ch = digitalChain(system, scenario, { runScale: 1, bridgeLossScale: 1, assetMarks: W.price }, ix);
     const d = ch.handoff.extAssetsDeltaTwin.slice();
-    ch.handoff.edgeAmounts.forEach((a, e) => { if (a === null || nominal[e] === null) return; const delta = a - nominal[e]; if (delta < 0) { const dbt = ix.edges[e].d; needR0[dbt] += -delta; d[dbt] += -delta; } }); // deposit withdrawals: the debtor bank pays out cash
+    ch.handoff.edgeAmounts.forEach((a, e) => { if (a === null || nominal[e] === null) return; const delta = a - nominal[e]; if (delta < 0) { const dbt = ix.edges[e].d; needR0N[dbt] += -delta; d[dbt] += -delta; } }); // deposit withdrawals: the debtor bank pays out cash
     addInto(dA[mod('digital')], d); addInto(dL.digital, ch.handoff.extLiabDelta); mulEdges(ch.handoff.edgeAmounts);
     for (const [iss, sales] of Object.entries(ch.handoff.issuerAssetSalesValue)) {
       const i = ix.eIdx.get(iss);
@@ -172,10 +173,10 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
   }
   const scenShocks = { externalShocks: scenario.externalShocks, sectorShocks: scenario.sectorShocks };
   const imClaims = zeros(n); const repoLoss = zeros(n); let ccpCharges = zeros(n); let ccpOut = null;
-  const unmetCarry = zeros(n); const fundingAcc = zeros(n); const outflowPaid = zeros(n);
+  const unmetCum = zeros(n); const unmetCarry = zeros(n); const carryL = zeros(n); const carryN = zeros(n); const fundingAcc = zeros(n); const outflowPaid = zeros(n);
   const clr = () => {
     const A_ = sumDelta(dA); for (let i = 0; i < n; i++) A_[i] += imClaims[i] - repoLoss[i] - ccpCharges[i] - crowdLoss[i];
-    return propagate(system, scenShocks, { alpha: opt.alpha, beta: opt.beta, maxIter: 50000 }, { ix, work: W, extAssetsDelta: A_, extLiabDelta: sumDelta(dL), edgeAmounts: edgeAmounts() });
+    return propagate(system, scenShocks, { alpha: opt.alpha, beta: opt.beta, maxIter: 50000 }, { ix, work: W, extAssetsDelta: A_, transferDelta: sumDelta(dT), extLiabDelta: sumDelta(dL), edgeAmounts: edgeAmounts() });
   };
   const sectorEquity = (prop) => { const o = {}; for (const x of prop.entities) if (!x.indeterminate) o[x.sector] = (o[x.sector] || 0) + x.equityFinal; return o; };
   // optional fund cascade (existing M10): fund-caused decline is tracked separately and composed multiplicatively
@@ -207,18 +208,20 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     for (let k = 0; k < nA; k++) { Q[k] += pendingCrowd[k]; sellers.crowding += pendingCrowd[k]; } pendingCrowd = zeros(nA);
     runFunds();
     // ---------- FUNDING / LIQUIDITY
-    const need = zeros(n); const eqRatio = (i) => { const x = prop.entities[i]; if (x.indeterminate) return null; const a = x.equityFinal + x.nominalLiabilities; return a > 0 ? x.equityFinal / a : 0; };
-    if (round === 0) for (let i = 0; i < n; i++) need[i] += needR0[i];
+    const needL = zeros(n); const needN = zeros(n); const eqRatio = (i) => { const x = prop.entities[i]; if (x.indeterminate) return null; const a = x.equityFinal + x.nominalLiabilities; return a > 0 ? x.equityFinal / a : 0; };
+    if (round === 0) for (let i = 0; i < n; i++) { needL[i] += needR0[i]; needN[i] += needR0N[i]; }
     let runoffIncrement = 0;
     for (let i = 0; i < n; i++) {
-      need[i] += unmetCarry[i]; unmetCarry[i] = 0;
-      const f = E[i].funding; if (!f) continue;
+      needL[i] += carryL[i]; needN[i] += carryN[i]; carryL[i] = 0; carryN[i] = 0; unmetCarry[i] = 0;
+      const f = E[i].funding;
+      if (!f) { if (round === 0 && (E[i].sector === 'BANK' || E[i].sector === 'FUND')) flag(`funding:${E[i].id}`, 'entities without a funding profile are excluded from run-off (not assumed stable)'); continue; }
       if (unobs(f.runnable) || unobs(f.runoff)) { flag(`funding:${E[i].id}`, 'entities with unobserved funding profile are excluded from run-off (not assumed stable)'); continue; }
       let ro = f.runoff;
       if (!unobs(f.stressRunoff) && !unobs(f.confidenceThreshold)) { const r = eqRatio(i); if (r !== null && r < f.confidenceThreshold) ro = Math.max(ro, f.stressRunoff); } else if (round === 0) flag(`funding_confidence:${E[i].id}`, 'confidence-driven run-off excluded where stressRunoff/confidenceThreshold unobserved');
       const target = Math.min(f.runnable, ro * opt.runoffScale * f.runnable); const incr = Math.max(0, target - fundingAcc[i]);
-      fundingAcc[i] += incr; need[i] += incr; runoffIncrement += incr;
+      fundingAcc[i] += incr; needL[i] += incr; runoffIncrement += incr;
     }
+    const need = needL.map((x, i) => x + needN[i]);
     const paid = zeros(n); const gap = zeros(n);
     for (let i = 0; i < n; i++) { if (!(need[i] > 0)) continue; const c = Math.min(Math.max(0, W.cash[i]), need[i]); W.cash[i] -= c; paid[i] = c; gap[i] = need[i] - c; }
     rec.FUNDING_LIQUIDITY = { totalNeed: sumArr(need), paidFromCash: sumArr(paid), gapAfterCash: sumArr(gap), runoffIncrement };
@@ -227,7 +230,12 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
       const col = collateralStress(sysC, scenario, { ...collateralParams(system, scenario, options), applyImpact: false }, ixC, W);
       for (const [id, row] of Object.entries(col.soldShares)) { const i = ix.eIdx.get(id); for (const [a, sh] of Object.entries(row)) { const k = ix.aIdx.get(a); W.q[i][k] = Math.max(0, W.q[i][k] - sh); proceeds[i][k] += sh * W.price[k]; } }
       dL.collateral ||= zeros(n); dA.collateral ||= zeros(n);
-      for (const row of col.entityCalls) { const i = ix.eIdx.get(row.id); if (!row.defaulted) dL.collateral[i] -= row.repo + row.marginLoan; dL.collateral[i] += row.unmet; }
+      for (const row of col.entityCalls) {
+        const i = ix.eIdx.get(row.id); if (!row.defaulted) dL.collateral[i] -= row.repo + row.marginLoan;
+        // unpaid CCP margin is covered by the CCP waterfall (survivor charges): booking it ALSO as a liability of the defaulter would count one loss twice
+        const tot = row.vm + row.im + row.repo + row.marginLoan; const ccpShare = act.has('ccp') && tot > 0 ? Math.min(1, row.ccp / tot) : 0;
+        dL.collateral[i] += row.unmet * (1 - ccpShare); unmetCum[i] += row.unmet;
+      }
       imClaims.fill(0); for (const st of W.ns) imClaims[st.i] += Math.max(0, st.postedCash - st.imPosted0);
       col.repoLosses.forEach((l) => { repoLoss[ix.eIdx.get(l.lender)] = Math.max(repoLoss[ix.eIdx.get(l.lender)], l.loss); });
       flag(col.unobserved, col.lowerBoundReasons.join('; ') || null);
@@ -243,7 +251,12 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
       if (take > 0) for (let k = 0; k < nA; k++) if (vals[k] > 0) { const sh = (vals[k] / tot) * take / W.price[k]; W.q[i][k] -= sh; proceeds[i][k] += sh * W.price[k]; Q[k] += sh * W.price[k]; sellers.entities += sh * W.price[k]; }
       forced += take; paid[i] += take; unmetCarry[i] = gap[i] - take; unmetTotal += unmetCarry[i]; // proceeds are paid out immediately
     }
-    for (let i = 0; i < n; i++) if (paid[i] > 0) { dL.funding ||= zeros(n); dL.funding[i] -= paid[i]; outflowPaid[i] += paid[i]; }
+    // only the share of the payment that settles an outside LIABILITY reduces liabilities; facility draws / edge-booked withdrawals do not (their balance-sheet leg is already booked)
+    for (let i = 0; i < n; i++) {
+      const sh = need[i] > 0 ? needL[i] / need[i] : 0;
+      if (paid[i] > 0) { dL.funding ||= zeros(n); dL.funding[i] -= paid[i] * sh; outflowPaid[i] += paid[i]; }
+      carryL[i] = unmetCarry[i] * sh; carryN[i] = unmetCarry[i] * (1 - sh);
+    }
     rec.FORCED_ACTION = { sold: forced, unmetLiquidity: unmetTotal };
     // ---------- MARKET IMPACT: ONE aggregate impact per asset from ALL sellers
     const priceBefore = W.price.slice(); const dImp = zeros(nA);
@@ -264,8 +277,14 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     if (act.has('ccp')) {
       const dec = new Set(prop.entities.filter((x) => x.defaulted).map((x) => x.id)); W.defaulted.forEach((d, i) => { if (d) dec.add(E[i].id); });
       const shocksNow = Object.fromEntries(A.map((a, k) => [a.id, Math.min(1, Math.max(0, 1 - W.price[k] / P0[k]))]));
-      const res = system.ccps.map((c) => { const mem = new Set(c.members.map((m) => m.entity)); const defs = [...new Set([...(scenario.ccp.defaulters || []), ...dec])].filter((d) => mem.has(d)); return ccpWaterfall(system, c, defs, shocksNow, ix); });
-      ccpCharges = zeros(n); for (const r of res) for (const [id, v] of Object.entries(r.memberCharges)) ccpCharges[ix.eIdx.get(id)] += v;
+      const res = system.ccps.map((c) => {
+        const mem = new Set(c.members.map((m) => m.entity)); const defs = [...new Set([...(scenario.ccp.defaulters || []), ...dec])].filter((d) => mem.has(d));
+        const vmCollected = {}; for (const st of W.ns ?? []) if (st.ns.ccp === c.id && mem.has(st.ns.party)) vmCollected[st.ns.party] = (vmCollected[st.ns.party] || 0) + Math.max(0, st.vmNet);
+        for (const id of Object.keys(vmCollected)) vmCollected[id] = Math.max(0, vmCollected[id] - unmetCum[ix.eIdx.get(id)]); // margin that was CALLED but not paid has not been collected
+        return ccpWaterfall(system, c, defs, shocksNow, ix, { vmCollected });
+      });
+      // survivors pay their charges; defaulters' IM/DF consumed by the waterfall are no longer available to the defaulters' own creditors
+      ccpCharges = zeros(n); for (const r of res) for (const [id, v] of [...Object.entries(r.memberCharges), ...Object.entries(r.defaulterConsumed)]) ccpCharges[ix.eIdx.get(id)] += v;
       ccpOut = res; res.forEach((r) => flag(r.unobserved, r.lowerBoundReasons.join('; ') || null));
       prop = clr();
       rec.CCP = { unfundedLoss: sumArr(res.map((r) => r.finalLayers.unfunded)), memberCharges: sumArr(ccpCharges), propagatedDefaults: res.flatMap((r) => r.propagatedDefaults) };
@@ -325,7 +344,7 @@ export function simulateSystem(system, scenario, options = {}, fundSystem = null
     { stage: 'STATE(t+n)', equityBySector: trajectory[trajectory.length - 1].equityBySector, defaults: sys.defaults, systemLoss: sys.systemLoss },
   ];
   return {
-    stages, trajectory, entities, sectors: prop.sectors, waves: prop.waves, system: sys, channels, reconciliation, finalPrices: Object.fromEntries(A.map((a, k) => [a.id, W.price[k]])), converged, rounds: roundsOut.length, activeModules: [...act], dataflow,
+    stages, trajectory, entities, sectors: prop.sectors, waves: prop.waves, system: sys, channels, reconciliation, finalPrices: Object.fromEntries(A.map((a, k) => [a.id, W.price[k]])), converged, nexusConverged, rounds: roundsOut.length, activeModules: [...act], dataflow,
     fundCascade: fundCascade ? { totalLoss: fundCascade.value.system.totalLoss, failedFunds: fundCascade.value.system.failedFunds, result_hash: fundCascade.result_hash } : null,
     unobserved: [...unobserved], lowerBoundReasons: [...lowerBound], notes,
   };
@@ -338,7 +357,7 @@ export function runSystemTwin(system, scenario = {}, options = {}, fundSystem = 
   let out;
   try { out = simulateSystem(system, scenario, options, fundSystem); } catch (e) { return failed(ENGINE, MODEL_ID, e?.message || String(e)); }
   let status = STATUS.UNCALIBRATED; const notes = ['Financial System Digital Twin: composition of UNCALIBRATED scenario engines under explicit assumptions. Not a forecast; synthetic tests do not establish predictive validity.', ...out.notes];
-  if (!out.converged) { status = STATUS.MODEL_UNCERTAIN; notes.push(`second-round iteration did not converge in ${out.rounds} rounds`); }
+  if (!out.converged || !out.nexusConverged) { status = STATUS.MODEL_UNCERTAIN; notes.push(out.converged ? 'sovereign-bank loop did not converge/diverged: totals use its last finite iterate' : `second-round iteration did not converge in ${out.rounds} rounds`); }
   else if (!out.reconciliation.reconciled) { status = STATUS.COMPUTATION_FAILED; notes.push('loss ledger failed to reconcile'); }
   else if (out.unobserved.length) { status = STATUS.INSUFFICIENT_OBSERVABILITY; notes.push('unobserved inputs exclude channels (never zero): totals are lower bounds where flagged'); }
   const p = { alpha: options.alpha ?? 1, beta: options.beta ?? 1, runoffScale: options.runoffScale ?? 1 };

@@ -132,19 +132,19 @@ function fundStep(system, ix, pc, fd, sc, params) {
 export function privateCreditEffects(system, scenario, params, ix = indexSystem(system)) {
   const pc = system.privateCredit; const sc = scenario.privateCredit;
   const rows = pc.funds.map((fd) => fundStep(system, ix, pc, fd, sc, params));
-  const n = ix.n; const dA = new Array(n).fill(0); const amounts = ix.edges.map((x) => x.amount);
+  const n = ix.n; const dA = new Array(n).fill(0); const dT = new Array(n).fill(0); const amounts = ix.edges.map((x) => x.amount);
   const bankOutflow = {}; const inflowLost = {};
   for (const r of rows) {
     const fi = ix.eIdx.get(r.fund); dA[fi] += r.deltaExt;
     const fd = pc.funds.find((f) => f.entity === r.fund);
     for (const inv of fd.investors || []) {
-      const ii = ix.eIdx.get(inv.investor); dA[ii] -= inv.stake * r.equityLoss;
+      const ii = ix.eIdx.get(inv.investor); dT[ii] -= inv.stake * r.equityLoss; // a TRANSFER: the fund's assets already lost this value
       if (r.redemption.gated > 0) inflowLost[inv.investor] = (inflowLost[inv.investor] || 0) + inv.stake * r.redemption.gated;
     }
     const net = r.debtFinal - r.debt0; // draws increase, repayments decrease the lenders' claim pro-rata
     for (const l of r.into) { const share = r.debt0 > 0 ? l.amount / r.debt0 : 0; amounts[l.k] = l.amount + net * share; dA[l.c] -= net * share; if (net > 0) bankOutflow[ix.E[l.c].id] = (bankOutflow[ix.E[l.c].id] || 0) + net * share; }
   }
-  return { rows, dA, amounts, bankOutflow, inflowLost };
+  return { rows, dA, dT, amounts, bankOutflow, inflowLost };
 }
 
 /** M65 Private credit / shadow banking: two-level factor model, covenant & liquidity mismatch, bank/insurer/PE-sponsor transmission through the shared network. */
@@ -155,7 +155,7 @@ export function runPrivateCredit(system, scenario = {}, options = {}) {
   const params = { liquidationDiscount: sc.liquidationDiscount ?? 0.15, seed: options.seed ?? 1 };
   const run = (pp) => {
     const e = privateCreditEffects(system, scenario, pp, ix);
-    const prop = propagate(system, {}, { alpha: 1, beta: 1, maxIter: 50000 }, { ix, extAssetsDelta: e.dA, edgeAmounts: e.amounts });
+    const prop = propagate(system, {}, { alpha: 1, beta: 1, maxIter: 50000 }, { ix, extAssetsDelta: e.dA, transferDelta: e.dT, edgeAmounts: e.amounts });
     return { ...e, prop };
   };
   const out = run(params);
@@ -172,7 +172,7 @@ export function runPrivateCredit(system, scenario = {}, options = {}) {
   const contagion = out.prop;
   return makeResult({
     engine: ENGINE, modelId: MODEL_ID, status,
-    value: { funds: out.rows.map((r) => { const c = { ...r }; delete c.into; return c; }), contagion, lowerBound: unobserved.length > 0, handoff: { extAssetsDelta: out.dA, edgeAmounts: out.amounts, bankLiquidityOutflow: out.bankOutflow, investorInflowLost: out.inflowLost } },
+    value: { funds: out.rows.map((r) => { const c = { ...r }; delete c.into; return c; }), contagion, lowerBound: unobserved.length > 0, handoff: { extAssetsDelta: out.dA, transferDelta: out.dT, edgeAmounts: out.amounts, bankLiquidityOutflow: out.bankOutflow, investorInflowLost: out.inflowLost } },
     uncertainty, coverage: coverageOf(out.prop.entities.filter((x) => !x.indeterminate).length, system.entities.length), unobserved, calibration: CALIBRATION.UNCALIBRATED,
     parameters: { factor: pc.factor, stressFactor: sc.stressFactor, liquidationDiscount: params.liquidationDiscount, unfundedDrawRate: sc.unfundedDrawRate ?? 0, nSim: total[0].n, redemptions: sc.redemptionFractions ?? {}, sequence: ['credit loss', 'covenant deleveraging', 'unfunded draws + redemptions with gating'] },
     inputHashes: [hashOf(system)], notes,

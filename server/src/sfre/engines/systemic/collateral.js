@@ -91,6 +91,10 @@ export function collateralStress(system, scenario, p, ix = indexSystem(system), 
   const { E, n, nA } = ix; const A = ix.A;
   const unobserved = []; const lb = new Set();
   const mode = c.correlation ?? 'NO_OFFSET';
+  if (!work) { // haircuts of every asset that can be posted or repoed must be stated: an omitted haircut is UNOBSERVED, never 0%
+    const used = new Set([...Object.values(c.eligibility ?? {}).flat().filter((a) => a !== 'CASH'), ...(c.repo || []).map((r) => r.collateralAsset)]);
+    for (const a of [...used].sort()) if (c.haircuts?.[a] === undefined || c.haircuts[a] === null) { unobserved.push(`haircut:${a}`); lb.add('collateral haircut unobserved: valuation haircut taken as 0% (collateral value overstated, flagged)'); }
+  }
   const price0 = A.map((a) => a.price);
   const W = work ?? { price: price0.map((v, k) => v * (1 - (sc.priceShocks?.[A[k].id] ?? 0))), cash: E.map((e) => e.cash), q: ix.q.map((r) => r.slice()), enc: E.map(() => new Array(nA).fill(0)), defaulted: new Array(n).fill(false) };
   const price = W.price; const applyImpact = p.applyImpact !== false;
@@ -109,7 +113,7 @@ export function collateralStress(system, scenario, p, ix = indexSystem(system), 
   for (const st of nsList) st.imReq = st.imBase * p.volMultiplier;
   // inventories (live arrays when a twin supplies them)
   const cash = W.cash; const q = W.q; const enc = W.enc;
-  const calls = E.map(() => ({ vm: 0, im: 0, repo: 0, marginLoan: 0 })); const receipts = new Array(n).fill(0);
+  const calls = E.map(() => ({ vm: 0, im: 0, repo: 0, marginLoan: 0, ccp: 0 })); const receipts = new Array(n).fill(0);
   const sold = E.map(() => new Array(nA).fill(0)); const defaulted = W.defaulted; const unmet = new Array(n).fill(0);
   const repoState = W.repo ?? (W.repo = (c.repo || []).map((r) => ({ r, paid: 0, seized: false })));
   const fireSalesCollateral = {}; const rounds = [];
@@ -136,7 +140,7 @@ export function collateralStress(system, scenario, p, ix = indexSystem(system), 
       const mtmChange = -sumArr(st.ns.positions.map((pp) => pp.exposure * (1 - price[ix.aIdx.get(pp.asset)] / price0[ix.aIdx.get(pp.asset)])));
       const cum = -mtmChange; const delta = cum - st.vmNet; // >0: party must pay more VM; <0: receives
       st.vmNet = cum;
-      if (delta > 0) { callCash[st.i] += delta; calls[st.i].vm += delta; } else if (delta < 0) { receipts[st.i] += -delta; cash[st.i] += -delta; }
+      if (delta > 0) { callCash[st.i] += delta; calls[st.i].vm += delta; if (st.type === 'CCP') calls[st.i].ccp += delta; } else if (delta < 0) { receipts[st.i] += -delta; cash[st.i] += -delta; }
     }
     // IM top-up requirements (value of posted collateral moves with prices and haircuts)
     nsList.forEach((st, j) => { const need = st.imReq - postedValue(st); callIm[j] = Math.max(0, need); });
@@ -162,7 +166,7 @@ export function collateralStress(system, scenario, p, ix = indexSystem(system), 
       let remaining = callCash[i];
       nsList.forEach((st, j) => {
         if (st.i !== i || !(callIm[j] > 0)) return;
-        calls[i].im += callIm[j]; rec.called += callIm[j];
+        calls[i].im += callIm[j]; rec.called += callIm[j]; if (st.type === 'CCP') calls[i].ccp += callIm[j];
         let need = callIm[j];
         for (const a of order(st.type)) {
           const k = ix.aIdx.get(a); const unit = price[k] * (1 - hairc(a)); if (!(unit > 0)) continue;
@@ -204,6 +208,7 @@ export function collateralStress(system, scenario, p, ix = indexSystem(system), 
     const b = st.sigma * Math.sqrt(p.mporDays); const a = -postedValue(st);
     const ee = expectedPositiveExposure(a, b);
     if (!w || unobs(w.pd)) { unobserved.push(`counterparty_pd:${st.ns.counterparty}`); cpty.push({ netting_set: st.ns.id, counterparty: st.ns.counterparty, expectedPositiveExposure: ee, independentEL: null, wrongWayEL: null, wrongWayMultiplier: null }); continue; }
+    if (w.lgd === undefined || w.lgd === null) { unobserved.push(`wwr_lgd:${st.ns.counterparty}`); lb.add('counterparty LGD unobserved: ASSUMED 60% (flagged)'); }
     const lgd = w.lgd ?? 0.6;
     const ind = lgd * w.pd * ee; const wwr = wrongWayExpectedLoss(a, b, w.pd, lgd, w.rho);
     cpty.push({ netting_set: st.ns.id, counterparty: st.ns.counterparty, expectedPositiveExposure: ee, independentEL: ind, wrongWayEL: wwr, wrongWayMultiplier: ind > 0 ? wwr / ind : null, rho: w.rho });

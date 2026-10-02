@@ -57,6 +57,8 @@ export function probitShift(pd, shift) {
   return normalCdfPrecise(normalInv(pd) + shift);
 }
 
+/** Locale-independent string order (codepoint): `localeCompare` depends on the host locale and would make tie-breaks (hence hashes) machine-dependent. */
+export const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 export const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 export const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
 export const isFrac = (x) => isNum(x) && x >= 0 && x <= 1;

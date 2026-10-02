@@ -1,7 +1,7 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNum, isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { isNum, isNonNeg, isFrac, unobs, cmp } from '../../core/numeric.js';
 import { hhi } from '../concentration.js';
 import { validateSystemState, sumArr } from './state.js';
 
@@ -111,7 +111,7 @@ export function dependencyAnalysis(system, p, topK = 5) {
   const sweep = o.nodes.map((nd) => {
     const c = opChain(system, { opDeps: { outages: [{ node: nd.id, durationHours: H }] } }, { ...p, durationScale: 1 });
     return { node: nd.id, kind: nd.kind, failedFlowValue: c.failedTotal, failedShare: c.scheduledTotal > 0 ? c.failedTotal / c.scheduledTotal : null, institutionsAffected: c.entities.length };
-  }).sort((a, b) => b.failedFlowValue - a.failedFlowValue || a.node.localeCompare(b.node));
+  }).sort((a, b) => b.failedFlowValue - a.failedFlowValue || cmp(a.node, b.node));
   return { providerConcentration: concentration, singleNodeFullOutageSweep: sweep.slice(0, topK), singlePointsOfFailure: sweep.filter((x) => x.failedShare !== null && x.failedShare >= (p.spofThreshold ?? 0.1)).map((x) => x.node) };
 }
 

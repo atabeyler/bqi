@@ -36,7 +36,7 @@ describe('M65 private credit / shadow banking', () => {
   });
   it('transmission: insurer stake loss = stake x equity loss; lenders\' claims shrink after covenant repayment; identity reconciles', () => {
     const r = runPrivateCredit(pcSys({ debt: 120 }), { privateCredit: { stressFactor: -2.5, nSim: 100 } }); const f = r.value.funds[0]; expect(r.value.contagion.system.reconciled).toBe(true);
-    expect(r.value.handoff.extAssetsDelta[2]).toBeCloseTo(-0.5 * f.equityLoss, 8); expect(r.value.handoff.edgeAmounts[0]).toBeCloseTo(f.debtFinal, 8);
+    expect(r.value.handoff.transferDelta[2]).toBeCloseTo(-0.5 * f.equityLoss, 8); expect(r.value.handoff.edgeAmounts[0]).toBeCloseTo(f.debtFinal, 8);
     expect(f.concentration.sponsor.nEff).toBeCloseTo(4, 9); expect(f.concentration.borrower.hhi).toBeCloseTo(0.05, 12);
   });
   it('PROPERTY: stressed loss monotone in the stress factor; larger redemptions never reduce gating or sales', () => {

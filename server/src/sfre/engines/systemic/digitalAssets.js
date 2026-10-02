@@ -1,7 +1,7 @@
 import { makeResult, failed, STATUS, CALIBRATION, coverageOf } from '../../core/result.js';
 import { hashOf } from '../../core/canonical.js';
 import { parameterBand } from '../../core/sensitivity.js';
-import { isNum, isNonNeg, isFrac, unobs } from '../../core/numeric.js';
+import { isNum, isNonNeg, isFrac, unobs, cmp } from '../../core/numeric.js';
 import { priceImpact } from '../impact.js';
 import { hhi } from '../concentration.js';
 import { validateSystemState, indexSystem, sumArr } from './state.js';
@@ -119,6 +119,7 @@ export function digitalChain(system, scenario, p, ix = indexSystem(system)) {
   const d = system.digital; const sc = scenario.digital ?? {}; const unobserved = []; const lb = new Set();
   const pools = new Map(); for (const q of d.pools || []) {
     if (unobs(q.reserveA) || unobs(q.reserveB)) { unobserved.push(`pool_reserves:${q.id}`); lb.add('pools with unobserved reserves are excluded (liquidity treated as unknown, not infinite)'); continue; }
+    if (q.fee === undefined || q.fee === null) { unobserved.push(`pool_fee:${q.id}`); lb.add('pool fee unobserved: taken as 0 (execution cost understated, flagged)'); }
     pools.set(q.id, { id: q.id, x: q.reserveA, y: q.reserveB, fee: q.fee ?? 0, tokenA: q.tokenA, tokenB: q.tokenB, x0: q.reserveA, y0: q.reserveB });
   }
   // ---- bridges -> wrapped-token price shock via its pool
@@ -150,7 +151,7 @@ export function digitalChain(system, scenario, p, ix = indexSystem(system)) {
     const q = sc.fragmentationSell?.[v.token]; if (!q) continue;
     const all = v.pools.map((id) => pools.get(id)).filter(Boolean); const reach = all.filter((x) => (d.pools.find((pp) => pp.id === x.id).reachable ?? true));
     if (!reach.length) { unobserved.push(`venue_reachability:${v.token}`); continue; }
-    const biggest = reach.slice().sort((a, b) => b.x * b.y - a.x * a.y || a.id.localeCompare(b.id))[0];
+    const biggest = reach.slice().sort((a, b) => b.x * b.y - a.x * a.y || cmp(a.id, b.id))[0];
     const single = cpmmSell({ x: biggest.x0, y: biggest.y0, fee: 0 }, q).out; const split = splitSell(reach.map((x) => ({ x: x.x0, y: x.y0 })), q).out;
     const consol = cpmmSell({ x: sumArr(all.map((x) => x.x0)), y: sumArr(all.map((x) => x.y0)), fee: 0 }, q).out;
     frag.push({ token: v.token, size: q, outputSingleLargestVenue: single, outputOptimalSplitReachable: split, outputIfFullyConsolidated: consol, executionShortfallVsConsolidated: consol - split, reachableDepthShare: sumArr(reach.map((x) => x.y0)) / sumArr(all.map((x) => x.y0)) });
