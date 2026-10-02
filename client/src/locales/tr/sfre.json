@@ -141,5 +141,13 @@
   "sfre_cap_surveillance_title": "Piyasa Gözetimi 2.0",
   "sfre_cap_surveillance_summary": "Mesaj akışları üzerinde yedi anlık örüntü dedektörü; kesin olarak daha eski bir referans pencereye karşı Bonferroni kontrollü Poisson/hipergeometrik/permütasyon testleri.",
   "sfre_cap_systemTwin_title": "Finansal Sistem Dijital İkizi",
-  "sfre_cap_systemTwin_summary": "Tüm motorlar tek durumda: ŞOK -> BİLANÇO -> FONLAMA/LİKİDİTE -> MARJ/TEMİNAT -> ZORUNLU İŞLEM -> PİYASA ETKİSİ -> AĞ BULAŞIMI -> İKİNCİ TUR -> DURUM(t+n). Tur başına varlık başına tek toplam piyasa etkisi; tam değer korunumu defteri."
+  "sfre_cap_systemTwin_summary": "Tüm motorlar tek durumda: ŞOK -> BİLANÇO -> FONLAMA/LİKİDİTE -> MARJ/TEMİNAT -> ZORUNLU İŞLEM -> PİYASA ETKİSİ -> AĞ BULAŞIMI -> İKİNCİ TUR -> DURUM(t+n). Tur başına varlık başına tek toplam piyasa etkisi; tam değer korunumu defteri.",
+  "sfre_purge_title": "Tehlikeli bölge: BFI verisini sil",
+  "sfre_purge_warn": "Yüklenmiş tüm TEFAS/BIST gözlemleri geri alınamaz şekilde silinir. Kullanıcılar, girişler, analiz koşuları, kanıt zinciri ve modeller silinmez. İşlem kaydedilir.",
+  "sfre_purge_type": "Onaylamak için şunu yazın",
+  "sfre_purge_word": "SİL",
+  "sfre_purge_button": "Veritabanını sil",
+  "sfre_purge_busy": "Siliniyor…",
+  "sfre_purge_done": "Silinen satır / boşalan yer",
+  "sfre_storage_size": "Gözlem tablosu / veritabanı boyutu"
 }

@@ -141,5 +141,13 @@
   "sfre_cap_surveillance_title": "Marktüberwachung 2.0",
   "sfre_cap_surveillance_summary": "Sieben Zeitpunkt-Mustererkennungen über Nachrichtenströme; Poisson-/hypergeometrische/Permutationstests mit Bonferroni-Kontrolle gegen ein strikt früheres Referenzfenster.",
   "sfre_cap_systemTwin_title": "Digitaler Zwilling des Finanzsystems",
-  "sfre_cap_systemTwin_summary": "Alle Engines auf einem Zustand: SCHOCK -> BILANZ -> FINANZIERUNG/LIQUIDITÄT -> MARGIN/SICHERHEITEN -> ERZWUNGENE HANDLUNG -> MARKTAUSWIRKUNG -> NETZWERKANSTECKUNG -> ZWEITE RUNDE -> ZUSTAND(t+n). Eine aggregierte Marktauswirkung je Anlage und Runde; exaktes Werterhaltungs-Hauptbuch."
+  "sfre_cap_systemTwin_summary": "Alle Engines auf einem Zustand: SCHOCK -> BILANZ -> FINANZIERUNG/LIQUIDITÄT -> MARGIN/SICHERHEITEN -> ERZWUNGENE HANDLUNG -> MARKTAUSWIRKUNG -> NETZWERKANSTECKUNG -> ZWEITE RUNDE -> ZUSTAND(t+n). Eine aggregierte Marktauswirkung je Anlage und Runde; exaktes Werterhaltungs-Hauptbuch.",
+  "sfre_purge_title": "Gefahrenzone: BFI-Daten löschen",
+  "sfre_purge_warn": "Alle importierten TEFAS/BIST-Beobachtungen werden unwiderruflich gelöscht. Benutzer, Logins, Läufe, Nachweiskette und Modelle bleiben erhalten. Die Aktion wird protokolliert.",
+  "sfre_purge_type": "Zur Bestätigung eingeben",
+  "sfre_purge_word": "LÖSCHEN",
+  "sfre_purge_button": "Datenbank löschen",
+  "sfre_purge_busy": "Wird gelöscht…",
+  "sfre_purge_done": "Gelöschte Zeilen / freigegebener Platz",
+  "sfre_storage_size": "Größe Beobachtungstabelle / Datenbank"
 }

@@ -141,5 +141,13 @@
   "sfre_cap_surveillance_title": "Surveillance de marché 2.0",
   "sfre_cap_surveillance_summary": "Sept détecteurs de motifs à date donnée sur des flux de messages ; tests de Poisson/hypergéométrique/permutation avec contrôle de Bonferroni par rapport à une fenêtre de référence strictement antérieure.",
   "sfre_cap_systemTwin_title": "Jumeau numérique du système financier",
-  "sfre_cap_systemTwin_summary": "Tous les moteurs sur un seul état : CHOC -> BILAN -> FINANCEMENT/LIQUIDITÉ -> MARGE/COLLATÉRAL -> ACTION FORCÉE -> IMPACT DE MARCHÉ -> CONTAGION DU RÉSEAU -> SECOND TOUR -> ÉTAT(t+n). Un impact de marché agrégé par actif et par tour ; registre exact de conservation de la valeur."
+  "sfre_cap_systemTwin_summary": "Tous les moteurs sur un seul état : CHOC -> BILAN -> FINANCEMENT/LIQUIDITÉ -> MARGE/COLLATÉRAL -> ACTION FORCÉE -> IMPACT DE MARCHÉ -> CONTAGION DU RÉSEAU -> SECOND TOUR -> ÉTAT(t+n). Un impact de marché agrégé par actif et par tour ; registre exact de conservation de la valeur.",
+  "sfre_purge_title": "Zone dangereuse : supprimer les données BFI",
+  "sfre_purge_warn": "Toutes les observations TEFAS/BIST importées sont supprimées de façon irréversible. Utilisateurs, connexions, exécutions, chaîne de preuves et modèles sont conservés. L’action est enregistrée.",
+  "sfre_purge_type": "Pour confirmer, saisissez",
+  "sfre_purge_word": "SUPPRIMER",
+  "sfre_purge_button": "Supprimer la base",
+  "sfre_purge_busy": "Suppression…",
+  "sfre_purge_done": "Lignes supprimées / espace libéré",
+  "sfre_storage_size": "Taille table d’observations / base"
 }

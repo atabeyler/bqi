@@ -26,6 +26,7 @@ import { describeCapabilities } from '../sfre/capabilities.js';
 export const INGEST_KINDS = Object.freeze({
   tefas: (buf, o) => importTefas(buf, o), 'bist-eod': (buf) => importBistEod(buf), 'free-float': (buf, o) => importFreeFloat(buf, o), holdings: (buf, o) => importHoldings(buf, o),
 });
+export const PURGE_CONFIRM = 'DELETE-BFI-OBSERVATIONS';
 const FROM_DATA_ENGINES = ['cascade', 'concentration', 'overlap', 'counterfactual'];
 const DAY_MS = 86400000;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
@@ -80,7 +81,9 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   router.get('/data/status', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
     if (!db) return res.json({ storage: 'memory', observations: null, note: 'no database configured: no persisted observations' });
     const r = await pg('SELECT source, field, count(*)::int AS n, min(available_time) AS first_available, max(available_time) AS last_available FROM sfre_observations GROUP BY source, field ORDER BY source, field');
-    res.json({ storage: 'postgres', datasets: r.rows });
+    // table/database size in bytes; best effort, some managed databases restrict pg_database_size
+    const size = await pg("SELECT pg_total_relation_size('sfre_observations')::float8 AS obs, pg_database_size(current_database())::float8 AS db").then((z) => ({ observationsBytes: z.rows[0].obs, databaseBytes: z.rows[0].db })).catch(() => null);
+    res.json({ storage: 'postgres', datasets: r.rows, size });
   });
 
   // Automatic data sync (KAP/MKK API, authorised institution feeds, TEFAS file inbox). Admin only; see docs/sfre/OPERATIONS.md.
@@ -186,7 +189,31 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     }
   });
 
-  router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => res.json({ ingests: db ? await db.list('ingests', 50) : [] }));
+  const idStamp = (id) => Number(String(id).split('_').pop()) || 0; // ingest ids end with the epoch ms of the upload
+  router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
+    if (!db) return res.json({ ingests: [] });
+    const lastPurgeMs = Math.max(0, ...(await db.list('purges', 50)).map((x) => Date.parse(x.at) || 0));
+    res.json({ ingests: (await db.list('ingests', 50)).map((i) => ({ ...i, purged: idStamp(i.id) <= lastPurgeMs })) });
+  });
+
+  // Admin-only purge of ALL ingested market/fund observations (the append-only table is dropped and recreated empty).
+  // Runs, evidence ledger and model governance are untouched. The action itself is recorded (who, when, how many rows).
+  router.post('/data/purge', requireRole(ROLES.ADMIN), async (req, res) => {
+    if (!db) return res.status(409).json({ error: 'a database (DATABASE_URL) is required' });
+    if (req.body?.confirm !== PURGE_CONFIRM) return res.status(400).json({ error: 'confirmation token missing or wrong' });
+    try {
+      const before = (await pg("SELECT count(*)::int AS n, pg_total_relation_size('sfre_observations')::float8 AS bytes FROM sfre_observations")).rows[0];
+      await pg('DROP TABLE IF EXISTS sfre_observations CASCADE');
+      await db.ensureSchema(); // recreates the empty table, indexes and append-only trigger
+      const record = { id: `purge_${Date.now()}`, kind: 'observations', by: req.user.userCode, at: new Date().toISOString(), rows: before.n, bytes: before.bytes };
+      await db.append('purges', record);
+      logger.warn({ purge: record }, '[SFRE] observations purged by admin');
+      res.json({ ok: true, removedRows: before.n, freedBytes: before.bytes, at: record.at });
+    } catch (e) {
+      logger.error({ err: e }, '[SFRE] purge failed');
+      res.status(503).json({ error: 'purge failed; nothing was recorded as deleted' });
+    }
+  });
 
   router.post('/runs/from-data', analysisLimiter, requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
     if (!db) return res.status(409).json({ error: 'a database with ingested data is required' });

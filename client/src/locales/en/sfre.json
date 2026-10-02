@@ -141,5 +141,13 @@
   "sfre_cap_surveillance_title": "Market Surveillance 2.0",
   "sfre_cap_surveillance_summary": "Seven point-in-time pattern detectors over message streams; Poisson/hypergeometric/permutation tests with Bonferroni control against a strictly earlier reference window.",
   "sfre_cap_systemTwin_title": "Financial System Digital Twin",
-  "sfre_cap_systemTwin_summary": "All engines on one state: SHOCK -> BALANCE-SHEET -> FUNDING/LIQUIDITY -> MARGIN/COLLATERAL -> FORCED ACTION -> MARKET IMPACT -> NETWORK CONTAGION -> SECOND ROUND -> STATE(t+n). One aggregate market impact per asset per round; exact value-conservation ledger."
+  "sfre_cap_systemTwin_summary": "All engines on one state: SHOCK -> BALANCE-SHEET -> FUNDING/LIQUIDITY -> MARGIN/COLLATERAL -> FORCED ACTION -> MARKET IMPACT -> NETWORK CONTAGION -> SECOND ROUND -> STATE(t+n). One aggregate market impact per asset per round; exact value-conservation ledger.",
+  "sfre_purge_title": "Danger zone: delete BFI data",
+  "sfre_purge_warn": "All ingested TEFAS/BIST observations are deleted irreversibly. Users, logins, runs, the evidence ledger and models are not deleted. The action is recorded.",
+  "sfre_purge_type": "To confirm, type",
+  "sfre_purge_word": "DELETE",
+  "sfre_purge_button": "Delete database",
+  "sfre_purge_busy": "Deleting…",
+  "sfre_purge_done": "Rows removed / space freed",
+  "sfre_storage_size": "Observations table / database size"
 }
