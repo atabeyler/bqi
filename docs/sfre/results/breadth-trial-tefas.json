@@ -1,0 +1,90 @@
+{
+  "generated": "2026-10-02T10:45:44.829Z",
+  "funds": 883,
+  "referenceWeeks": 30,
+  "evaluationWeeks": 9,
+  "baseline": {
+    "meanBreadth": 0.04420245585054066,
+    "sdBreadth": 0.010890142920862643
+  },
+  "alarmLevel": 0.09420245585054066,
+  "weeks": [
+    {
+      "date": "2026-07-17",
+      "breadth": 0.03500583430571762,
+      "flagged": false,
+      "aumWeightedFlow": 0.014828891504981128
+    },
+    {
+      "date": "2026-07-24",
+      "breadth": 0.044444444444444446,
+      "flagged": false,
+      "aumWeightedFlow": 0.013653561740487959
+    },
+    {
+      "date": "2026-07-31",
+      "breadth": 0.0514018691588785,
+      "flagged": false,
+      "aumWeightedFlow": 0.002583657363137445
+    },
+    {
+      "date": "2026-08-14",
+      "breadth": 0.04322429906542056,
+      "flagged": false,
+      "aumWeightedFlow": 0.019045400439001627
+    },
+    {
+      "date": "2026-08-21",
+      "breadth": 0.05509964830011723,
+      "flagged": false,
+      "aumWeightedFlow": 0.008953874961853124
+    },
+    {
+      "date": "2026-08-28",
+      "breadth": 0.04215456674473068,
+      "flagged": false,
+      "aumWeightedFlow": 0.009947210848081837
+    },
+    {
+      "date": "2026-09-11",
+      "breadth": 0.07502930832356389,
+      "flagged": false,
+      "aumWeightedFlow": -0.0091035134726789
+    },
+    {
+      "date": "2026-09-18",
+      "breadth": 0.11840562719812427,
+      "flagged": true,
+      "aumWeightedFlow": -0.011178126631455107
+    },
+    {
+      "date": "2026-09-25",
+      "breadth": 0.2102803738317757,
+      "flagged": true,
+      "aumWeightedFlow": -0.014454478179143773
+    }
+  ],
+  "plantedSystemic": {
+    "0.02": {
+      "shockedFunds": 18,
+      "weekCaught": 0,
+      "perFundCaught": 0.6511111111111111
+    },
+    "0.05": {
+      "shockedFunds": 44,
+      "weekCaught": 0.17333333333333334,
+      "perFundCaught": 0.673939393939394
+    },
+    "0.1": {
+      "shockedFunds": 88,
+      "weekCaught": 0.98,
+      "perFundCaught": 0.6652272727272728
+    },
+    "0.2": {
+      "shockedFunds": 177,
+      "weekCaught": 1,
+      "perFundCaught": 0.6721657250470809
+    }
+  },
+  "calmWeeks": 7
+}

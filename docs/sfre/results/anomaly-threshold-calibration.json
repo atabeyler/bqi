@@ -1,0 +1,135 @@
+{
+  "generated": "2026-10-02T10:24:09.352Z",
+  "funds": {
+    "train": 150,
+    "test": 150
+  },
+  "windows": {
+    "trainControl": 293,
+    "testControl": 290
+  },
+  "alpha": 0.05,
+  "thresholds": {
+    "default": {
+      "z": 3.5,
+      "e": 1,
+      "c": 5
+    },
+    "calibrated": {
+      "z": 11.61213896550233,
+      "e": 2.4426316998652777,
+      "c": 12.920878229600211
+    }
+  },
+  "elapsedSec": 0,
+  "heldOut": {
+    "default": {
+      "falseAlarm": {
+        "z": "29.3%",
+        "ewma": "23.1%",
+        "cusum": "21.0%",
+        "majority": "25.5%",
+        "any": "40.0%"
+      },
+      "detection": {
+        "0.1": {
+          "majority": "68.6%",
+          "any": "79.0%"
+        },
+        "0.2": {
+          "majority": "86.2%",
+          "any": "92.4%"
+        },
+        "0.3": {
+          "majority": "94.1%",
+          "any": "96.9%"
+        }
+      }
+    },
+    "calibrated": {
+      "falseAlarm": {
+        "z": "4.8%",
+        "ewma": "6.2%",
+        "cusum": "5.9%",
+        "majority": "6.2%",
+        "any": "31.4%"
+      },
+      "detection": {
+        "0.1": {
+          "majority": "25.9%",
+          "any": "63.8%"
+        },
+        "0.2": {
+          "majority": "47.2%",
+          "any": "81.7%"
+        },
+        "0.3": {
+          "majority": "64.8%",
+          "any": "91.7%"
+        }
+      }
+    }
+  },
+  "byVolatility": {
+    "low": {
+      "falseAlarm": {
+        "default": "18.6%",
+        "calibrated": "3.1%"
+      },
+      "detection": {
+        "0.1": {
+          "default": "99.0%",
+          "calibrated": "54.6%"
+        },
+        "0.2": {
+          "default": "100.0%",
+          "calibrated": "87.6%"
+        },
+        "0.3": {
+          "default": "100.0%",
+          "calibrated": "99.0%"
+        }
+      }
+    },
+    "mid": {
+      "falseAlarm": {
+        "default": "25.5%",
+        "calibrated": "6.1%"
+      },
+      "detection": {
+        "0.1": {
+          "default": "66.3%",
+          "calibrated": "13.3%"
+        },
+        "0.2": {
+          "default": "93.9%",
+          "calibrated": "37.8%"
+        },
+        "0.3": {
+          "default": "100.0%",
+          "calibrated": "67.3%"
+        }
+      }
+    },
+    "high": {
+      "falseAlarm": {
+        "default": "32.6%",
+        "calibrated": "9.5%"
+      },
+      "detection": {
+        "0.1": {
+          "default": "40.0%",
+          "calibrated": "9.5%"
+        },
+        "0.2": {
+          "default": "64.2%",
+          "calibrated": "15.8%"
+        },
+        "0.3": {
+          "default": "82.1%",
+          "calibrated": "27.4%"
+        }
+      }
+    }
+  }
+}

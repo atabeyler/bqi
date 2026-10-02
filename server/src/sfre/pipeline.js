@@ -11,6 +11,7 @@ import { hhi } from './engines/concentration.js';
 import { overlapMatrix } from './engines/overlap.js';
 import { analyzeNetwork } from './engines/network.js';
 import { detectAnomalies } from './engines/anomaly/ensemble.js';
+import { breadthAlarm } from './engines/breadth.js';
 import { fundamentalMetrics } from './engines/fundamentals.js';
 import { accountingQuality } from './engines/accountingQuality.js';
 import { valuationDivergence } from './engines/valuation.js';
@@ -35,7 +36,7 @@ import { validateSystemState } from './engines/systemic/state.js';
 import { runSurveillance, validateSurveillance } from './engines/surveillance/index.js';
 import { parseTime } from './data/observation.js';
 
-export const ENGINE_NAMES = Object.freeze(['cascade', 'counterfactual', 'reverseStress', 'tailRisk', 'concentration', 'overlap', 'anomaly', 'fundamentals', 'accountingQuality', 'valuation', 'divergence', 'integrity', 'attention', 'coordination', 'disclosure', 'crossSector', 'fxContagion', 'sovNexus', 'collateral', 'ccp', 'privateCredit', 'aiCrowding', 'opContagion', 'climate', 'digitalAssets', 'systemTwin', 'surveillance']);
+export const ENGINE_NAMES = Object.freeze(['cascade', 'counterfactual', 'reverseStress', 'tailRisk', 'concentration', 'overlap', 'anomaly', 'breadth', 'fundamentals', 'accountingQuality', 'valuation', 'divergence', 'integrity', 'attention', 'coordination', 'disclosure', 'crossSector', 'fxContagion', 'sovNexus', 'collateral', 'ccp', 'privateCredit', 'aiCrowding', 'opContagion', 'climate', 'digitalAssets', 'systemTwin', 'surveillance']);
 export const MAX_OBSERVATIONS = 200000;
 // Hard request budgets: engines run synchronously on the API thread, so every dimension that drives CPU is capped.
 export const LIMITS = Object.freeze({ funds: 1000, assets: 2000, tailN: 100000, tailRows: 5000, tailCols: 500, reverseStarts: 50, reverseLocal: 200, reverseBisect: 40, series: 10000, disclosures: 5000, textChars: 20000, posts: 1500, systemicBytes: 6000000 });
@@ -63,6 +64,7 @@ const RUNNERS = {
     return ov.value ? [ov, analyzeNetwork({ ids: ov.value.ids, overlap: ov.value.overlap })] : [ov];
   },
   anomaly: (r, ctx) => (r.anomaly ? [detectAnomalies({ seed: ctx.seed, ...r.anomaly })] : [missing('anomaly', 'M20.anomaly_ensemble', 'anomaly')]),
+  breadth: (r) => (r.breadth ? [breadthAlarm(r.breadth)] : [missing('breadth', 'M21.breadth', 'breadth')]),
   fundamentals: (r) => (r.statements ? [fundamentalMetrics(r.statements.current, r.statements.prior)] : [missing('fundamentals', 'M30.fundamentals', 'statements')]),
   accountingQuality: (r) => (r.statements ? [accountingQuality({ current: r.statements.current, prior: r.statements.prior, ...(r.accounting || {}) })] : [missing('accountingQuality', 'M33.accounting_quality', 'statements')]),
   valuation: (r) => (r.valuation ? [valuationDivergence(r.valuation)] : [missing('valuation', 'M31.valuation', 'valuation')]),
@@ -103,6 +105,7 @@ export function validateRequest(req) {
   if (t && ((t.N ?? 10000) > LIMITS.tailN || (t.returns?.length ?? 0) > LIMITS.tailRows || (t.returns?.[0]?.length ?? 0) > LIMITS.tailCols)) return 'tail request exceeds size limits';
   const rs = req.reverseStress;
   if (rs && ((rs.nStarts ?? 12) > LIMITS.reverseStarts || (rs.nLocal ?? 40) > LIMITS.reverseLocal || (rs.nBisect ?? 28) > LIMITS.reverseBisect)) return 'reverseStress search budget exceeds limits';
+  if (req.breadth && ((req.breadth.reference?.length ?? 0) > LIMITS.funds || (req.breadth.evaluation?.length ?? 0) > LIMITS.funds || (req.breadth.reference?.[0]?.length ?? 0) > 520 || (req.breadth.evaluation?.[0]?.length ?? 0) > 520)) return 'breadth request exceeds size limits (max 1000 funds x 520 weeks)';
   if (req.anomaly && ((req.anomaly.reference?.length ?? 0) > LIMITS.series || (req.anomaly.evaluation?.length ?? 0) > LIMITS.series)) return 'anomaly series exceeds size limit';
   if (req.disclosures && (req.disclosures.length > LIMITS.disclosures || req.disclosures.some((d) => String(d?.title ?? '').length + String(d?.body ?? '').length > LIMITS.textChars))) return 'disclosures exceed size limits';
   if (req.coordination && ((req.coordination.evalPosts?.length ?? 0) > LIMITS.posts || (req.coordination.referencePosts?.length ?? 0) > 20 * LIMITS.posts)) return 'coordination posts exceed size limits';

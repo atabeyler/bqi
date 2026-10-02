@@ -108,7 +108,7 @@ export class ModelRegistry {
 export const SFRE_MODELS = Object.freeze([
   'M01.abnormal_return', 'M01.abnormal_volume', 'M01.amihud', 'M02.hhi', 'M02.free_float_exposure', 'M03.overlap', 'M04.dtl', 'M04.profile', 'M05.flow_sensitivity',
   'M06.leverage', 'M07.amihud_linear', 'M07.sqrt', 'M08.network', 'M10.cascade', 'M11.tail', 'M12.hmm', 'M13.reverse_stress', 'M15.counterfactual',
-  'M20.anomaly_ensemble', 'M30.fundamentals', 'M31.valuation', 'M32.divergence', 'M33.accounting_quality', 'M40.disclosure_rules', 'M41.claim_vs_reality',
+  'M20.anomaly_ensemble', 'M21.breadth', 'M30.fundamentals', 'M31.valuation', 'M32.divergence', 'M33.accounting_quality', 'M40.disclosure_rules', 'M41.claim_vs_reality',
   'M50.pump_dump_pattern', 'M51.attention', 'M52.coordination',
   // vNext: systemic / cross-sector engines, Market Surveillance 2.0 and the Financial System Digital Twin (docs/sfre/VNEXT_SYSTEMIC.md)
   'M60.cross_sector', 'M61.fx_contagion', 'M62.sovereign_bank_corporate', 'M63.margin_collateral', 'M64.ccp_default_waterfall', 'M65.private_credit', 'M66.ai_crowding',
