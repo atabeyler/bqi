@@ -67,10 +67,13 @@ export default function App() {
       // other tab is still open (see tabPresence.js) closes that window
       // down to well under a minute; native keeps its own separate
       // "remember this device" model untouched.
+      let u;
       if (!isNativeApp && wasBrowserFullyClosedRecently()) {
         await fullLogout();
+        u = null; // the session was just ended on purpose: go to the login screen. Resolving the user here could race the server-side logout and show a dashboard whose every request is then 401.
+      } else {
+        u = await resolveCurrentUser();
       }
-      const u = await resolveCurrentUser();
       if (alive) setUser(u);
     });
     return () => { alive = false; };

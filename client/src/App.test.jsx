@@ -106,6 +106,8 @@ describe('App', () => {
     resolveCurrentUser.mockResolvedValue({ userCode: 'U9', nickname: 'BOLD-009', isAdmin: false });
     renderApp();
     await waitFor(() => expect(fullLogout).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('login-stub')).toBeInTheDocument()); // never shows the dashboard of a session that was just ended
+    expect(resolveCurrentUser).not.toHaveBeenCalled();
   });
 
   it('does not force a logout on an ordinary refresh (another/this tab was open recently)', async () => {

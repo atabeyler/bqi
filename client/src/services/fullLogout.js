@@ -10,10 +10,11 @@ import { isNativeApp, nativeAuth } from './nativeBridge.js';
 // same teardown rather than a partial one that leaves a stale socket or
 // chat history behind for the next person at a shared/kiosk device.
 export async function fullLogout() {
-  logoutRequest();
+  const serverLogout = logoutRequest(); // never rejects; awaited below so callers know the server-side session is really gone
   if (isNativeApp) nativeAuth.logoutSession().catch(() => {});
   setJWT(null);
   setLocalAuthUser(null);
   clearLocalChatHistory();
   disconnectSocket();
+  await serverLogout;
 }

@@ -120,9 +120,13 @@ function GuideNote({ children }) {
   );
 }
 
+// Server error codes that reach the user as raw text get a localized sentence instead.
+const ERROR_TEXT_KEYS = { bci_unavailable: 'cyberBciUnavailable' };
 function ErrorNote({ error }) {
+  const { t } = useLang();
   if (!error) return null;
-  return <div className="text-red-300 text-[13px] border border-red-400/30 rounded p-2 mb-3">{error}</div>;
+  const key = ERROR_TEXT_KEYS[error];
+  return <div className="text-red-300 text-[13px] border border-red-400/30 rounded p-2 mb-3">{key ? t(key) : error}</div>;
 }
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

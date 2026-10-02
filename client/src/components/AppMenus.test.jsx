@@ -384,17 +384,17 @@ describe('InfoModal', () => {
 describe('GuideModal', () => {
   it('renders Turkish guide modules by default', () => {
     render(<GuideModal onClose={vi.fn()} t={t} lang="tr" />);
-    expect(screen.getByText('1) Üst Çubuk')).toBeInTheDocument();
+    expect(screen.getByText('1) Üst Çubuk ve Sol Menü')).toBeInTheDocument();
   });
 
   it('renders English guide modules when lang="en"', () => {
     render(<GuideModal onClose={vi.fn()} t={t} lang="en" />);
-    expect(screen.getByText('1) Top Bar')).toBeInTheDocument();
+    expect(screen.getByText('1) Top Bar and Left Menu')).toBeInTheDocument();
   });
 
   it('falls back to English for an unsupported language', () => {
     render(<GuideModal onClose={vi.fn()} t={t} lang="xx" />);
-    expect(screen.getByText('1) Top Bar')).toBeInTheDocument();
+    expect(screen.getByText('1) Top Bar and Left Menu')).toBeInTheDocument();
   });
 
   it('closes via the close button', () => {

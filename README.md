@@ -1,6 +1,6 @@
 # BQI
 
-![Version](https://img.shields.io/badge/version-3.3.103-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-3.3.104-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Quantum-Based National Decision Support System**  
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -62,6 +62,7 @@ Where available, the system retains source provenance, data-quality information,
 | Decision Intelligence | Provenance, quality, evidence, and decision trace |
 | Institutional Integration | Pluggable framework for authorized data sources |
 | Reporting | Structured DOCX/PDF decision-support reports |
+| BFI Systemic Risk | Fund-flow and FX systemic-risk monitoring with a multilingual situation report and archive (research prototype, uncalibrated) |
 | Platforms | Web, Windows, Android |
 
 ### Current System Status
@@ -71,6 +72,7 @@ Where available, the system retains source provenance, data-quality information,
 | Web platform | Operational |
 | Windows / Electron client | Operational |
 | Android / Capacitor client | Operational |
+| BFI Systemic Risk | Implemented; models uncalibrated, validation limited (see BFI section) |
 | Multi-provider AI layer | Implemented |
 | Deterministic analysis path | Implemented |
 | Quantum analysis modules | Implemented |
@@ -100,7 +102,7 @@ This project sits at the intersection of applied AI, decision intelligence, and 
 
 ### AI & Reporting
 
-- **11 Analysis Categories** — Defense, Energy, Offensive, Economy, Social, Consultation, Health, Multi-Domain Synthesis, BDDK, BTK, Cyber Intelligence (BCI-backed security posture, findings, and risk scoring)
+- **12 Analysis Categories** — Defense, Energy, Offensive, Economy, Social, Consultation, Health, Multi-Domain Synthesis, BDDK, BTK, Cyber Intelligence (BCI-backed security posture, findings, and risk scoring) and BFI Systemic Risk (see [BFI](#bfi--systemic-financial-risk) below)
 - **Multi-Provider AI Assurance** — provider-independent orchestration with automatic fallback
 - **Fixed-Format Reports** — DOCX/PDF generation, report history, and central-mail delivery
 - **Voice Assistant** — transcription, TTS, and natural-language command handling
@@ -122,6 +124,21 @@ This project sits at the intersection of applied AI, decision intelligence, and 
   providers
 - **Post-Quantum Security** — TLS/SSH/JWT discovery, crypto inventory, CBOM,
   PQC readiness scoring, and migration guidance for authorized targets
+
+### BFI — Systemic Financial Risk
+
+BFI (Bold Financial Intelligence; internal code name `sfre`) is a separate console at `/sfre` (admin and analyst roles). It monitors systemic risk in the Turkish fund market from fund-flow data and exchange-rate moves. **It is a research prototype: every model is UNCALIBRATED, the fund-outflow alarm has been tested on one real event, and no independent validation exists. Results are not investment advice.** See [docs/sfre/ROADMAP.md](docs/sfre/ROADMAP.md) for what is proven and what is not.
+
+- **Point-in-time data** — append-only observations with publication timestamps (database triggers forbid rewriting), a hash-chained evidence ledger and a model registry (all models start at DEVELOPMENT)
+- **Data ingestion** — TEFAS Excel exports (flows computed within a file), BIST end-of-day, free-float and fund holdings uploads; automatic server-side sync of TCMB EVDS exchange rates; KAP/MKK API client ready for credentials
+- **Engines** — contagion/clearing, concentration, a cross-sectional *breadth* alarm for fund outflows (M21) and a daily FX-shock detector; the engines and their assumptions and limits are listed in the **Systemic** tab
+- **Local heavy data, cloud results** — a local node keeps raw data and pushes only HMAC-signed results to the cloud app (`/api/sfre-federation`)
+- **Situation report** — one level (NORMAL / WATCH / ALARM) with reasons, charts, data coverage, limits and method; HTML (print to PDF), server-made **PDF** and **Word**, in **Turkish, English, German, French and Arabic** (Arabic right-to-left, Noto Naskh Arabic embedded)
+- **Report archive** — manual snapshot, automatic snapshot on level change and once a day, open/PDF/Word/share per report, admin soft-delete (records are append-only, so deletion hides, it does not erase)
+- **E-mail on level change** — report attached, language from `SFRE_REPORT_LANG`; sent only when the level changes
+- **Honest validation** — results are published in [docs/sfre/results](docs/sfre/results) including negative ones (e.g. FX shocks: 4 of 5 Turkish events and 7 of 7 foreign events recognised, but not predicted; US money-market flows: 2 of 5)
+
+Operations, environment variables and the data-source checklist: [docs/sfre/OPERATIONS.md](docs/sfre/OPERATIONS.md). Event list: [docs/sfre/EVENT_CATALOGUE.md](docs/sfre/EVENT_CATALOGUE.md).
 
 ### Decision Intelligence & Auditability
 
@@ -194,6 +211,8 @@ flowchart LR
     API --> Storage[(S3 / R2 or local disk)]
     API --> Mail[Mail Delivery Service]
 ```
+
+BFI (`server/src/sfre`, `client/src/components/sfre`) is a self-contained module: PostgreSQL `sfre_*` tables, worker-thread engines, an optional sync scheduler and a signed-results federation endpoint; it shares authentication, roles and e-mail with the rest of BQI.
 
 The user-facing analysis path remains simple: **input → analysis → decision-support report**. Internally, BQI can retain provenance, quality, model, quantum, evidence, and execution-trace metadata so a later audit can establish how the result was produced.
 
@@ -328,6 +347,21 @@ The bare browser WebAuthn API (`navigator.credentials`) is not reliably usable f
 | `QUANTUM_JOB_POLL_MS` | Quantum job-queue poll interval in ms; defaults to 5000 |
 | `WEBAUTHN_RP_NAME`, `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGINS` | Optional passkey/WebAuthn Relying Party overrides; all default from `APP_URL` and only need setting when the public origin differs from it |
 | `ANDROID_PASSKEY_CERT_FINGERPRINTS` | Required only for Android passkey login: comma-separated SHA-256 signing certificate fingerprint(s), served at `/.well-known/assetlinks.json` (see the Android section below); unset means the Android passkey option stays hidden/non-functional while every other platform's passkey support and every other login method are unaffected |
+
+### BFI (optional)
+
+| Variable | Description |
+|---|---|
+| `TCMB_EVDS_KEY` | TCMB EVDS API key (header only, never in URLs); enables automatic exchange-rate sync |
+| `SFRE_SYNC_ENABLED`, `SFRE_SYNC_INTERVAL_MIN` | Turn the automatic sync scheduler on (`true`) and set its interval (default 60 min); each round also archives the daily report and checks for a level change |
+| `SFRE_EVDS_SERIES`, `SFRE_EVDS_START` | EVDS series codes (default USD and EUR rates) and first date (default 2018-01-01) |
+| `SFRE_FEDERATION_SECRET` | At least 32 characters; shared by the cloud app and a local node to sign result packages |
+| `SFRE_CLOUD_URL` | Local node only: the cloud app URL that `server/scripts/sfre-export-results.js` pushes results to |
+| `SFRE_ALERT_EMAILS` | Comma-separated recipients of level-change mails (falls back to `CENTER_EMAIL`); needs `RESEND_API_KEY` |
+| `SFRE_REPORT_LANG` | Language of the level-change mail and its attachment: `tr` (default), `en`, `de`, `fr`, `ar` |
+| `SFRE_KAP_BASE_URL`, `SFRE_KAP_API_KEY` | KAP/MKK API access, once credentials exist |
+
+See [docs/sfre/OPERATIONS.md](docs/sfre/OPERATIONS.md) for the full list.
 
 ### Quantum
 
