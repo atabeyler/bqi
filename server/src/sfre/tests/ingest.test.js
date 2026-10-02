@@ -38,6 +38,20 @@ describe('real TEFAS export layout (2026 fon-verileri Excel)', () => {
   });
 });
 
+describe('TEFAS price 0 means "no price" (platform FAQ), never a real price', () => {
+  it('emits no nav_price and no net_flow_ratio for a zero-price day, while normal days are unaffected', () => {
+    const H = ['Fon Kodu', 'Fon Adı', 'Tarih', 'Fiyat', 'Tedavüldeki Pay Sayısı', 'Kişi Sayısı', 'Fon Toplam Değer'];
+    const f = xlsx({ 'Tablo Verisi': [['Rapor Bilgileri'], ['Toplam Kayıt Sayısı:', 3], [], H,
+      ['ZZZ', 'X', 46266, 3.5, 1000, 10, 3500], ['ZZZ', 'X', 46273, 0, 1100, 12, 0], ['YYY', 'Y', 46266, 2, 500, 5, 1000], ['YYY', 'Y', 46273, 2.1, 600, 6, 1260]] });
+    const r = importTefas(f);
+    const zzz = r.observations.filter((o) => o.entity === 'FUND:ZZZ');
+    expect(zzz.filter((o) => o.field === 'nav_price').map((o) => o.value)).toEqual([3.5]); // the 0 day is absent
+    expect(zzz.some((o) => o.field === 'net_flow_ratio')).toBe(false); // a flow valued at price 0 would read as "no flow"
+    expect(r.observations.some((o) => o.entity === 'FUND:YYY' && o.field === 'net_flow_ratio')).toBe(true);
+    expect(r.report.zeroPrice).toBe(1);
+  });
+});
+
 describe('idempotent re-import', () => {
   it('REGRESSION: importing the same file twice (different ingestion time) yields identical observation hashes, so the store dedupes', () => {
     const f = xlsx({ 'Genel Bilgiler': [['Tarih', 'Fon Kodu', 'Fiyat'], ['03.09.2026', 'ABC', '1,5']] });

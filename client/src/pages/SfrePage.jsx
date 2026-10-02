@@ -31,14 +31,16 @@ export default function SfrePage({ user }) {
   const [error, setError] = useState('');
   const [health, setHealth] = useState(null);
   const [data, setData] = useState(null);
+  const [statusLoaded, setStatusLoaded] = useState(false); // false until both status calls settled, so "no data yet" is never shown while loading
   const [text, setText] = useState(JSON.stringify(SAMPLE, null, 2));
   const [busy, setBusy] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const finishSplash = useCallback(() => setSplashDone(true), []);
 
   const refresh = useCallback(() => {
-    sfreApi.health().then(setHealth).catch(() => setHealth(null));
-    sfreApi.dataStatus().then(setData).catch(() => setData(null));
+    const h = sfreApi.health().then(setHealth).catch(() => setHealth(null));
+    const d = sfreApi.dataStatus().then(setData).catch(() => setData(null));
+    Promise.all([h, d]).then(() => setStatusLoaded(true));
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -51,8 +53,8 @@ export default function SfrePage({ user }) {
   const datasets = data?.datasets ?? [];
   const observations = datasets.reduce((sum, d) => sum + (d.n || 0), 0);
   const kpis = [
-    { key: 'storage', label: t('sfre_storage'), value: health ? health.storage : t('sfre_unavailable') },
-    { key: 'datasets', label: t('sfre_datasets'), value: datasets.length ? `${datasets.length} · ${observations.toLocaleString()}` : '—' },
+    { key: 'storage', label: t('sfre_storage'), value: health ? health.storage : (statusLoaded ? t('sfre_unavailable') : '…') },
+    { key: 'datasets', label: t('sfre_datasets'), value: datasets.length ? `${datasets.length} · ${observations.toLocaleString()}` : (statusLoaded ? '—' : '…') },
     { key: 'ledger', label: t('sfre_entries'), value: health ? `${health.ledger.length ?? 0} ${health.ledger.ok ? '✓' : '✗'}` : '—' },
     { key: 'models', label: t('sfre_models_nonprod'), value: health ? String(health.models) : '—' },
   ];
@@ -101,7 +103,7 @@ export default function SfrePage({ user }) {
           )}
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <span>{t('sfre_datasets')}:</span>
-            {data?.datasets?.length ? data.datasets.map((d) => (<span key={`${d.source}/${d.field}`}>{d.source}/{d.field} ({d.n})</span>)) : <span className="text-amber-300">{t('sfre_no_datasets')}</span>}
+            {data?.datasets?.length ? data.datasets.map((d) => (<span key={`${d.source}/${d.field}`}>{d.source}/{d.field} ({d.n})</span>)) : <span className={statusLoaded ? 'text-amber-300' : 'text-slate-400'}>{statusLoaded ? t('sfre_no_datasets') : t('sfre_loading')}</span>}
           </div>
         </div>
 

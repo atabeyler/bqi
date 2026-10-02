@@ -9,6 +9,8 @@ const List = ({ title, items }) => (items?.length ? (<div><div className="text-[
 // Describes the vNext engines (from GET /capabilities) and renders one Digital Twin run stage by stage. Computes nothing itself.
 export default function SystemicPanel({ setError }) {
   const { t } = useLang();
+  // Server texts are English; localised title/summary come from the locale files and fall back to the server text.
+  const tr = (key, fallback) => { const v = t(key); return v && v !== key ? v : fallback; };
   const [caps, setCaps] = useState(null);
   const [out, setOut] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -27,9 +29,9 @@ export default function SystemicPanel({ setError }) {
       {!caps && <p className="text-sm text-slate-400">{t('sfre_sys_loading')}</p>}
       <div className="grid gap-3 md:grid-cols-2">
         {caps?.capabilities?.map((c) => (
-          <article key={c.engine} className="border border-cyan-300/25 rounded p-3 space-y-2" aria-label={c.title}>
-            <h3 className="font-medium text-cyan-50">{c.title}</h3>
-            <p className="text-xs text-slate-300">{c.summary}</p>
+          <article key={c.engine} className="border border-cyan-300/25 rounded p-3 space-y-2" aria-label={tr(`sfre_cap_${c.engine}_title`, c.title)}>
+            <h3 className="font-medium text-cyan-50">{tr(`sfre_cap_${c.engine}_title`, c.title)}</h3>
+            <p className="text-xs text-slate-300">{tr(`sfre_cap_${c.engine}_summary`, c.summary)}</p>
             <div className="text-[11px] text-amber-300">{t('sfre_sys_nonprod')}</div>
             <List title={t('sfre_sys_models')} items={c.models.map((m) => `${m.model_id} (${m.state})`)} />
             <List title={t('sfre_sys_needs')} items={c.needs} />

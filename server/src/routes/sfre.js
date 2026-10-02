@@ -5,7 +5,7 @@ import { logger } from '../lib/logger.js';
 import { runInWorker } from '../sfre/jobs/runner.js';
 import { recordRun, validateRequest } from '../sfre/pipeline.js';
 import { EvidenceLedger } from '../sfre/evidence/ledger.js';
-import { ModelRegistry, createDefaultRegistry, GovernanceError } from '../sfre/governance/modelRegistry.js';
+import { ModelRegistry, createDefaultRegistry, registerMissingDefaults, GovernanceError } from '../sfre/governance/modelRegistry.js';
 import { explainResults } from '../sfre/ai/firewall.js';
 import { buildRetailRiskTable } from '../sfre/alerts/retailRiskTable.js';
 import { MemoryStore } from '../sfre/storage/store.js';
@@ -60,7 +60,7 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
       await db.ensureSchema();
       l = l || await db.loadLedger();
       r = r || new ModelRegistry().loadState(await db.loadModels());
-      if (!r.list().length) { r = createDefaultRegistry(); await db.saveModels(r); }
+      if (!r.list().length) { r = createDefaultRegistry(); await db.saveModels(r); } else if (!registry && registerMissingDefaults(r).length) await db.saveModels(r);
     }
     state = { ledger: l || new EvidenceLedger(), registry: r || createDefaultRegistry() };
     return state;

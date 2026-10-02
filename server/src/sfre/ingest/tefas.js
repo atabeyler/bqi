@@ -24,12 +24,13 @@ export function importTefas(buffer, { lagDays = DEFAULT_LAG_DAYS, ingestedMs = D
     const isAlloc = !g.missing.length ? false : rows[0].some((h) => [...CASH_LIKE, ...EQUITY].some((a) => normHeader(h).includes(a)));
     if (!g.missing.length) {
       for (const r of rows.slice(1)) {
-        const day = parseDay(r[g.idx.date]); const code = String(r[g.idx.code] ?? '').trim().toUpperCase(); const price = num(r[g.idx.price]);
+        const day = parseDay(r[g.idx.date]); const code = String(r[g.idx.code] ?? '').trim().toUpperCase(); const rawPrice = num(r[g.idx.price]);
+        const price = rawPrice !== null && rawPrice > 0 ? rawPrice : null; // TEFAS shows 0 when a fund has no price that day (platform FAQ): that is UNOBSERVED, never a real price of 0
         if (day === null || !code) continue;
         report.rows++; report.funds.add(code);
         const availableMs = day + lagDays * DAY; const ent = `FUND:${code}`;
         const emit = (field, value, unit) => { if (value !== null) obs.push(mkObs({ entity: ent, field, value, unit, eventMs: day, availableMs, source: SOURCE, ingestedMs })); };
-        emit('nav_price', price, 'TRY');
+        emit('nav_price', price, 'TRY'); if (rawPrice === 0) report.zeroPrice = (report.zeroPrice || 0) + 1;
         if (g.idx.units !== undefined) emit('units', num(r[g.idx.units]), 'units');
         if (g.idx.investors !== undefined) emit('investors', num(r[g.idx.investors]), 'count');
         if (g.idx.aum !== undefined) emit('aum', num(r[g.idx.aum]), 'TRY');
@@ -60,5 +61,5 @@ export function importTefas(buffer, { lagDays = DEFAULT_LAG_DAYS, ingestedMs = D
       obs.push(mkObs({ entity: `FUND:${code}`, field: 'net_flow_ratio', value: ((cur.units - prev.units) * cur.price) / prev.aum, unit: 'ratio', eventMs: day, availableMs: day + lagDays * DAY, source: SOURCE, ingestedMs, flags: ['VENDOR_DERIVED'] }));
     }
   }
-  return { observations: obs, skipped, report: { rows: report.rows, funds: report.funds.size, observations: obs.length } };
+  return { observations: obs, skipped, report: { rows: report.rows, funds: report.funds.size, observations: obs.length, zeroPrice: report.zeroPrice || 0 } };
 }

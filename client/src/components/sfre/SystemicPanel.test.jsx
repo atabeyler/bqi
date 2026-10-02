@@ -12,7 +12,7 @@ vi.mock('../../services/api.js', () => ({ sfreApi: { capabilities: async () => (
 describe('SystemicPanel', () => {
   it('lists capabilities with their assumptions/limitations and the NON-PRODUCTION label; runs the twin and shows every stage, the ledger and unobserved inputs', async () => {
     render(<LangProvider><SystemicPanel setError={() => {}} /></LangProvider>);
-    await waitFor(() => expect(screen.getByText('Financial System Digital Twin')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Finansal Sistem Dijital İkizi|Financial System Digital Twin/)).toBeTruthy());
     expect(document.body.textContent).toMatch(/NON-PRODUCTION|ÜRETİM DIŞI/); expect(screen.getByText('UNCALIBRATED scenario model')).toBeTruthy(); expect(screen.getByText(/M71.system_twin \(DEVELOPMENT\)/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button'));
     await waitFor(() => expect(screen.getByTestId('sfre-twin-result')).toBeTruthy());

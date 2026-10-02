@@ -119,6 +119,17 @@ export const SFRE_MODELS = Object.freeze([
 const specDoc = (id) => (/^M(6\d|7\d)\./.test(id) ? 'docs/sfre/VNEXT_SYSTEMIC.md' : 'docs/sfre/MATHEMATICAL_SPECIFICATION.md');
 
 /** Registry with every shipped model registered at DEVELOPMENT; nothing starts above it. */
+/** Registers any SFRE model that a previously persisted registry does not have yet (new engines added after first boot). Returns the ids added; existing records and their history are never touched. */
+export function registerMissingDefaults(reg, version = '1.0.0') {
+  const added = [];
+  for (const id of SFRE_MODELS) {
+    if (reg.get(id, version)) continue;
+    reg.register({ model_id: id, version, spec_ref: `${specDoc(id)}#${id}`, proposed_by: 'sfre-initial-implementation' });
+    added.push(id);
+  }
+  return added;
+}
+
 export function createDefaultRegistry(version = '1.0.0') {
   const reg = new ModelRegistry();
   for (const id of SFRE_MODELS) reg.register({ model_id: id, version, spec_ref: `${specDoc(id)}#${id}`, proposed_by: 'sfre-initial-implementation' });
