@@ -21,6 +21,7 @@ import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
 import { importHoldings } from '../sfre/ingest/holdings.js';
 import { getSharedSync } from '../sfre/ingest/syncService.js';
 import { systemFromView } from '../sfre/validation/fragilityAlarm.js';
+import { describeCapabilities } from '../sfre/capabilities.js';
 
 export const INGEST_KINDS = Object.freeze({
   tefas: (buf, o) => importTefas(buf, o), 'bist-eod': (buf) => importBistEod(buf), 'free-float': (buf, o) => importFreeFloat(buf, o), holdings: (buf, o) => importHoldings(buf, o),
@@ -93,6 +94,12 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     const svc = await syncService();
     if (!svc) return res.status(409).json({ error: 'automatic sync needs DATABASE_URL' });
     res.json({ results: await svc.runAll(), status: svc.status() });
+  });
+
+  // vNext: what each systemic/surveillance engine needs, assumes and cannot claim, with live governance state per model
+  router.get('/capabilities', (_req, res) => {
+    const states = Object.fromEntries(state.registry.list().map((m) => [`${m.model_id}@${m.version}`, m.state]));
+    res.json({ capabilities: describeCapabilities(states), note: 'All vNext models are UNCALIBRATED scenario/pattern models until promoted through governance with real-data validation evidence.' });
   });
 
   router.get('/models', (_req, res) => res.json({ models: state.registry.list().map((m) => ({ model_id: m.model_id, version: m.version, state: m.state, calibration: m.calibration, approved_use: m.approved_use })) }));

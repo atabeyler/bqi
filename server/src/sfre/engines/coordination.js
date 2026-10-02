@@ -18,7 +18,7 @@ export function hypergeomSf(x, N, K, n) {
   return Math.min(1, p);
 }
 
-function components(nodes, edges) {
+export function components(nodes, edges) {
   const parent = new Map(nodes.map((n) => [n, n]));
   const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
   for (const [a, b] of edges) parent.set(find(a), find(b));

@@ -1,5 +1,6 @@
 import { runCascade } from './cascade.js';
 import { deepClone, deepFreeze, hashOf } from '../core/canonical.js';
+import { simulateSystem, validateTwin } from './systemic/twin.js';
 
 /**
  * Financial Digital Twin: STATE(t0) -> SHOCK -> RESPONSE -> LIQUIDATION -> MARKET IMPACT -> CONTAGION -> STATE(t+n).
@@ -56,5 +57,44 @@ export class FinancialDigitalTwin {
       { stage: 'STATE(t+n)', totalLoss: v.system.totalLoss },
     ];
     return { result: res, trajectory, stages };
+  }
+}
+
+/**
+ * Financial SYSTEM Digital Twin: extends the fund-level twin (unchanged, still available through run()) with the whole
+ * financial system -- banks, funds, insurers, corporates, sovereign, households, foreign investors, CCPs, private credit,
+ * stablecoin/DeFi -- on one balance-sheet/exposure network:
+ *   SHOCK -> BALANCE-SHEET EFFECT -> FUNDING/LIQUIDITY -> MARGIN/COLLATERAL -> FORCED ACTION -> MARKET IMPACT
+ *   -> COUNTERPARTY/NETWORK CONTAGION -> SECOND-ROUND EFFECTS -> STATE(t+n)
+ * The system snapshot is deep-frozen and re-hashed around every run exactly like the fund snapshot.
+ * An optional `fundSystem` keeps running through the existing M10 cascade, coupled through the shared price vector.
+ */
+export class FinancialSystemDigitalTwin extends FinancialDigitalTwin {
+  #sys; #sysHash;
+
+  constructor({ system, fundSystem = null }) {
+    super(fundSystem ?? { assets: [], funds: [], impact: system?.impact });
+    this.#sys = deepFreeze(deepClone(system));
+    this.#sysHash = hashOf(this.#sys);
+  }
+
+  get systemSnapshotHash() { return this.#sysHash; }
+  get systemState() { return this.#sys; }
+
+  assertSnapshotUnchanged() {
+    super.assertSnapshotUnchanged();
+    if (hashOf(this.#sys) !== this.#sysHash) throw new Error('financial system twin snapshot was mutated');
+    return true;
+  }
+
+  /** Full multi-engine simulation. Throws {code:'INVALID_REQUEST'} on invalid input (fail loudly). */
+  runSystem(scenario = {}, options = {}) {
+    this.assertSnapshotUnchanged();
+    const funds = this.system.funds.length ? this.system : null;
+    const err = validateTwin(this.#sys, scenario, options, funds);
+    if (err) throw Object.assign(new Error(err), { code: 'INVALID_REQUEST' });
+    const out = simulateSystem(this.#sys, scenario, options, funds);
+    this.assertSnapshotUnchanged();
+    return out;
   }
 }

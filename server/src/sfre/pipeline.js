@@ -20,11 +20,25 @@ import { attentionAnomaly } from './engines/attention.js';
 import { detectCoordination } from './engines/coordination.js';
 import { disclosureEvents } from './engines/disclosure.js';
 import { createRunRecord } from './governance/runRegistry.js';
+import { runCrossSector } from './engines/systemic/crossSector.js';
+import { runFxContagion } from './engines/systemic/fxContagion.js';
+import { runSovNexus } from './engines/systemic/nexus.js';
+import { runCollateral } from './engines/systemic/collateral.js';
+import { runCcp } from './engines/systemic/ccp.js';
+import { runPrivateCredit } from './engines/systemic/privateCredit.js';
+import { runAiCrowding } from './engines/systemic/crowding.js';
+import { runOpContagion } from './engines/systemic/opContagion.js';
+import { runClimate } from './engines/systemic/climate.js';
+import { runDigitalAssets } from './engines/systemic/digitalAssets.js';
+import { runSystemTwin } from './engines/systemic/twin.js';
+import { validateSystemState } from './engines/systemic/state.js';
+import { runSurveillance, validateSurveillance } from './engines/surveillance/index.js';
+import { parseTime } from './data/observation.js';
 
-export const ENGINE_NAMES = Object.freeze(['cascade', 'counterfactual', 'reverseStress', 'tailRisk', 'concentration', 'overlap', 'anomaly', 'fundamentals', 'accountingQuality', 'valuation', 'divergence', 'integrity', 'attention', 'coordination', 'disclosure']);
+export const ENGINE_NAMES = Object.freeze(['cascade', 'counterfactual', 'reverseStress', 'tailRisk', 'concentration', 'overlap', 'anomaly', 'fundamentals', 'accountingQuality', 'valuation', 'divergence', 'integrity', 'attention', 'coordination', 'disclosure', 'crossSector', 'fxContagion', 'sovNexus', 'collateral', 'ccp', 'privateCredit', 'aiCrowding', 'opContagion', 'climate', 'digitalAssets', 'systemTwin', 'surveillance']);
 export const MAX_OBSERVATIONS = 200000;
 // Hard request budgets: engines run synchronously on the API thread, so every dimension that drives CPU is capped.
-export const LIMITS = Object.freeze({ funds: 1000, assets: 2000, tailN: 100000, tailRows: 5000, tailCols: 500, reverseStarts: 50, reverseLocal: 200, reverseBisect: 40, series: 10000, disclosures: 5000, textChars: 20000, posts: 1500 });
+export const LIMITS = Object.freeze({ funds: 1000, assets: 2000, tailN: 100000, tailRows: 5000, tailCols: 500, reverseStarts: 50, reverseLocal: 200, reverseBisect: 40, series: 10000, disclosures: 5000, textChars: 20000, posts: 1500, systemicBytes: 6000000 });
 
 const missing = (engine, modelId, what) => makeResult({ engine, modelId, status: STATUS.INSUFFICIENT_OBSERVABILITY, unobserved: [what], coverage: coverageOf(0, 1), parameters: {}, notes: [`required input section "${what}" not supplied`] });
 
@@ -57,7 +71,22 @@ const RUNNERS = {
   attention: (r) => (r.attention ? [attentionAnomaly(r.attention)] : [missing('attention', 'M51.attention', 'attention')]),
   coordination: (r) => (r.coordination ? [detectCoordination(r.coordination)] : [missing('coordination', 'M52.coordination', 'coordination')]),
   disclosure: (r) => (r.disclosures ? [disclosureEvents(r.disclosures, r.asOf)] : [missing('disclosure', 'M40.disclosure_rules', 'disclosures')]),
+  // ---- vNext systemic engines: request.systemic = {asOf, system, scenario?, options?}; engines never throw on data problems
+  crossSector: (r, ctx) => (r.systemic ? [runCrossSector(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('crossSector', 'M60.cross_sector', 'systemic')]),
+  fxContagion: (r, ctx) => (r.systemic ? [runFxContagion(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('fxContagion', 'M61.fx_contagion', 'systemic')]),
+  sovNexus: (r, ctx) => (r.systemic ? [runSovNexus(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('sovNexus', 'M62.sovereign_bank_corporate', 'systemic')]),
+  collateral: (r, ctx) => (r.systemic ? [runCollateral(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('collateral', 'M63.margin_collateral', 'systemic')]),
+  ccp: (r, ctx) => (r.systemic ? [runCcp(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('ccp', 'M64.ccp_default_waterfall', 'systemic')]),
+  privateCredit: (r, ctx) => (r.systemic ? [runPrivateCredit(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('privateCredit', 'M65.private_credit', 'systemic')]),
+  aiCrowding: (r, ctx) => (r.systemic ? [runAiCrowding(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('aiCrowding', 'M66.ai_crowding', 'systemic')]),
+  opContagion: (r, ctx) => (r.systemic ? [runOpContagion(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('opContagion', 'M67.operational_contagion', 'systemic')]),
+  climate: (r, ctx) => (r.systemic ? [runClimate(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('climate', 'M68.climate_nature', 'systemic')]),
+  digitalAssets: (r, ctx) => (r.systemic ? [runDigitalAssets(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed })] : [missing('digitalAssets', 'M69.digital_assets', 'systemic')]),
+  systemTwin: (r, ctx) => (r.systemic ? [runSystemTwin(r.systemic.system, r.systemic.scenario || {}, { ...(r.systemic.options || {}), seed: ctx.seed }, r.fundSystem || null)] : [missing('systemTwin', 'M71.system_twin', 'systemic')]),
+  surveillance: (r, ctx) => (r.surveillance ? runSurveillance(r.surveillance, { seed: ctx.seed, prior: ctx.results }) : [missing('surveillance', 'M70.surveillance', 'surveillance')]),
 };
+/** Engines that consume other engines' results of the same run are executed last. */
+const LAST = ['systemTwin', 'surveillance'];
 
 /** Validates the request envelope. Returns an error string or null. */
 export function validateRequest(req) {
@@ -77,6 +106,15 @@ export function validateRequest(req) {
   if (req.anomaly && ((req.anomaly.reference?.length ?? 0) > LIMITS.series || (req.anomaly.evaluation?.length ?? 0) > LIMITS.series)) return 'anomaly series exceeds size limit';
   if (req.disclosures && (req.disclosures.length > LIMITS.disclosures || req.disclosures.some((d) => String(d?.title ?? '').length + String(d?.body ?? '').length > LIMITS.textChars))) return 'disclosures exceed size limits';
   if (req.coordination && ((req.coordination.evalPosts?.length ?? 0) > LIMITS.posts || (req.coordination.referencePosts?.length ?? 0) > 20 * LIMITS.posts)) return 'coordination posts exceed size limits';
+  if (req.systemic) {
+    const s = req.systemic;
+    if (typeof s !== 'object' || !s.system) return 'systemic.system required';
+    if (Number.isNaN(parseTime(s.asOf))) return 'systemic.asOf required (ISO-8601 UTC): the point in time the system state describes';
+    if (req.asOf && parseTime(s.asOf) > parseTime(req.asOf)) return `look-ahead guard: systemic.asOf ${s.asOf} is later than the request asOf ${req.asOf}`;
+    if (JSON.stringify(s).length > LIMITS.systemicBytes) return 'systemic section exceeds size limits';
+    const se = validateSystemState(s.system); if (se) return `systemic.system: ${se}`;
+  }
+  if (req.surveillance) { const e = validateSurveillance(req.surveillance); if (e) return `surveillance: ${e}`; if (req.asOf && parseTime(req.surveillance.asOf) > parseTime(req.asOf)) return 'look-ahead guard: surveillance.asOf is later than the request asOf'; }
   return null;
 }
 
@@ -97,15 +135,16 @@ export function computeRun(request, { registryStates = null, clock = () => new D
     snapshot = createSnapshot(view.observations, { asOf: request.asOf, label: request.label ?? null });
   }
 
-  const results = [];
-  for (const name of request.engines) {
+  const results = []; ctx.results = results;
+  const ordered = [...request.engines.filter((e) => !LAST.includes(e)), ...LAST.filter((e) => request.engines.includes(e))];
+  for (const name of ordered) {
     let out;
     try { out = RUNNERS[name](request, ctx); } catch (e) { out = [failed(name, name, e?.message || String(e))]; }
     results.push(...out);
   }
   const stateOf = (m) => registryStates?.[`${m.model_id}@${m.model_version}`] ?? 'UNREGISTERED';
   const models = [...new Map(results.map((r) => [`${r.model_id}@${r.model_version}`, { model_id: r.model_id, version: r.model_version, state: stateOf(r) }])).values()];
-  const run = createRunRecord({ snapshot, models, parameters: { engines: request.engines, scenario: request.scenario ?? null, options: request.options ?? null, inputHash: hashOf(request.fundSystem ?? null) }, seed: request.seed, results, startedAt: clock() });
+  const run = createRunRecord({ snapshot, models, parameters: { engines: request.engines, scenario: request.scenario ?? null, options: request.options ?? null, inputHash: hashOf(request.fundSystem ?? null), ...(request.systemic ? { systemicInputHash: hashOf(request.systemic), systemicAsOf: request.systemic.asOf } : {}), ...(request.surveillance ? { surveillanceAsOf: request.surveillance.asOf } : {}) }, seed: request.seed, results, startedAt: clock() });
   const nonProduction = models.filter((m) => m.state !== 'APPROVED').map((m) => m.model_id);
   return { run, results, snapshot, production_status: nonProduction.length ? 'NON_PRODUCTION' : 'APPROVED', non_production_models: nonProduction };
 }

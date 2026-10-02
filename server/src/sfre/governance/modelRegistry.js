@@ -110,11 +110,17 @@ export const SFRE_MODELS = Object.freeze([
   'M06.leverage', 'M07.amihud_linear', 'M07.sqrt', 'M08.network', 'M10.cascade', 'M11.tail', 'M12.hmm', 'M13.reverse_stress', 'M15.counterfactual',
   'M20.anomaly_ensemble', 'M30.fundamentals', 'M31.valuation', 'M32.divergence', 'M33.accounting_quality', 'M40.disclosure_rules', 'M41.claim_vs_reality',
   'M50.pump_dump_pattern', 'M51.attention', 'M52.coordination',
+  // vNext: systemic / cross-sector engines, Market Surveillance 2.0 and the Financial System Digital Twin (docs/sfre/VNEXT_SYSTEMIC.md)
+  'M60.cross_sector', 'M61.fx_contagion', 'M62.sovereign_bank_corporate', 'M63.margin_collateral', 'M64.ccp_default_waterfall', 'M65.private_credit', 'M66.ai_crowding',
+  'M67.operational_contagion', 'M68.climate_nature', 'M69.digital_assets',
+  'M70.spoofing', 'M70.layering', 'M70.wash_trading', 'M70.marking_close', 'M70.order_book_anomaly', 'M70.cross_venue', 'M70.coordinated_trading', 'M70.surveillance_summary',
+  'M71.system_twin',
 ]);
+const specDoc = (id) => (/^M(6\d|7\d)\./.test(id) ? 'docs/sfre/VNEXT_SYSTEMIC.md' : 'docs/sfre/MATHEMATICAL_SPECIFICATION.md');
 
 /** Registry with every shipped model registered at DEVELOPMENT; nothing starts above it. */
 export function createDefaultRegistry(version = '1.0.0') {
   const reg = new ModelRegistry();
-  for (const id of SFRE_MODELS) reg.register({ model_id: id, version, spec_ref: `docs/sfre/MATHEMATICAL_SPECIFICATION.md#${id}`, proposed_by: 'sfre-initial-implementation' });
+  for (const id of SFRE_MODELS) reg.register({ model_id: id, version, spec_ref: `${specDoc(id)}#${id}`, proposed_by: 'sfre-initial-implementation' });
   return reg;
 }

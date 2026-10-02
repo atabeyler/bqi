@@ -69,3 +69,8 @@ AI sees only typed, validated engine results (`unwrapForAI` strips raw data). Ou
 ## Persistence
 
 `Store` interface (`append`, `get`, `list`) with in-memory and JSONL-file implementations (tested) and a Postgres DDL in `server/src/sfre/storage/schema.sql` for production. **The Postgres adapter is not exercised by tests in this environment** (no server available); production readiness requires that (see report).
+
+
+## vNext extension
+
+Systemic engines M60–M69, Market Surveillance 2.0 (M70) and the Financial System Digital Twin (M71) are specified in [VNEXT_SYSTEMIC.md](VNEXT_SYSTEMIC.md). They live in `server/src/sfre/engines/systemic/` and `engines/surveillance/`, reuse the existing engines and the result/ledger/registry/PIT contracts unchanged, and are `UNCALIBRATED` / `NON_PRODUCTION` until promoted through governance.

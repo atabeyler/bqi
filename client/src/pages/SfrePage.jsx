@@ -7,6 +7,7 @@ import { sfreApi } from '../services/api.js';
 import RunPanel from '../components/sfre/RunPanel.jsx';
 import DataPanel from '../components/sfre/DataPanel.jsx';
 import ResultsPanel from '../components/sfre/ResultsPanel.jsx';
+import SystemicPanel from '../components/sfre/SystemicPanel.jsx';
 
 // BFI (BOLD Financial Intelligence) console, internally "sfre" (routes, API, docs). Every number shown comes from the server's typed engine results; this page computes nothing.
 const SAMPLE = {
@@ -20,7 +21,7 @@ const SAMPLE = {
   },
   scenario: { priceShocks: { A: 0.1 }, redemptions: { F1: { fraction: 0.3 } } },
 };
-const TABS = ['run', 'data', 'advanced'];
+const TABS = ['run', 'data', 'systemic', 'advanced'];
 
 export default function SfrePage({ user }) {
   const { t } = useLang();
@@ -114,6 +115,7 @@ export default function SfrePage({ user }) {
         <div role="tabpanel" id={`sfre-panel-${tab}`} aria-labelledby={`sfre-tab-${tab}`} className="space-y-4">
           {tab === 'run' && <RunPanel onResult={onResult} setError={setError} />}
           {tab === 'data' && <DataPanel isAdmin={isAdmin} onChanged={refresh} />}
+          {tab === 'systemic' && <SystemicPanel setError={setError} />}
           {tab === 'advanced' && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">{t('sfre_json_hint')}</p>
@@ -124,7 +126,7 @@ export default function SfrePage({ user }) {
         </div>
 
         {error && <div role="alert" className="text-red-300 text-sm break-words">{error}</div>}
-        {out && tab !== 'data' && <ResultsPanel out={out} setError={setError} />}
+        {out && tab !== 'data' && tab !== 'systemic' && <ResultsPanel out={out} setError={setError} />}
       </main>
     </div>
   );
