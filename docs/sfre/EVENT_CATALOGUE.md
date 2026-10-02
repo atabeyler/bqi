@@ -37,6 +37,10 @@ BFI breadth alarmı (`breadth-trial-tefas.md`, referans ilk 30 hafta, zaman dı�
 
 Dürüst yorum: motor krizi **olayla eş zamanlı** işaretledi ve önceki iki haftada yükselişi gösterdi ama alarm seviyesini aşmadı; **bu olayda erken uyarı süresi ≈ 0 hafta**. Bu, tek bir olaya dayalı bir sonuçtur. Faz 2'nin amacı bunu E1–E7 ile (daha uzun TEFAS geçmişi gerekir) tekrarlamaktır. Alarm seviyesinin gevşetilmesi E8'de daha erken sinyal verirdi ama yanlış alarmı artırırdı (bkz. eşik eğrisi).
 
+## İkinci sonuç: kur şoku (E1, E3, E4, E6, E7)
+
+EVDS kurunda basit şok motoru 5 olaydan 4'ünü yakaladı, E6'yı (2023 seçimi, kur kontrollü tutuldu) kaçırdı. Gecikme ve yanlış alarm bu veriyle ölçülemiyor. Ayrıntı ve sınırlar: `results/fx-shock-events.md`.
+
 ## Gerekli veri (olay başına)
 
 | Veri | Kaynak | Durum |
