@@ -5,10 +5,12 @@ import { importTefas } from './tefas.js';
 import { importBistEod, importFreeFloat } from './bist.js';
 import { importHoldings } from './holdings.js';
 import { KapClient, kapConfig } from './kap.js';
+import { EvdsClient, evdsConfig } from './evds.js';
 
 /**
  * SFRE automatic data sync: one place that knows every institution feeding the engine and how each one is reached.
  *
+ *   TCMB EVDS            REST API with the key in TCMB_EVDS_KEY (FX/rate series), fetched by THIS server so any client sees the data  -> mode "api"
  *   KAP / MKK            REST API (needs MKK onboarding: SFRE_KAP_BASE_URL + SFRE_KAP_API_KEY)  -> mode "api"
  *   Borsa Istanbul, TEFAS-licensed feeds, free float, fund holdings
  *                        authorised HTTP file feed (SFRE_FEED_<KIND>_URL [+ _TOKEN])            -> mode "feed"
@@ -55,16 +57,18 @@ export function kindFromFilename(name) {
 }
 
 export class SfreSyncService {
-  constructor({ store, env = process.env, kapClient = null, fetchImpl = globalThis.fetch, log = { info() {}, warn() {} } } = {}) {
+  constructor({ store, env = process.env, kapClient = null, evdsClient = null, fetchImpl = globalThis.fetch, log = { info() {}, warn() {} } } = {}) {
     if (!store?.addObservations) throw new Error('SfreSyncService needs a store with addObservations()');
     this.store = store; this.cfg = syncConfig(env); this.fetchImpl = fetchImpl; this.log = log;
     this.kap = kapClient || new KapClient({ config: kapConfig(env) });
+    this.evds = evdsClient || new EvdsClient({ config: evdsConfig(env), fetchImpl });
     this.last = {}; this.running = null; this.timer = null;
   }
 
   sources() {
     const c = this.cfg;
     return [
+      { id: 'evds', institution: 'TCMB EVDS', mode: 'api', configured: this.evds.isConfigured(), series: this.evds.cfg.series },
       { id: 'kap', institution: 'KAP / MKK', mode: 'api', configured: this.kap.isConfigured() && c.kapParams !== null, note: c.kapParams === null ? 'SFRE_KAP_SYNC_PARAMS is not valid JSON' : undefined },
       ...Object.entries(FEED_KINDS).map(([kind, d]) => ({ id: `feed:${kind}`, institution: d.institution, mode: 'feed', configured: !!c.feeds[kind].url })),
       { id: 'inbox', institution: 'TEFAS public export / manual drops', mode: 'inbox', configured: !!c.inboxDir, dir: c.inboxDir },
@@ -89,6 +93,17 @@ export class SfreSyncService {
       if (!this.kap.isConfigured() || this.cfg.kapParams === null) return { skipped: 'not configured' };
       const r = await this.kap.syncDisclosures(this.cfg.kapParams);
       return { total: r.total, accepted: r.disclosures.length, rejectedByReason: r.rejected, ...(await this.#save({ observations: r.observations, skipped: [], report: { accepted: r.disclosures.length } })) };
+    });
+  }
+
+  /** Pulls the configured EVDS series (default: USD/EUR vs TRY since 2018). Per-series outcome is reported; one bad code does not hide the others. */
+  async syncEvds() {
+    return this.#guard('evds', async () => {
+      if (!this.evds.isConfigured()) return { skipped: 'not configured' };
+      const { observations, perSeries } = await this.evds.sync();
+      const saved = await this.#save({ observations, skipped: [], report: { rows: observations.length } });
+      const failed = Object.entries(perSeries).filter(([, v]) => !v.ok);
+      return { series: perSeries, ...saved, ...(failed.length ? { partial: true } : {}) };
     });
   }
 
@@ -140,6 +155,7 @@ export class SfreSyncService {
   runAll() {
     this.running ||= (async () => {
       const results = {};
+      results.evds = await this.syncEvds();
       results.kap = await this.syncKap();
       for (const kind of Object.keys(FEED_KINDS)) results[`feed:${kind}`] = await this.syncFeed(kind);
       results.inbox = await this.syncInbox();

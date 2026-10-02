@@ -95,7 +95,7 @@ describe('runAll / status', () => {
     const dir = tmp(); writeFileSync(path.join(dir, 'tefas_a.xlsx'), xlsx(tefasRows));
     const svc = new SfreSyncService({ store: new FakeStore(), env: { SFRE_INBOX_DIR: dir } });
     const p1 = svc.runAll(); const p2 = svc.runAll(); expect(p1).toBe(p2);
-    const res = await p1; expect(Object.keys(res)).toEqual(['kap', 'feed:tefas', 'feed:bist-eod', 'feed:free-float', 'feed:holdings', 'inbox']);
+    const res = await p1; expect(Object.keys(res)).toEqual(['evds', 'kap', 'feed:tefas', 'feed:bist-eod', 'feed:free-float', 'feed:holdings', 'inbox']);
     const st = svc.status(); expect(st.running).toBe(false); expect(st.sources.find((s) => s.id === 'inbox').last).toMatchObject({ ok: true, imported: 1 });
     rmSync(dir, { recursive: true, force: true });
   });
