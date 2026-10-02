@@ -1,5 +1,6 @@
 import { detectFxShocks } from '../engines/fxShock.js';
-import { assessSituation, renderReportHtml, LEVELS, LEVEL_TR } from './situationReport.js';
+import { assessSituation, renderReportHtml, reportId, LEVELS, LEVEL_TR } from './situationReport.js';
+import { archiveReport, archiveDailyIfDue } from './archive.js';
 
 export const REPORT_FX_SERIES = 'TP.DK.USD.A.YTL';
 const RECENT_FX_DAYS = 120;
@@ -28,6 +29,7 @@ export function buildReport(inputs, { version = null } = {}) {
   const now = inputs.now || new Date();
   const assessment = assessSituation({ breadth: inputs.breadth, fx: inputs.fx, now });
   const meta = { generatedAt: now.toISOString(), version, models: inputs.models, coverage: inputs.coverage, dataAsOf: assessment.breadth?.date ?? assessment.fx?.lastDate ?? null };
+  meta.documentId = reportId(assessment, meta);
   return { assessment, html: renderReportHtml({ assessment, breadth: inputs.breadth, fx: inputs.fx, meta }), meta };
 }
 
@@ -36,11 +38,20 @@ export function buildReport(inputs, { version = null } = {}) {
  * alarm does not become a stream of identical mails. The last notified level is stored in the "alert_state" collection.
  * `send({subject, text, html, attachments})` is injected (e-mail in production, a fake in tests).
  */
+/** Called after every sync round: one archived snapshot per day, then the level-change check (which also archives and may mail). */
+export async function dailyArchiveAndNotify({ db, pg, registry, send, version = null, now = new Date() }) {
+  if (!db) return { archived: false, reason: 'no database' };
+  const report = buildReport(await gatherReportInputs({ db, pg, registry, now }), { version });
+  const daily = await archiveDailyIfDue(db, { report, now });
+  return { archived: !!daily, notify: await notifyIfChanged({ db, pg, registry, send, version, now }) };
+}
+
 export async function notifyIfChanged({ db, pg, registry, send, force = false, version = null, now = new Date() }) {
   if (!db) return { sent: false, reason: 'no database' };
-  const inputs = await gatherReportInputs({ db, pg, registry, now }); const { assessment, html } = buildReport(inputs, { version });
+  const inputs = await gatherReportInputs({ db, pg, registry, now }); const report = buildReport(inputs, { version }); const { assessment, html } = report;
   const last = (await db.list('alert_state', 1))[0] ?? null;
   const changed = !last || last.level !== assessment.level;
+  if (changed) await archiveReport(db, { report, trigger: 'level-change', now });
   const first = !last && assessment.level === LEVELS.NORMAL; // first ever run at NORMAL: record it, do not mail
   if (!force && (!changed || first)) { if (first) await db.append('alert_state', { id: `st_${now.getTime()}`, level: assessment.level, at: now.toISOString() }); return { sent: false, reason: first ? 'baseline recorded' : 'level unchanged', level: assessment.levelTr }; }
   const dir = last ? (assessment.level > last.level ? 'yükseldi' : 'düştü') : 'ilk değerlendirme';

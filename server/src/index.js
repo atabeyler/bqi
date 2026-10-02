@@ -227,9 +227,9 @@ initDatabase()
       import('./sfre/ingest/syncService.js')
         .then(({ getSharedSync }) => getSharedSync(query, logger))
         .then(async (svc) => {
-          const [{ PgStore }, { notifyIfChanged }, { sendSfreReportEmail }, { ModelRegistry, createDefaultRegistry }] = await Promise.all([import('./sfre/storage/pgStore.js'), import('./sfre/report/service.js'), import('./services/email.js'), import('./sfre/governance/modelRegistry.js')]);
+          const [{ PgStore }, { dailyArchiveAndNotify }, { sendSfreReportEmail }, { ModelRegistry, createDefaultRegistry }] = await Promise.all([import('./sfre/storage/pgStore.js'), import('./sfre/report/service.js'), import('./services/email.js'), import('./sfre/governance/modelRegistry.js')]);
           const db = new PgStore(query);
-          svc.afterRun = async () => { const registry = new ModelRegistry().loadState(await db.loadModels()); const r = registry.list().length ? registry : createDefaultRegistry(); logger.info({ notify: await notifyIfChanged({ db, pg: query, registry: r, send: sendSfreReportEmail }) }, '[SFRE] level notification check'); };
+          svc.afterRun = async () => { const registry = new ModelRegistry().loadState(await db.loadModels()); const r = registry.list().length ? registry : createDefaultRegistry(); logger.info({ report: await dailyArchiveAndNotify({ db, pg: query, registry: r, send: sendSfreReportEmail }) }, '[SFRE] report archive and level check'); };
           return svc;
         })
         .then((svc) => svc.start() && logger.info('[SFRE] automatic data sync started'))

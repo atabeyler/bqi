@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 import { matchesDeclaredFileType } from '../lib/fileSignature.js';
 import { detectFxShocks, scoreEvents } from '../sfre/engines/fxShock.js';
 import { gatherReportInputs, buildReport, notifyIfChanged } from '../sfre/report/service.js';
+import { archiveReport, listReports, getReport, deleteReport } from '../sfre/report/archive.js';
 import { sendSfreReportEmail } from '../services/email.js';
 import { importTefas } from '../sfre/ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
@@ -208,6 +209,31 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
       if (req.query.format === 'json') return res.json({ assessment });
       res.set('Content-Type', 'text/html; charset=utf-8').set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:").send(html);
     } catch (e) { logger.error({ err: e }, '[SFRE] report failed'); res.status(503).json({ error: 'report could not be built' }); }
+  });
+  // Archive: a manual "archive now" snapshot, the list (no bodies), one stored report, and a soft delete (records are append-only: a tombstone hides it).
+  const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" };
+  router.post('/reports', analysisLimiter, requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db) return res.status(409).json({ error: 'the archive needs a database' });
+    try {
+      const report = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null });
+      res.status(201).json({ report: await archiveReport(db, { report, trigger: 'manual', by: req.user.userCode }) });
+    } catch (e) { logger.error({ err: e }, '[SFRE] report archive failed'); res.status(503).json({ error: 'report could not be archived' }); }
+  });
+  router.get('/reports', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
+    if (!db) return res.json({ reports: [] });
+    try { res.json({ reports: await listReports(db) }); } catch (e) { logger.error({ err: e }, '[SFRE] report list failed'); res.status(503).json({ error: 'archive unavailable' }); }
+  });
+  router.get('/reports/:id', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    if (!db) return res.status(404).json({ error: 'not found' });
+    try { const r = await getReport(db, req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); res.set(HTML_HEADERS).send(r.html); }
+    catch (e) { logger.error({ err: e }, '[SFRE] report open failed'); res.status(503).json({ error: 'archive unavailable' }); }
+  });
+  router.delete('/reports/:id', requireRole(ROLES.ADMIN), async (req, res) => {
+    if (!db) return res.status(404).json({ error: 'not found' });
+    try {
+      if (!(await deleteReport(db, { id: req.params.id, by: req.user.userCode }))) return res.status(404).json({ error: 'not found' });
+      logger.warn({ report: req.params.id, by: req.user.userCode }, '[SFRE] archived report deleted'); res.json({ ok: true });
+    } catch (e) { logger.error({ err: e }, '[SFRE] report delete failed'); res.status(503).json({ error: 'delete failed; nothing was removed' }); }
   });
   router.post('/report/notify', requireRole(ROLES.ADMIN), async (req, res) => {
     try { res.json(await notifyIfChanged({ db, pg, registry: state.registry, send: sendSfreReportEmail, force: req.body?.force === true, version: process.env.npm_package_version || null })); }

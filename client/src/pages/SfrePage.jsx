@@ -6,6 +6,7 @@ import { useLang } from '../services/langContext.jsx';
 import { sfreApi } from '../services/api.js';
 import RunPanel from '../components/sfre/RunPanel.jsx';
 import DataPanel from '../components/sfre/DataPanel.jsx';
+import ReportsPanel from '../components/sfre/ReportsPanel.jsx';
 import ResultsPanel from '../components/sfre/ResultsPanel.jsx';
 import SystemicPanel from '../components/sfre/SystemicPanel.jsx';
 
@@ -21,7 +22,7 @@ const SAMPLE = {
   },
   scenario: { priceShocks: { A: 0.1 }, redemptions: { F1: { fraction: 0.3 } } },
 };
-const TABS = ['run', 'data', 'systemic', 'advanced'];
+const TABS = ['run', 'data', 'systemic', 'reports', 'advanced'];
 
 export default function SfrePage({ user }) {
   const { t } = useLang();
@@ -118,6 +119,7 @@ export default function SfrePage({ user }) {
           {tab === 'run' && <RunPanel onResult={onResult} setError={setError} />}
           {tab === 'data' && <DataPanel isAdmin={isAdmin} onChanged={refresh} />}
           {tab === 'systemic' && <SystemicPanel setError={setError} />}
+          {tab === 'reports' && <ReportsPanel isAdmin={isAdmin} setError={setError} />}
           {tab === 'advanced' && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">{t('sfre_json_hint')}</p>

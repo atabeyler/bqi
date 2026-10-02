@@ -152,5 +152,21 @@
   "sfre_storage_size": "Gözlem tablosu / veritabanı boyutu",
   "sfre_fed_title": "Yerel düğümden gelen sonuçlar",
   "sfre_fed_hint": "Ağır veri ve hesaplama yerel makinede kalır; buluta yalnızca sonuçlar (imzalı) gönderilir.",
-  "sfre_fed_empty": "Henüz yerel düğümden sonuç gelmedi."
+  "sfre_fed_empty": "Henüz yerel düğümden sonuç gelmedi.",
+  "sfre_tab_reports": "Raporlar",
+  "sfre_rep_title": "Durum raporları ve arşiv",
+  "sfre_rep_hint": "Güncel durum raporunu açın, arşive alın veya geçmiş raporlara bakın. Raporlar seviye değişince ve günde bir kez kendiliğinden de arşive alınır.",
+  "sfre_rep_live": "Güncel raporu aç",
+  "sfre_rep_archive_now": "Raporu arşive al",
+  "sfre_rep_archived": "Rapor arşive alındı.",
+  "sfre_rep_open": "Aç",
+  "sfre_rep_delete": "Sil",
+  "sfre_rep_delete_confirm": "Silmek için tekrar tıkla",
+  "sfre_rep_deleted": "Rapor silindi.",
+  "sfre_rep_empty": "Arşivde rapor yok.",
+  "sfre_rep_trigger_manual": "elle",
+  "sfre_rep_trigger_daily": "günlük",
+  "sfre_rep_trigger_level-change": "seviye değişti",
+  "sfre_rep_note": "Silinen rapor listeden kalkar; kayıt altyapısı geri yazmaya izin vermediği için silme bir gizleme kaydı olarak tutulur.",
+  "sfre_rep_col_date": "Veri tarihi"
 }

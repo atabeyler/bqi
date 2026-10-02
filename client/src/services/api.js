@@ -132,6 +132,13 @@ async function reqBlob(path) {
   return { blob: await res.blob(), filename };
 }
 
+async function reqText(path) {
+  const jwt = getJWT();
+  const res = await fetch(baseFor(path) + path, { headers: jwt ? { Authorization: `Bearer ${jwt}` } : {}, credentials: 'include' });
+  if (!res.ok) { const err = await res.json().catch(() => ({ error: res.statusText })); throw new Error(err.error || 'API hatası'); }
+  return res.text();
+}
+
 export const api = {
   // 25s, not a snappier few seconds: this endpoint's own bcrypt.compare()
   // has been observed taking 7-12s under real server load, and a timeout
@@ -464,6 +471,10 @@ export const sfreApi = {
   explain: (claimId) => req(`/api/sfre/claims/${encodeURIComponent(claimId)}/explain`),
   universe: (asOf) => req(`/api/sfre/data/universe?asOf=${encodeURIComponent(asOf)}`),
   ingests: () => req('/api/sfre/data/ingests'),
+  reportsList: () => req('/api/sfre/reports'),
+  reportArchive: () => req('/api/sfre/reports', { method: 'POST', body: '{}', timeoutMs: 60000 }),
+  reportDelete: (id) => req(`/api/sfre/reports/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  reportHtml: (id) => reqText(id ? `/api/sfre/reports/${encodeURIComponent(id)}` : '/api/sfre/report'),
   federation: () => req('/api/sfre/federation'),
   federationItem: (id) => req(`/api/sfre/federation/${encodeURIComponent(id)}`),
   purge: () => req('/api/sfre/data/purge', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE-BFI-OBSERVATIONS' }), timeoutMs: 120000 }),

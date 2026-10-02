@@ -152,5 +152,21 @@
   "sfre_storage_size": "Observations table / database size",
   "sfre_fed_title": "Results from local nodes",
   "sfre_fed_hint": "Heavy data and compute stay on the local machine; only signed results reach the cloud.",
-  "sfre_fed_empty": "No results received from a local node yet."
+  "sfre_fed_empty": "No results received from a local node yet.",
+  "sfre_tab_reports": "Reports",
+  "sfre_rep_title": "Situation reports and archive",
+  "sfre_rep_hint": "Open the current situation report, archive it, or browse past reports. Reports are also archived automatically when the level changes and once a day.",
+  "sfre_rep_live": "Open current report",
+  "sfre_rep_archive_now": "Archive report",
+  "sfre_rep_archived": "Report archived.",
+  "sfre_rep_open": "Open",
+  "sfre_rep_delete": "Delete",
+  "sfre_rep_delete_confirm": "Click again to delete",
+  "sfre_rep_deleted": "Report deleted.",
+  "sfre_rep_empty": "No reports in the archive.",
+  "sfre_rep_trigger_manual": "manual",
+  "sfre_rep_trigger_daily": "daily",
+  "sfre_rep_trigger_level-change": "level change",
+  "sfre_rep_note": "A deleted report disappears from the list; because the record store does not allow rewriting, deletion is kept as a hiding record.",
+  "sfre_rep_col_date": "Data date"
 }

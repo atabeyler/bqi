@@ -90,4 +90,5 @@ Sistem seviyesi tespit: bir fon yerine "aynı hafta fonların hangi payı kendi 
 - Seviye: NORMAL / İZLEME / ALARM. İzleme seviyesi (ortalama + 2σ) kabul edilmiş bir eşiktir, kalibre değildir.
 - `POST /api/sfre/report/notify` (admin): seviye son bildirimden farklıysa e-posta gönderir (`{"force":true}` zorlar). Otomatik senkron (`SFRE_SYNC_ENABLED=true`) her turdan sonra bunu çağırır; aynı seviye için tekrar e-posta gitmez, gönderim başarısızsa seviye kaydedilmez ve sonraki turda tekrar denenir.
 - Alıcılar: `SFRE_ALERT_EMAILS` (virgülle ayrılmış), yoksa `CENTER_EMAIL`. E-posta için `RESEND_API_KEY` gerekir; alan adı doğrulanana kadar Resend yalnız hesap sahibinin adresine gönderir.
+- Arşiv: `GET /api/sfre/reports` (liste), `GET /api/sfre/reports/:id` (rapor), `POST /api/sfre/reports` (şimdi arşive al), `DELETE /api/sfre/reports/:id` (admin; kayıt altyapısı geri yazmaya izin vermediği için gizleme kaydı). Kendiliğinden: seviye değişince ve günde bir kez (senkron turunda). Arayüz: BFI sayfası → Raporlar sekmesi.
 - Örnek raporlar: `docs/sfre/samples/` (gerçek haftalık fon verisi; kur ve veri kapsamı bölümleri örnekte yok).

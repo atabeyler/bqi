@@ -152,5 +152,21 @@
   "sfre_storage_size": "Größe Beobachtungstabelle / Datenbank",
   "sfre_fed_title": "Ergebnisse lokaler Knoten",
   "sfre_fed_hint": "Schwere Daten und Berechnung bleiben auf dem lokalen Rechner; nur signierte Ergebnisse erreichen die Cloud.",
-  "sfre_fed_empty": "Noch keine Ergebnisse von einem lokalen Knoten empfangen."
+  "sfre_fed_empty": "Noch keine Ergebnisse von einem lokalen Knoten empfangen.",
+  "sfre_tab_reports": "Berichte",
+  "sfre_rep_title": "Lageberichte und Archiv",
+  "sfre_rep_hint": "Aktuellen Lagebericht öffnen, archivieren oder frühere Berichte ansehen. Berichte werden auch bei Stufenwechsel und einmal täglich automatisch archiviert.",
+  "sfre_rep_live": "Aktuellen Bericht öffnen",
+  "sfre_rep_archive_now": "Bericht archivieren",
+  "sfre_rep_archived": "Bericht archiviert.",
+  "sfre_rep_open": "Öffnen",
+  "sfre_rep_delete": "Löschen",
+  "sfre_rep_delete_confirm": "Zum Löschen erneut klicken",
+  "sfre_rep_deleted": "Bericht gelöscht.",
+  "sfre_rep_empty": "Keine Berichte im Archiv.",
+  "sfre_rep_trigger_manual": "manuell",
+  "sfre_rep_trigger_daily": "täglich",
+  "sfre_rep_trigger_level-change": "Stufenwechsel",
+  "sfre_rep_note": "Ein gelöschter Bericht verschwindet aus der Liste; da der Datenspeicher kein Überschreiben erlaubt, wird das Löschen als Ausblendungseintrag festgehalten.",
+  "sfre_rep_col_date": "Datendatum"
 }

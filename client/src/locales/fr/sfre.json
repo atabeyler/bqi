@@ -152,5 +152,21 @@
   "sfre_storage_size": "Taille table d’observations / base",
   "sfre_fed_title": "Résultats des nœuds locaux",
   "sfre_fed_hint": "Les données lourdes et le calcul restent sur la machine locale ; seuls les résultats signés atteignent le cloud.",
-  "sfre_fed_empty": "Aucun résultat reçu d’un nœud local pour le moment."
+  "sfre_fed_empty": "Aucun résultat reçu d’un nœud local pour le moment.",
+  "sfre_tab_reports": "Rapports",
+  "sfre_rep_title": "Rapports de situation et archives",
+  "sfre_rep_hint": "Ouvrez le rapport de situation actuel, archivez-le ou consultez les rapports passés. Les rapports sont aussi archivés automatiquement lors d’un changement de niveau et une fois par jour.",
+  "sfre_rep_live": "Ouvrir le rapport actuel",
+  "sfre_rep_archive_now": "Archiver le rapport",
+  "sfre_rep_archived": "Rapport archivé.",
+  "sfre_rep_open": "Ouvrir",
+  "sfre_rep_delete": "Supprimer",
+  "sfre_rep_delete_confirm": "Cliquez à nouveau pour supprimer",
+  "sfre_rep_deleted": "Rapport supprimé.",
+  "sfre_rep_empty": "Aucun rapport dans les archives.",
+  "sfre_rep_trigger_manual": "manuel",
+  "sfre_rep_trigger_daily": "quotidien",
+  "sfre_rep_trigger_level-change": "changement de niveau",
+  "sfre_rep_note": "Un rapport supprimé disparaît de la liste ; le stockage interdisant la réécriture, la suppression est conservée comme une trace de masquage.",
+  "sfre_rep_col_date": "Date des données"
 }
