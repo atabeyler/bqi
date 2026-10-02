@@ -168,5 +168,9 @@
   "sfre_rep_trigger_daily": "täglich",
   "sfre_rep_trigger_level-change": "Stufenwechsel",
   "sfre_rep_note": "Ein gelöschter Bericht verschwindet aus der Liste; da der Datenspeicher kein Überschreiben erlaubt, wird das Löschen als Ausblendungseintrag festgehalten.",
-  "sfre_rep_col_date": "Datendatum"
+  "sfre_rep_col_date": "Datendatum",
+  "sfre_rep_pdf": "PDF herunterladen",
+  "sfre_rep_word": "Word herunterladen",
+  "sfre_rep_share": "Teilen",
+  "sfre_rep_file_fail": "Datei konnte nicht erstellt werden"
 }

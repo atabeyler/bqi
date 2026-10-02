@@ -168,5 +168,9 @@
   "sfre_rep_trigger_daily": "يومي",
   "sfre_rep_trigger_level-change": "تغيّر المستوى",
   "sfre_rep_note": "يختفي التقرير المحذوف من القائمة؛ ولأن مخزن السجلات لا يسمح بإعادة الكتابة يُحفظ الحذف كسجل إخفاء.",
-  "sfre_rep_col_date": "تاريخ البيانات"
+  "sfre_rep_col_date": "تاريخ البيانات",
+  "sfre_rep_pdf": "تنزيل PDF",
+  "sfre_rep_word": "تنزيل Word",
+  "sfre_rep_share": "مشاركة",
+  "sfre_rep_file_fail": "تعذّر تجهيز الملف"
 }

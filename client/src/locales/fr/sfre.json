@@ -168,5 +168,9 @@
   "sfre_rep_trigger_daily": "quotidien",
   "sfre_rep_trigger_level-change": "changement de niveau",
   "sfre_rep_note": "Un rapport supprimé disparaît de la liste ; le stockage interdisant la réécriture, la suppression est conservée comme une trace de masquage.",
-  "sfre_rep_col_date": "Date des données"
+  "sfre_rep_col_date": "Date des données",
+  "sfre_rep_pdf": "Télécharger le PDF",
+  "sfre_rep_word": "Télécharger le Word",
+  "sfre_rep_share": "Partager",
+  "sfre_rep_file_fail": "Impossible de préparer le fichier"
 }

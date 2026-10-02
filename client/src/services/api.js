@@ -474,6 +474,7 @@ export const sfreApi = {
   reportsList: () => req('/api/sfre/reports'),
   reportArchive: () => req('/api/sfre/reports', { method: 'POST', body: '{}', timeoutMs: 60000 }),
   reportDelete: (id) => req(`/api/sfre/reports/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  reportBlob: (id, format) => reqBlob(`${id ? `/api/sfre/reports/${encodeURIComponent(id)}` : '/api/sfre/report'}?format=${format}`),
   reportHtml: (id) => reqText(id ? `/api/sfre/reports/${encodeURIComponent(id)}` : '/api/sfre/report'),
   federation: () => req('/api/sfre/federation'),
   federationItem: (id) => req(`/api/sfre/federation/${encodeURIComponent(id)}`),

@@ -19,6 +19,8 @@ import { matchesDeclaredFileType } from '../lib/fileSignature.js';
 import { detectFxShocks, scoreEvents } from '../sfre/engines/fxShock.js';
 import { gatherReportInputs, buildReport, notifyIfChanged } from '../sfre/report/service.js';
 import { archiveReport, listReports, getReport, deleteReport } from '../sfre/report/archive.js';
+import { buildDocModel } from '../sfre/report/docModel.js';
+import { renderReportPdf, renderReportDocx } from '../sfre/report/exportFiles.js';
 import { sendSfreReportEmail } from '../services/email.js';
 import { importTefas } from '../sfre/ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
@@ -205,11 +207,19 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   // Situation report: one level + reasons + printable HTML (open in a browser and print to PDF). ?format=json returns the assessment only.
   router.get('/report', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
     try {
-      const { assessment, html } = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null });
-      if (req.query.format === 'json') return res.json({ assessment });
-      res.set('Content-Type', 'text/html; charset=utf-8').set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:").send(html);
+      const report = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null });
+      if (req.query.format === 'json') return res.json({ assessment: report.assessment });
+      await sendReport(res, { html: report.html, model: report.model }, req.query.format);
     } catch (e) { logger.error({ err: e }, '[SFRE] report failed'); res.status(503).json({ error: 'report could not be built' }); }
   });
+  const FORMATS = { pdf: ['application/pdf', 'pdf'], docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'] };
+  async function sendReport(res, { html, model }, format) {
+    if (!format || format === 'html') return res.set(HTML_HEADERS).send(html);
+    const f = FORMATS[format]; if (!f) return res.status(400).json({ error: 'format must be html, pdf or docx' });
+    if (!model) return res.status(404).json({ error: 'this format is not available for an older archived report' });
+    const buf = format === 'pdf' ? await renderReportPdf(model) : await renderReportDocx(model);
+    res.set({ 'Content-Type': f[0], 'Content-Disposition': `attachment; filename="BFI-Durum-Raporu-${model.id}.${f[1]}"`, 'Cache-Control': 'no-store' }).send(buf);
+  }
   // Archive: a manual "archive now" snapshot, the list (no bodies), one stored report, and a soft delete (records are append-only: a tombstone hides it).
   const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:" };
   router.post('/reports', analysisLimiter, requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
@@ -225,7 +235,7 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
   });
   router.get('/reports/:id', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
     if (!db) return res.status(404).json({ error: 'not found' });
-    try { const r = await getReport(db, req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); res.set(HTML_HEADERS).send(r.html); }
+    try { const r = await getReport(db, req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); await sendReport(res, { html: r.html, model: r.data ? buildDocModel({ assessment: r.data.assessment, breadth: r.data.breadth, fx: r.data.fx, meta: r.data.meta }) : null }, req.query.format); }
     catch (e) { logger.error({ err: e }, '[SFRE] report open failed'); res.status(503).json({ error: 'archive unavailable' }); }
   });
   router.delete('/reports/:id', requireRole(ROLES.ADMIN), async (req, res) => {

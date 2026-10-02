@@ -1,6 +1,7 @@
 import { detectFxShocks } from '../engines/fxShock.js';
 import { assessSituation, renderReportHtml, reportId, LEVELS, LEVEL_TR } from './situationReport.js';
 import { archiveReport, archiveDailyIfDue } from './archive.js';
+import { buildDocModel, snapshotOf } from './docModel.js';
 
 export const REPORT_FX_SERIES = 'TP.DK.USD.A.YTL';
 const RECENT_FX_DAYS = 120;
@@ -30,7 +31,8 @@ export function buildReport(inputs, { version = null } = {}) {
   const assessment = assessSituation({ breadth: inputs.breadth, fx: inputs.fx, now });
   const meta = { generatedAt: now.toISOString(), version, models: inputs.models, coverage: inputs.coverage, dataAsOf: assessment.breadth?.date ?? assessment.fx?.lastDate ?? null };
   meta.documentId = reportId(assessment, meta);
-  return { assessment, html: renderReportHtml({ assessment, breadth: inputs.breadth, fx: inputs.fx, meta }), meta };
+  const parts = { assessment, breadth: inputs.breadth, fx: inputs.fx, meta };
+  return { assessment, html: renderReportHtml(parts), model: buildDocModel(parts), snapshot: snapshotOf(parts), meta };
 }
 
 /**

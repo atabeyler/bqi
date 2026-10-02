@@ -10,12 +10,12 @@ export async function archiveReport(db, { report, trigger = 'manual', by = null,
   if (!TRIGGERS.has(trigger)) throw new Error(`unknown trigger ${trigger}`);
   const a = report.assessment;
   const id = `rp_${report.meta.documentId}`;
-  const record = { id, document_id: report.meta.documentId, level: a.level, level_tr: a.levelTr, drivers: a.drivers, data_as_of: report.meta.dataAsOf, trigger, created_by: by, created_at: now.toISOString(), version: report.meta.version ?? null, html: report.html };
+  const record = { id, document_id: report.meta.documentId, level: a.level, level_tr: a.levelTr, drivers: a.drivers, data_as_of: report.meta.dataAsOf, trigger, created_by: by, created_at: now.toISOString(), version: report.meta.version ?? null, html: report.html, data: report.snapshot ?? null };
   await db.append('reports', record);
   return strip(record);
 }
 
-const strip = ({ html, ...rest }) => { void html; return rest; };
+const strip = ({ html, data, ...rest }) => { void html; return { ...rest, formats: data ? ['html', 'pdf', 'docx'] : ['html'] }; };
 
 async function deletedIds(db) { return new Set((await db.list('report_deleted', 1000)).map((x) => x.report_id)); }
 

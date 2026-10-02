@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLang } from '../../services/langContext.jsx';
 import { sfreApi } from '../../services/api.js';
+import { downloadBlob, shareOrDownloadBlob } from '../../services/shareFile.js';
+
+const MIME = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
 
 const LEVEL_STYLE = { NORMAL: 'text-emerald-300 border-emerald-300/40', 'İZLEME': 'text-amber-300 border-amber-300/40', ALARM: 'text-red-300 border-red-300/50' };
 
@@ -13,6 +16,13 @@ async function openHtml(id) {
     if (w) w.location.href = url; else window.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (e) { w?.close(); throw e; }
+}
+
+// PDF / Word come from the server (embedded fonts, real charts in the PDF); share uses the OS share sheet where available, else a download.
+async function fileAction(id, format, mode, title) {
+  const { blob, filename } = await sfreApi.reportBlob(id, format);
+  const name = filename || `BFI-Durum-Raporu.${format}`;
+  if (mode === 'share') await shareOrDownloadBlob(blob, name, MIME[format], title); else await downloadBlob(blob, name, MIME[format]);
 }
 
 export default function ReportsPanel({ isAdmin, setError }) {
@@ -29,6 +39,7 @@ export default function ReportsPanel({ isAdmin, setError }) {
     setBusy(true); setMsg(''); setError?.('');
     try { await fn(); if (done) setMsg(done); } catch (e) { setError?.(e.message); } finally { setBusy(false); }
   };
+  const file = (id, format, mode) => run(() => fileAction(id, format, mode, t('sfre_rep_title')));
   const archiveNow = () => run(async () => { await sfreApi.reportArchive(); await load(); }, t('sfre_rep_archived'));
   const remove = (id) => {
     if (confirmId !== id) { setConfirmId(id); return; }
@@ -42,6 +53,9 @@ export default function ReportsPanel({ isAdmin, setError }) {
       <p className="text-xs text-slate-400">{t('sfre_rep_hint')}</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} onClick={() => run(() => openHtml(null))} className="border border-cyan-300/50 px-4 py-2 min-h-[44px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_live')}</button>
+        <button type="button" disabled={busy} onClick={() => file(null, 'pdf', 'download')} className="border border-cyan-300/50 px-4 py-2 min-h-[44px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_pdf')}</button>
+        <button type="button" disabled={busy} onClick={() => file(null, 'docx', 'download')} className="border border-cyan-300/50 px-4 py-2 min-h-[44px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_word')}</button>
+        <button type="button" disabled={busy} onClick={() => file(null, 'pdf', 'share')} className="border border-cyan-300/50 px-4 py-2 min-h-[44px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_share')}</button>
         <button type="button" disabled={busy} onClick={archiveNow} className="border border-cyan-300/50 px-4 py-2 min-h-[44px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_archive_now')}</button>
       </div>
       {msg && <div role="status" className="text-sm text-cyan-200">{msg}</div>}
@@ -54,8 +68,13 @@ export default function ReportsPanel({ isAdmin, setError }) {
               <span className="text-slate-400">{t('sfre_rep_col_date')}: {r.data_as_of || '–'}</span>
               <span className="text-slate-400">{t(`sfre_rep_trigger_${r.trigger}`)}</span>
               <span className="text-slate-500 text-xs">#{r.document_id}</span>
-              <span className="ml-auto flex gap-2">
+              <span className="ml-auto flex flex-wrap gap-2">
                 <button type="button" disabled={busy} onClick={() => run(() => openHtml(r.id))} aria-label={`${t('sfre_rep_open')} ${r.document_id}`} className="border border-cyan-300/40 px-3 py-1 min-h-[36px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_open')}</button>
+                {r.formats?.includes('pdf') && (<>
+                  <button type="button" disabled={busy} onClick={() => file(r.id, 'pdf', 'download')} aria-label={`${t('sfre_rep_pdf')} ${r.document_id}`} className="border border-cyan-300/40 px-3 py-1 min-h-[36px] rounded hover:bg-cyan-400/10 disabled:opacity-50">PDF</button>
+                  <button type="button" disabled={busy} onClick={() => file(r.id, 'docx', 'download')} aria-label={`${t('sfre_rep_word')} ${r.document_id}`} className="border border-cyan-300/40 px-3 py-1 min-h-[36px] rounded hover:bg-cyan-400/10 disabled:opacity-50">Word</button>
+                  <button type="button" disabled={busy} onClick={() => file(r.id, 'pdf', 'share')} aria-label={`${t('sfre_rep_share')} ${r.document_id}`} className="border border-cyan-300/40 px-3 py-1 min-h-[36px] rounded hover:bg-cyan-400/10 disabled:opacity-50">{t('sfre_rep_share')}</button>
+                </>)}
                 {isAdmin && <button type="button" disabled={busy} onClick={() => remove(r.id)} aria-label={`${t('sfre_rep_delete')} ${r.document_id}`} className={`border px-3 py-1 min-h-[36px] rounded disabled:opacity-50 ${confirmId === r.id ? 'border-red-300 bg-red-500/20 text-red-200' : 'border-red-300/40 text-red-300 hover:bg-red-500/10'}`}>{confirmId === r.id ? t('sfre_rep_delete_confirm') : t('sfre_rep_delete')}</button>}
               </span>
             </li>

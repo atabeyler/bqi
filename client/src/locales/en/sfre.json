@@ -168,5 +168,9 @@
   "sfre_rep_trigger_daily": "daily",
   "sfre_rep_trigger_level-change": "level change",
   "sfre_rep_note": "A deleted report disappears from the list; because the record store does not allow rewriting, deletion is kept as a hiding record.",
-  "sfre_rep_col_date": "Data date"
+  "sfre_rep_col_date": "Data date",
+  "sfre_rep_pdf": "Download PDF",
+  "sfre_rep_word": "Download Word",
+  "sfre_rep_share": "Share",
+  "sfre_rep_file_fail": "Could not prepare the file"
 }
