@@ -283,3 +283,14 @@ export async function sendVideoMeetingStartedAlert(hostUserCode) {
   });
 }
 
+
+/**
+ * BFI situation report mail: short summary in the body, the full report as an HTML attachment. Recipients come from SFRE_ALERT_EMAILS
+ * (comma separated), falling back to the central mailbox. Note: with the Resend test sender, only the account owner's address receives mail
+ * until a domain is verified.
+ */
+export async function sendSfreReportEmail({ subject, text, html, attachments = [] }) {
+  if (!resend) return { skipped: true, reason: 'RESEND_API_KEY not set' };
+  const to = (process.env.SFRE_ALERT_EMAILS || TO_CENTER).split(',').map((x) => x.trim()).filter(Boolean);
+  return resend.emails.send({ from: FROM, to, subject: String(subject).slice(0, 200), text, html, attachments });
+}

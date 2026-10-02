@@ -83,3 +83,11 @@ Güvenlik: paket HMAC-SHA256 ile imzalanır (zaman damgası + içerik özeti), 1
 ## M21 yaygınlık (breadth) alarmı
 
 Sistem seviyesi tespit: bir fon yerine "aynı hafta fonların hangi payı kendi normalinin altında çıkış yaptı" ölçülür. Alarm seviyesi referans dönemden öğrenilir. Gerçek TEFAS verisinde (zaman dışı 9 hafta) yalnızca 18 ve 25 Eylül 2026 alarm verdi, fonların %10'u eş zamanlı −%10 çıkış yapınca haftayı %98–100 yakaladı (tek fon bazında ~%66). Küçük örneklem: 7 sakin hafta, yanlış alarm oranı kesin ölçülemez. Ayrıntı: `docs/sfre/results/breadth-trial-tefas.md`.
+
+## Durum raporu ve e-posta bildirimi
+
+- `GET /api/sfre/report` (admin/analist oturumu): tek sayfalık profesyonel rapor (HTML). Tarayıcıda açıp Yazdır → PDF ile belge alınır. `?format=json` yalnız değerlendirmeyi verir.
+- Seviye: NORMAL / İZLEME / ALARM. İzleme seviyesi (ortalama + 2σ) kabul edilmiş bir eşiktir, kalibre değildir.
+- `POST /api/sfre/report/notify` (admin): seviye son bildirimden farklıysa e-posta gönderir (`{"force":true}` zorlar). Otomatik senkron (`SFRE_SYNC_ENABLED=true`) her turdan sonra bunu çağırır; aynı seviye için tekrar e-posta gitmez, gönderim başarısızsa seviye kaydedilmez ve sonraki turda tekrar denenir.
+- Alıcılar: `SFRE_ALERT_EMAILS` (virgülle ayrılmış), yoksa `CENTER_EMAIL`. E-posta için `RESEND_API_KEY` gerekir; alan adı doğrulanana kadar Resend yalnız hesap sahibinin adresine gönderir.
+- Örnek raporlar: `docs/sfre/samples/` (gerçek haftalık fon verisi; kur ve veri kapsamı bölümleri örnekte yok).

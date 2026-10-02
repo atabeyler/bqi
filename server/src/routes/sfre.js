@@ -17,6 +17,8 @@ import multer from 'multer';
 import { createHash } from 'node:crypto';
 import { matchesDeclaredFileType } from '../lib/fileSignature.js';
 import { detectFxShocks, scoreEvents } from '../sfre/engines/fxShock.js';
+import { gatherReportInputs, buildReport, notifyIfChanged } from '../sfre/report/service.js';
+import { sendSfreReportEmail } from '../services/email.js';
 import { importTefas } from '../sfre/ingest/tefas.js';
 import { importBistEod, importFreeFloat } from '../sfre/ingest/bist.js';
 import { importHoldings } from '../sfre/ingest/holdings.js';
@@ -198,6 +200,18 @@ export function createSfreRouter({ store = null, pg = null, ledger = null, regis
     const seen = new Map(); for (const x of r.rows) seen.set(x.d, Number(x.value));
     const det = detectFxShocks([...seen].map(([date, value]) => ({ date, value })));
     res.json({ series: code, ...det, ...scoreEvents(det.flags) });
+  });
+  // Situation report: one level + reasons + printable HTML (open in a browser and print to PDF). ?format=json returns the assessment only.
+  router.get('/report', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (req, res) => {
+    try {
+      const { assessment, html } = buildReport(await gatherReportInputs({ db, pg, registry: state.registry }), { version: process.env.npm_package_version || null });
+      if (req.query.format === 'json') return res.json({ assessment });
+      res.set('Content-Type', 'text/html; charset=utf-8').set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:").send(html);
+    } catch (e) { logger.error({ err: e }, '[SFRE] report failed'); res.status(503).json({ error: 'report could not be built' }); }
+  });
+  router.post('/report/notify', requireRole(ROLES.ADMIN), async (req, res) => {
+    try { res.json(await notifyIfChanged({ db, pg, registry: state.registry, send: sendSfreReportEmail, force: req.body?.force === true, version: process.env.npm_package_version || null })); }
+    catch (e) { logger.error({ err: e }, '[SFRE] report notify failed'); res.status(503).json({ error: 'notification failed' }); }
   });
   router.get('/data/ingests', requireRole(ROLES.ADMIN, ROLES.ANALYST), async (_req, res) => {
     if (!db) return res.json({ ingests: [] });

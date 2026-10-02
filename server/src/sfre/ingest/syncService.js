@@ -159,6 +159,7 @@ export class SfreSyncService {
       results.kap = await this.syncKap();
       for (const kind of Object.keys(FEED_KINDS)) results[`feed:${kind}`] = await this.syncFeed(kind);
       results.inbox = await this.syncInbox();
+      try { await this.afterRun?.(results); } catch (e) { this.log.warn({ err: e }, '[SFRE sync] afterRun hook failed'); } // e.g. level-change notification; never fails the sync
       return results;
     })().finally(() => { this.running = null; });
     return this.running;
