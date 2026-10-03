@@ -9,7 +9,7 @@ const app = createApp();
 
 app.listen(config.port, () => {
   logger.info({ port: config.port, env: config.nodeEnv }, 'BCI API listening');
-  const ping = startSelfPing({ path: '/api/v1/health', log: logger }); // off unless ENABLE_SELF_PING=true
+  const ping = startSelfPing({ path: '/api/v1/health/live', log: logger }); // off unless ENABLE_SELF_PING=true
   if (ping) logger.info({ url: ping.url }, '[selfPing] keeping the Render instance warm');
 });
 

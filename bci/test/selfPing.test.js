@@ -13,9 +13,9 @@ describe('selfPing', () => {
     vi.useFakeTimers();
     const calls = []; let fail = false; const warn = vi.fn();
     const fetchImpl = vi.fn(async (url) => { calls.push(url); if (fail) throw new Error('boom'); return { ok: true }; });
-    const p = startSelfPing({ env: { RENDER_EXTERNAL_URL: 'https://x.onrender.com/', ENABLE_SELF_PING: 'true' }, fetchImpl, intervalMs: 1000, path: '/api/v1/health', log: { warn } });
-    expect(p.url).toBe('https://x.onrender.com/api/v1/health');
-    await vi.advanceTimersByTimeAsync(3100); expect(calls).toHaveLength(3); expect(new Set(calls)).toEqual(new Set(['https://x.onrender.com/api/v1/health']));
+    const p = startSelfPing({ env: { RENDER_EXTERNAL_URL: 'https://x.onrender.com/', ENABLE_SELF_PING: 'true' }, fetchImpl, intervalMs: 1000, path: '/api/v1/health/live', log: { warn } });
+    expect(p.url).toBe('https://x.onrender.com/api/v1/health/live');
+    await vi.advanceTimersByTimeAsync(3100); expect(calls).toHaveLength(3); expect(new Set(calls)).toEqual(new Set(['https://x.onrender.com/api/v1/health/live']));
     fail = true; await vi.advanceTimersByTimeAsync(1000); expect(warn).toHaveBeenCalledTimes(1);
     p.stop(); await vi.advanceTimersByTimeAsync(5000); expect(calls).toHaveLength(4);
     vi.useRealTimers();
