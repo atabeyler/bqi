@@ -113,3 +113,11 @@ describe('BQI_DEMO_WEB_RESEARCH', () => {
     expect(context).toBe('');
   });
 });
+
+describe('buildSearchQuery', () => {
+  it('turns a natural-language brief into a short keyword query', async () => {
+    const { buildSearchQuery } = await import('./analysisResearch.js');
+    const q = buildSearchQuery('Kısa zaman içinde turkiyede yaşanmakta olan fon dolandırıcılığı konusu ile ilgili olası sonuçlar ve yapılması gerekenler rapor yaz');
+    expect(q).toBe('turkiyede fon dolandırıcılığı');
+  });
+});

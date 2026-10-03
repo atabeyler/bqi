@@ -35,6 +35,26 @@ export function isDemoWebResearchEnabled() {
   return process.env.BQI_DEMO_WEB_RESEARCH === 'true';
 }
 
+// Search engines (Google News RSS in particular) return nothing for a full
+// natural-language brief -- confirmed on a real "fon dolandırıcılığı" report
+// whose 150-char sentence got zero news hits while the keyword form returned
+// dozens. Strips instruction/filler words and keeps the first few content
+// words so the query looks like what a person would type into a search box.
+const QUERY_STOPWORDS = new Set([
+  'kısa', 'zaman', 'içinde', 'ile', 'ilgili', 'olası', 'olasi', 'sonuçlar', 'sonuclar', 've', 'veya', 'için', 'icin',
+  'yapılması', 'yapilmasi', 'gerekenler', 'gereken', 'rapor', 'yaz', 'hazırla', 'hazirla', 'analiz', 'konusu', 'konusu',
+  'olan', 'olarak', 'bir', 'bu', 'şu', 'da', 'de', 'ki', 'mi', 'mı', 'yaşanmakta', 'yasanmakta', 'konusunda', 'hakkında',
+  'hakkinda', 'lütfen', 'lutfen', 'detaylı', 'detayli', 'bana', 'bir', 'en',
+]);
+
+export function buildSearchQuery(topic, maxWords = 7) {
+  const words = String(topic || '')
+    .replace(/[()[\]{}"'“”‘’:;,!?\/\\]+/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !QUERY_STOPWORDS.has(w.toLocaleLowerCase('tr-TR')));
+  return [...new Set(words)].slice(0, maxWords).join(' ');
+}
+
 export async function gatherResearchContext(category, topic, depth = 'standart', classification = null) {
   // 'hizli' (see routes/analysis.js's depth setting) skips the network
   // round-trip entirely instead of just formatting an empty result, since
@@ -51,7 +71,7 @@ export async function gatherResearchContext(category, topic, depth = 'standart',
   const group = getCategoryGroup(category);
   const sources = CATEGORY_GROUP_SOURCES[group];
   const siteFilter = [...sources.local, ...sources.international].map((d) => `site:${d}`).join(' OR ');
-  const topicQuery = (topic || '').slice(0, 150);
+  const topicQuery = buildSearchQuery(topic) || (topic || '').slice(0, 150);
 
   const queries = [topicQuery, siteFilter ? `${topicQuery} mevzuat kanun yönetmelik ${siteFilter}` : null].filter(Boolean);
 
