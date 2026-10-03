@@ -146,6 +146,8 @@ export async function initDatabase() {
   // been updated to pass one) -- readers must still fall back to the
   // category floor for NULL, never treat NULL as PUBLIC.
   await p.query(`ALTER TABLE analyses ADD COLUMN IF NOT EXISTS data_classification VARCHAR(20);`);
+  await p.query(`ALTER TABLE analyses ADD COLUMN IF NOT EXISTS research_status VARCHAR(30);`);
+  await p.query(`ALTER TABLE analyses ADD COLUMN IF NOT EXISTS research_source_count INTEGER;`);
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS devices (

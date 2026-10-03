@@ -56,16 +56,25 @@ export function buildSearchQuery(topic, maxWords = 7) {
 }
 
 export async function gatherResearchContext(category, topic, depth = 'standart', classification = null) {
+  return (await gatherResearchDetailed(category, topic, depth, classification)).context;
+}
+
+// Same as gatherResearchContext() but also reports WHY the context is empty
+// (status) and how many sources came back, so the route can warn the reader
+// and persist it on the analysis row instead of the report silently being
+// written from model memory. status: 'ok' | 'empty' | 'skipped_depth' |
+// 'skipped_classification' | 'error'.
+export async function gatherResearchDetailed(category, topic, depth = 'standart', classification = null) {
   // 'hizli' (see routes/analysis.js's depth setting) skips the network
   // round-trip entirely instead of just formatting an empty result, since
   // the whole point of the fast tier is not waiting on web search.
-  if (depth === 'hizli') return '';
+  if (depth === 'hizli') return { context: '', status: 'skipped_depth', sourceCount: 0 };
   if (
     !isDemoWebResearchEnabled() &&
     classification && WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(String(classification).toUpperCase())
   ) {
     logger.info({ classification }, '[WebResearch] Skipped: classification above PUBLIC/INTERNAL');
-    return '';
+    return { context: '', status: 'skipped_classification', sourceCount: 0 };
   }
 
   const group = getCategoryGroup(category);
@@ -91,9 +100,11 @@ export async function gatherResearchContext(category, topic, depth = 'standart',
       logger.warn({ err: e?.message || String(e), query: q }, '[WebResearch] researchWeb() threw for query -- treated as no results');
       return [];
     })))).flat();
-    return formatResearchContext(results);
+    const context = formatResearchContext(results);
+    logger.info({ sourceCount: results.length, queries }, '[WebResearch] research finished');
+    return { context, status: context ? 'ok' : 'empty', sourceCount: results.length };
   } catch (e) {
     logger.warn({ err: e }, '[WebResearch] generate search error');
-    return '';
+    return { context: '', status: 'error', sourceCount: 0 };
   }
 }

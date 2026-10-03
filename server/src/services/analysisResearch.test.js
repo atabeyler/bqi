@@ -121,3 +121,23 @@ describe('buildSearchQuery', () => {
     expect(q).toBe('turkiyede fon dolandırıcılığı');
   });
 });
+
+describe('gatherResearchDetailed', () => {
+  it('reports ok + source count when results come back', async () => {
+    const { gatherResearchDetailed } = await import('./analysisResearch.js');
+    const r = await gatherResearchDetailed('ekonomi', 'enflasyon', 'standart', 'INTERNAL');
+    expect(r.status).toBe('ok');
+    expect(r.sourceCount).toBeGreaterThan(0);
+  });
+  it('reports empty when no results', async () => {
+    researchWebMock.mockResolvedValue([]);
+    const { gatherResearchDetailed } = await import('./analysisResearch.js');
+    const r = await gatherResearchDetailed('ekonomi', 'enflasyon', 'standart', 'INTERNAL');
+    expect(r.status).toBe('empty');
+  });
+  it('reports why research was skipped', async () => {
+    const { gatherResearchDetailed } = await import('./analysisResearch.js');
+    expect((await gatherResearchDetailed('savunma', 'x', 'hizli')).status).toBe('skipped_depth');
+    expect((await gatherResearchDetailed('savunma', 'x', 'derin', 'CONFIDENTIAL')).status).toBe('skipped_classification');
+  });
+});
