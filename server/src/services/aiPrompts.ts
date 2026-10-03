@@ -532,7 +532,7 @@ function getCategoryExpertise(category: string): string {
 
     ekonomi: `
 **STRATEJIK EKONOMI VE MALI ISTIHBARAT UZMANI**
-- GSYiH: ~1,1 trilyon USD (2024), buyume hedefi %4-5
+- GSYiH: ~1,1 trilyon USD (2024 referans degeri, GUNCEL DEGIL -- [CANLI WEB ARASTIRMASI] veya bilinen guncel veri varsa onu kullan; yoksa rakami 'tahmini/kaynaksiz' diye etiketle), buyume hedefi %4-5
 - Doviz rezervleri ve TCMB durumu
 - Enflasyon yonetimi: Faiz politikasi
 - Cari acik: Temel baski kaynaklari

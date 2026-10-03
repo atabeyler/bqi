@@ -31,7 +31,7 @@ import { parseScenarioFile, parseOptimizationFile } from '../services/scenarioDa
 import { sheetToText } from '../services/tableParsing.js';
 import { isWeatherQuery, getLiveWeatherReply } from '../services/weather.js';
 import { researchWeb, formatResearchContext } from '../services/webResearch.js';
-import { gatherResearchContext, isDemoWebResearchEnabled } from '../services/analysisResearch.js';
+import { gatherResearchDetailed, isDemoWebResearchEnabled } from '../services/analysisResearch.js';
 import { resolveResultSource } from '../services/analysisOrchestrator.js';
 import { buildEvidenceItems } from '../services/evidence.js';
 import { scanFile } from '../lib/fileScan.js';
@@ -309,6 +309,11 @@ const VALID_DEPTHS = ['hizli', 'standart', 'derin'];
 // the output budget and unlocks aiPrompts.ts's deepModeBlock (national/
 // cross-entity scope expansion + cross-section consistency) -- distinct
 // from 'standart' now, not just a research-skip guard.
+const RESEARCH_NOTICES = {
+  empty: '**NOT:** Bu rapor için canlı web araştırmasında doğrulanmış kaynak bulunamadı; rapordaki sayısal değerler ve olay ayrıntıları kaynaksız model tahminidir, karar öncesi doğrulanmalıdır.',
+  error: '**NOT:** Canlı web araştırması teknik nedenle yapılamadı; rapordaki sayısal değerler ve olay ayrıntıları kaynaksız model tahminidir, karar öncesi doğrulanmalıdır.',
+  skipped_classification: '**NOT:** Veri sınıfı nedeniyle canlı web araştırması yapılmadı; rapordaki sayısal değerler ve olay ayrıntıları kaynaksız model tahminidir, karar öncesi doğrulanmalıdır.',
+};
 const DEPTH_MAX_OUTPUT_TOKENS = { hizli: 3000, derin: 50000 };
 
 router.post('/generate', authMiddleware, analysisLimiter, async (req, res) => {
@@ -344,7 +349,8 @@ router.post('/generate', authMiddleware, analysisLimiter, async (req, res) => {
       ? getQuantumSystemPrompt(category, { hasRealTransactions, hasRealScenarios, hasRealOptimization }, lang, depth)
       : getSystemPromptForCategory(category, lang, depth);
 
-    const webContext = await gatherResearchContext(category, prompt, depth, requestedClassification);
+    const research = await gatherResearchDetailed(category, prompt, depth, requestedClassification);
+    const webContext = research.context;
 
     const basePrompt = `${prompt}
 
@@ -408,6 +414,11 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
     });
 
     const responseTitle = title || prompt.slice(0, 80);
+    // Deterministic reader-facing notice (not left to the model, which a
+    // fallback provider may ignore): a report with no live sources must say
+    // so, since figures in it are then model recall, not verified data.
+    const researchNotice = RESEARCH_NOTICES[research.status];
+    const reportContent = researchNotice ? `${researchNotice}\n\n${finalContent}` : finalContent;
     let analysisId = null;
     if (isDbConfigured()) {
       const [row] = await getDb()
@@ -416,8 +427,10 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
           userCode,
           category,
           title: responseTitle,
-          content: finalContent,
+          content: reportContent,
           aiProvider: result.provider,
+          researchStatus: research.status,
+          researchSourceCount: research.sourceCount,
           priority,
           depth,
           dataClassification: requestedClassification,
@@ -437,14 +450,14 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
         generateReportDocx({
           category,
           title: responseTitle,
-          content: finalContent,
+          content: reportContent,
           userCode,
           aiProvider: result.provider
         }),
         generateReportPdf({
           category,
           title: responseTitle,
-          content: finalContent,
+          content: reportContent,
           userCode,
           aiProvider: result.provider
         }),
@@ -506,7 +519,8 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
       // model_name columns.
       _realProvider: result.realProvider,
       title: responseTitle,
-      content: finalContent,
+      content: reportContent,
+      research: { status: research.status, sourceCount: research.sourceCount },
       priority,
       depth,
       evidence,
@@ -587,14 +601,14 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
         userCode,
         category,
         title: responseTitle,
-        content: finalContent,
+        content: reportContent,
         aiProvider: result.provider,
       });
     }
 
     if (hardwarePending) {
       scheduleHardwareVerification({
-        io: req.app.get('io'), analysisId, userCode, hardwareScenarios, hardwareTransactions, hardwareOptimization, finalContent,
+        io: req.app.get('io'), analysisId, userCode, hardwareScenarios, hardwareTransactions, hardwareOptimization, finalContent: reportContent,
       });
     }
   } catch (err) {

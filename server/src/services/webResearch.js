@@ -81,20 +81,39 @@ async function researchGoogleNews(q) {
   return parseGoogleNewsRss(await res.text());
 }
 
+// Google News answers from datacenter IPs; DuckDuckGo's HTML endpoint times
+// out from Render. News is therefore primary and DuckDuckGo only a
+// supplement: when news already has enough results we return immediately
+// instead of waiting out DuckDuckGo's timeout on every report.
+const NEWS_SUFFICIENT = 4;
+
 export async function researchWeb(query) {
   const q = (query || '').trim();
   if (!q) return [];
-  const settled = await Promise.allSettled([researchDuckDuckGo(q), researchGoogleNews(q)]);
-  const [ddg, news] = settled;
-  if (ddg.status === 'rejected') {
-    logger.warn({ err: ddg.reason?.message || String(ddg.reason), query: q }, '[WebResearch] DuckDuckGo failed, relying on Google News fallback');
+  const ddgPromise = researchDuckDuckGo(q);
+  const newsPromise = researchGoogleNews(q);
+  ddgPromise.catch(() => {}); // avoid unhandled rejection if we return before it settles
+  let news = [];
+  let newsErr = null;
+  try {
+    news = await newsPromise;
+  } catch (e) {
+    newsErr = e;
+    logger.warn({ err: e?.message || String(e), query: q }, '[WebResearch] Google News failed');
   }
-  if (news.status === 'rejected') {
-    logger.warn({ err: news.reason?.message || String(news.reason), query: q }, '[WebResearch] Google News fallback failed');
+  let ddg = [];
+  let ddgErr = null;
+  if (news.length < NEWS_SUFFICIENT) {
+    try {
+      ddg = await ddgPromise;
+    } catch (e) {
+      ddgErr = e;
+      logger.warn({ err: e?.message || String(e), query: q }, '[WebResearch] DuckDuckGo failed');
+    }
   }
-  if (ddg.status === 'rejected' && news.status === 'rejected') throw ddg.reason;
+  if (newsErr && ddgErr) throw ddgErr;
   const seen = new Set();
-  return [...(ddg.value || []), ...(news.value || [])]
+  return [...news, ...ddg]
     .filter((r) => (seen.has(r.url) ? false : seen.add(r.url)))
     .slice(0, 8);
 }
@@ -106,7 +125,7 @@ async function researchDuckDuckGo(q) {
       'User-Agent': 'Mozilla/5.0 BQI/1.0',
       'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
     },
-    signal: AbortSignal.timeout(6000),
+    signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) throw new Error(`search HTTP ${res.status}`);
   const html = await res.text();

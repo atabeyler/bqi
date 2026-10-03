@@ -32,6 +32,10 @@ export const analyses = pgTable('analyses', {
   // category floor for NULL, never treat NULL as PUBLIC -- see
   // history.js's blockedByClassification().
   dataClassification: varchar('data_classification', { length: 20 }),
+  // Live web research outcome at generation time (see analysisResearch.js)
+  // -- NULL for rows written before this column existed.
+  researchStatus: varchar('research_status', { length: 30 }),
+  researchSourceCount: integer('research_source_count'),
   createdAt: timestamp('created_at').defaultNow(),
   // Desktop/multi-device sync metadata -- see routes/sync.js and
   // services/database.js for the matching ALTER TABLE statements.

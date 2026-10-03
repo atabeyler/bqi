@@ -35,23 +35,52 @@ export function isDemoWebResearchEnabled() {
   return process.env.BQI_DEMO_WEB_RESEARCH === 'true';
 }
 
+// Search engines (Google News RSS in particular) return nothing for a full
+// natural-language brief -- confirmed on a real "fon dolandırıcılığı" report
+// whose 150-char sentence got zero news hits while the keyword form returned
+// dozens. Strips instruction/filler words and keeps the first few content
+// words so the query looks like what a person would type into a search box.
+const QUERY_STOPWORDS = new Set([
+  'kısa', 'zaman', 'içinde', 'ile', 'ilgili', 'olası', 'olasi', 'sonuçlar', 'sonuclar', 've', 'veya', 'için', 'icin',
+  'yapılması', 'yapilmasi', 'gerekenler', 'gereken', 'rapor', 'yaz', 'hazırla', 'hazirla', 'analiz', 'konusu', 'konusu',
+  'olan', 'olarak', 'bir', 'bu', 'şu', 'da', 'de', 'ki', 'mi', 'mı', 'yaşanmakta', 'yasanmakta', 'konusunda', 'hakkında',
+  'hakkinda', 'lütfen', 'lutfen', 'detaylı', 'detayli', 'bana', 'bir', 'en',
+]);
+
+export function buildSearchQuery(topic, maxWords = 7) {
+  const words = String(topic || '')
+    .replace(/[()[\]{}"'“”‘’:;,!?\/\\]+/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !QUERY_STOPWORDS.has(w.toLocaleLowerCase('tr-TR')));
+  return [...new Set(words)].slice(0, maxWords).join(' ');
+}
+
 export async function gatherResearchContext(category, topic, depth = 'standart', classification = null) {
+  return (await gatherResearchDetailed(category, topic, depth, classification)).context;
+}
+
+// Same as gatherResearchContext() but also reports WHY the context is empty
+// (status) and how many sources came back, so the route can warn the reader
+// and persist it on the analysis row instead of the report silently being
+// written from model memory. status: 'ok' | 'empty' | 'skipped_depth' |
+// 'skipped_classification' | 'error'.
+export async function gatherResearchDetailed(category, topic, depth = 'standart', classification = null) {
   // 'hizli' (see routes/analysis.js's depth setting) skips the network
   // round-trip entirely instead of just formatting an empty result, since
   // the whole point of the fast tier is not waiting on web search.
-  if (depth === 'hizli') return '';
+  if (depth === 'hizli') return { context: '', status: 'skipped_depth', sourceCount: 0 };
   if (
     !isDemoWebResearchEnabled() &&
     classification && WEB_RESEARCH_BLOCKED_CLASSIFICATIONS.has(String(classification).toUpperCase())
   ) {
     logger.info({ classification }, '[WebResearch] Skipped: classification above PUBLIC/INTERNAL');
-    return '';
+    return { context: '', status: 'skipped_classification', sourceCount: 0 };
   }
 
   const group = getCategoryGroup(category);
   const sources = CATEGORY_GROUP_SOURCES[group];
   const siteFilter = [...sources.local, ...sources.international].map((d) => `site:${d}`).join(' OR ');
-  const topicQuery = (topic || '').slice(0, 150);
+  const topicQuery = buildSearchQuery(topic) || (topic || '').slice(0, 150);
 
   const queries = [topicQuery, siteFilter ? `${topicQuery} mevzuat kanun yönetmelik ${siteFilter}` : null].filter(Boolean);
 
@@ -71,9 +100,11 @@ export async function gatherResearchContext(category, topic, depth = 'standart',
       logger.warn({ err: e?.message || String(e), query: q }, '[WebResearch] researchWeb() threw for query -- treated as no results');
       return [];
     })))).flat();
-    return formatResearchContext(results);
+    const context = formatResearchContext(results);
+    logger.info({ sourceCount: results.length, queries }, '[WebResearch] research finished');
+    return { context, status: context ? 'ok' : 'empty', sourceCount: results.length };
   } catch (e) {
     logger.warn({ err: e }, '[WebResearch] generate search error');
-    return '';
+    return { context: '', status: 'error', sourceCount: 0 };
   }
 }
