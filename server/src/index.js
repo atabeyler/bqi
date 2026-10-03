@@ -7,6 +7,7 @@ import path from 'path';
 import pinoHttp from 'pino-http';
 import { fileURLToPath } from 'url';
 import { logger, HTTP_LOG_REDACT } from './lib/logger.js';
+import { startSelfPing } from './lib/selfPing.js';
 import { logEnvValidationWarnings } from './lib/validateEnv.js';
 import { attachSentryErrorHandler } from './lib/sentry.js';
 import { initDatabase, initMemoryTables, query } from './services/database.js';
@@ -215,6 +216,8 @@ const PORT = process.env.PORT || 10000;
 // null and degrade gracefully until initDatabase() below resolves.
 server.listen(PORT, () => {
   logger.info({ port: PORT }, 'BQI server running');
+  const ping = startSelfPing({ log: logger });
+  if (ping) logger.info({ url: ping.url }, '[selfPing] keeping the Render instance warm');
 });
 
 initDatabase()

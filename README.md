@@ -1,6 +1,6 @@
 # BQI
 
-![Version](https://img.shields.io/badge/version-3.3.106-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-3.3.107-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Quantum-Based National Decision Support System**  
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -323,6 +323,7 @@ The bare browser WebAuthn API (`navigator.credentials`) is not reliably usable f
 |---|---|
 | `APP_URL` | Live application URL used by CORS/approval flows |
 | `LOG_LEVEL` | pino log level |
+| `SELF_PING` | On Render the server pings its own public `/api/health` every 150 s so the free plan does not spin it down (Render injects `RENDER_EXTERNAL_URL`); set `off` to disable. Render's free plan gives about 750 instance hours a month across all free services, so keep only one service awake |
 | `RESEND_API_KEY` | Enables approval/report email delivery |
 | `CENTER_EMAIL` | Central notification/report mailbox |
 | `ADMIN_SEED_PASSWORD`, `ADMIN_SEED_USER_CODE`, `ADMIN_SEED_NICKNAME`, `ADMIN_SEED_RESET` | First admin bootstrap account configuration; reset is a one-time recovery switch |

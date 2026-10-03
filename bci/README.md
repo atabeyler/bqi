@@ -1,6 +1,6 @@
 # BCI — BOLD Cyber Intelligence Platform
 
-![Version](https://img.shields.io/badge/version-0.1.141-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-0.1.142-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Autonomous Cyber Security Discovery & Decision-Support Engine**
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
