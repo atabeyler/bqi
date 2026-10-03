@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDuckDuckGoHtml, formatResearchContext } from './webResearch.js';
+import { parseDuckDuckGoHtml, parseGoogleNewsRss, formatResearchContext } from './webResearch.js';
 
 // Fixture trimmed from a real DuckDuckGo HTML response (fetched directly,
 // outside Render, for a real query) -- kept close to the actual markup
@@ -83,5 +83,25 @@ describe('formatResearchContext', () => {
     const context = formatResearchContext(results);
     expect(context).toContain('This is the real snippet body for article one');
     expect(context).not.toContain('Özet: -');
+  });
+});
+
+describe('parseGoogleNewsRss', () => {
+  const xml = `<rss><channel>
+    <item><title>TCMB faizi sabit tuttu - Ekonomi Haber</title><link>https://news.google.com/rss/articles/abc</link><description>&lt;a href="x"&gt;Faiz kararı&lt;/a&gt; açıklandı</description><source url="https://x.com">Ekonomi Haber</source></item>
+    <item><title></title><link>https://news.google.com/rss/articles/skip</link></item>
+  </channel></rss>`;
+
+  it('extracts title, url and snippet, skipping items without a title', () => {
+    const r = parseGoogleNewsRss(xml);
+    expect(r).toHaveLength(1);
+    expect(r[0].title).toBe('TCMB faizi sabit tuttu - Ekonomi Haber');
+    expect(r[0].url).toBe('https://news.google.com/rss/articles/abc');
+    expect(r[0].snippet).toContain('Ekonomi Haber');
+    expect(r[0].snippet).toContain('Faiz kararı açıklandı');
+  });
+
+  it('returns an empty array for a feed with no items', () => {
+    expect(parseGoogleNewsRss('<rss><channel></channel></rss>')).toEqual([]);
   });
 });

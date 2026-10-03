@@ -40,16 +40,73 @@ export function parseDuckDuckGoHtml(html) {
   return out;
 }
 
+function decodeXml(s = '') {
+  return s
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+// Google News RSS fallback. DuckDuckGo's HTML endpoint times out from
+// Render's datacenter egress IPs (confirmed in production logs: both
+// queries of a report hit the 8s AbortSignal), so a report was generated
+// with no web grounding at all. The RSS feed is a plain public endpoint
+// that answers from datacenter IPs and is already news-shaped.
+export function parseGoogleNewsRss(xml) {
+  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
+  const out = [];
+  for (const m of items) {
+    if (out.length >= 6) break;
+    const block = m[1];
+    const title = stripHtml(decodeXml((block.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || ''));
+    const url = decodeXml((block.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '').trim();
+    const desc = stripHtml(decodeXml((block.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || ''));
+    const source = stripHtml(decodeXml((block.match(/<source[^>]*>([\s\S]*?)<\/source>/i) || [])[1] || ''));
+    if (!title || !url) continue;
+    out.push({ title, url, snippet: source ? `${source}: ${desc}`.slice(0, 300) : desc.slice(0, 300) });
+  }
+  return out;
+}
+
+async function researchGoogleNews(q) {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=tr&gl=TR&ceid=TR:tr`;
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 BQI/1.0', 'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`news HTTP ${res.status}`);
+  return parseGoogleNewsRss(await res.text());
+}
+
 export async function researchWeb(query) {
   const q = (query || '').trim();
   if (!q) return [];
-  const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(q)}&kl=tr-tr`;
+  const settled = await Promise.allSettled([researchDuckDuckGo(q), researchGoogleNews(q)]);
+  const [ddg, news] = settled;
+  if (ddg.status === 'rejected') {
+    logger.warn({ err: ddg.reason?.message || String(ddg.reason), query: q }, '[WebResearch] DuckDuckGo failed, relying on Google News fallback');
+  }
+  if (news.status === 'rejected') {
+    logger.warn({ err: news.reason?.message || String(news.reason), query: q }, '[WebResearch] Google News fallback failed');
+  }
+  if (ddg.status === 'rejected' && news.status === 'rejected') throw ddg.reason;
+  const seen = new Set();
+  return [...(ddg.value || []), ...(news.value || [])]
+    .filter((r) => (seen.has(r.url) ? false : seen.add(r.url)))
+    .slice(0, 8);
+}
+
+async function researchDuckDuckGo(q) {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&kl=tr-tr`;
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 BQI/1.0',
       'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) throw new Error(`search HTTP ${res.status}`);
   const html = await res.text();
