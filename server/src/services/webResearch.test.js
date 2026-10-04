@@ -105,3 +105,46 @@ describe('parseGoogleNewsRss', () => {
     expect(parseGoogleNewsRss('<rss><channel></channel></rss>')).toEqual([]);
   });
 });
+
+describe('parseBingNewsRss', () => {
+  const xml = `<rss xmlns:News="x"><channel>
+    <item><title>Fon soruşturmasında yeni gelişme</title><link>http://www.bing.com/news/apiclick.aspx?ref=FexRss&amp;aid=&amp;url=https%3a%2f%2fwww.example.com%2fhaber%2f1&amp;c=1</link><description>&#304;stanbul Cumhuriyet Ba&#351;savc&#305;l&#305;&#287;&#305; a&#231;ıklama yaptı.</description><pubDate>Sun, 04 Oct 2026 10:00:00 GMT</pubDate><News:Source>Example Haber</News:Source></item>
+    <item><title></title><link>http://www.bing.com/x</link></item>
+  </channel></rss>`;
+
+  it('unwraps the publisher URL and decodes numeric entities in the description', async () => {
+    const { parseBingNewsRss } = await import('./webResearch.js');
+    const r = parseBingNewsRss(xml);
+    expect(r).toHaveLength(1);
+    expect(r[0].url).toBe('https://www.example.com/haber/1');
+    expect(r[0].snippet).toContain('[04 Oct 2026]');
+    expect(r[0].snippet).toContain('Example Haber:');
+    expect(r[0].snippet).toContain('İstanbul Cumhuriyet Başsavcılığı');
+  });
+});
+
+describe('extractArticleText', () => {
+  it('keeps article paragraphs and drops scripts/nav/short fragments', async () => {
+    const { extractArticleText } = await import('./webResearch.js');
+    const p1 = 'SPK yedi portföy yönetim şirketinin fonlarında işlemleri durdurdu ve 131 fonu tasfiye sürecine aldı, yatırımcılar zarar gördü.';
+    const html = `<html><head><script>var x = 1;</script></head><body><nav><p>Menü öğesi çok uzun bir metin olsa bile navigasyon içinde kalmalıdır ve alınmamalıdır kesinlikle.</p></nav>
+      <article><p>Kısa.</p><p>${p1}</p></article></body></html>`;
+    const t = extractArticleText(html);
+    expect(t).toContain('131 fonu tasfiye');
+    expect(t).not.toContain('Menü öğesi');
+    expect(t).not.toContain('var x');
+  });
+
+  it('falls back to the meta description when the page has no usable paragraphs', async () => {
+    const { extractArticleText } = await import('./webResearch.js');
+    const t = extractArticleText('<html><head><meta property="og:description" content="Fon krizinde 800 milyar liralık vurgun iddiası"></head><body><div>js app</div></body></html>');
+    expect(t).toContain('800 milyar');
+  });
+});
+
+describe('formatResearchContext with article bodies', () => {
+  it('includes the article text when present', () => {
+    const out = formatResearchContext([{ title: 'T', url: 'https://a.com', snippet: 's', body: 'Gövde metni burada' }]);
+    expect(out).toContain('Haber metni: Gövde metni burada');
+  });
+});

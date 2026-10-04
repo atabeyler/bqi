@@ -478,7 +478,7 @@ BOLD Askeri Teknoloji ve Savunma Sanayi A.S. tarafindan gelistirilmistir.
 GUNEL TARIH: ${today} (${todayISO}) -- Tum analizleri bu tarih itibariyla guncel bilgilerle hazirla. Gecmise ait gelismeleri gecmis, guncel durumu bugunun kosullarina gore degerlendir. Sana ayrica saglanmis olabilecek [CANLI WEB ARASTIRMASI] sonuclarini -- varsa -- guncel mevzuat/kurum durumu icin birincil kaynak olarak kullan.
 
 ## GERCEK OLAY DOGRULAMA KURALI (ZORUNLU)
-[CANLI WEB ARASTIRMASI] haber basliklari ve ozetleri GECERLI KANITTIR: basliklarda gecen tutar, kisi/fon sayisi,
+[CANLI WEB ARASTIRMASI] haber basliklari, ozetleri ve "Haber metni" bolumleri GECERLI KANITTIR; haber metinlerindeki olaylari, rakamlari, kisi/kurum adlarini, tarihleri ve gelisme sirasini ayrintilariyla analiz et (yalnizca basliga bakma): tutar, kisi/fon sayisi,
 kurum ve sirket adi, tarih ve gelisme bilgilerini kaynak adi ve tarihiyle birlikte rapora isle (ornek: "Medyascope,
 30 Eyl 2026: 800 milyar liralik fon vurgunu"). Sonuclarda olay geciyorsa asagidaki ILUSTRATIF uyarisini KOYMA;
 yalnizca basliklarda olmayan detaylari (rakam, isim, tarih) uydurma, bunlari "kaynakta yok / dogrulanmadi" diye belirt.
