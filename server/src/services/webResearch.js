@@ -55,23 +55,24 @@ function decodeXml(s = '') {
 // queries of a report hit the 8s AbortSignal), so a report was generated
 // with no web grounding at all. The RSS feed is a plain public endpoint
 // that answers from datacenter IPs and is already news-shaped.
-export function parseGoogleNewsRss(xml) {
+export function parseGoogleNewsRss(xml, max = 15) {
   const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
   const out = [];
   for (const m of items) {
-    if (out.length >= 6) break;
+    if (out.length >= max) break;
     const block = m[1];
     const title = stripHtml(decodeXml((block.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || ''));
     const url = decodeXml((block.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '').trim();
     const desc = stripHtml(decodeXml((block.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || ''));
     const source = stripHtml(decodeXml((block.match(/<source[^>]*>([\s\S]*?)<\/source>/i) || [])[1] || ''));
+    const pub = ((block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1] || '').trim().slice(5, 16);
     if (!title || !url) continue;
-    out.push({ title, url, snippet: source ? `${source}: ${desc}`.slice(0, 300) : desc.slice(0, 300) });
+    out.push({ title, url, snippet: `${pub ? `[${pub}] ` : ''}${source ? `${source}: ${desc}` : desc}`.slice(0, 300) });
   }
   return out;
 }
 
-async function researchGoogleNews(q) {
+async function fetchGoogleNews(q) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=tr&gl=TR&ceid=TR:tr`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 BQI/1.0', 'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8' },
@@ -81,13 +82,26 @@ async function researchGoogleNews(q) {
   return parseGoogleNewsRss(await res.text());
 }
 
+// Reports are about what is happening NOW, but an unrestricted news query is
+// relevance-ranked and mixes in unrelated older/off-topic items (a real
+// "fon dolandırıcılığı" query returned unrelated court/politics headlines in
+// its top results; with a 30-day window all top results were the actual
+// scandal). Recent window first; fall back to unrestricted for evergreen
+// topics (laws, regulations) where nothing recent exists. `site:`-steered
+// queries target static official pages, so they are never time-limited.
+async function researchGoogleNews(q) {
+  if (/\b(site|when):/i.test(q)) return fetchGoogleNews(q);
+  const recent = await fetchGoogleNews(`${q} when:30d`);
+  return recent.length >= 3 ? recent : fetchGoogleNews(q);
+}
+
 // Google News answers from datacenter IPs; DuckDuckGo's HTML endpoint times
 // out from Render. News is therefore primary and DuckDuckGo only a
 // supplement: when news already has enough results we return immediately
 // instead of waiting out DuckDuckGo's timeout on every report.
 const NEWS_SUFFICIENT = 4;
 
-export async function researchWeb(query) {
+export async function researchWeb(query, limit = 12) {
   const q = (query || '').trim();
   if (!q) return [];
   const ddgPromise = researchDuckDuckGo(q);
@@ -115,7 +129,7 @@ export async function researchWeb(query) {
   const seen = new Set();
   return [...news, ...ddg]
     .filter((r) => (seen.has(r.url) ? false : seen.add(r.url)))
-    .slice(0, 8);
+    .slice(0, limit);
 }
 
 async function researchDuckDuckGo(q) {

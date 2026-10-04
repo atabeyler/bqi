@@ -85,7 +85,7 @@ export async function gatherResearchDetailed(category, topic, depth = 'standart'
   const queries = [topicQuery, siteFilter ? `${topicQuery} mevzuat kanun yönetmelik ${siteFilter}` : null].filter(Boolean);
 
   try {
-    const results = (await Promise.all(queries.map((q) => researchWeb(q).catch((e) => {
+    const results = (await Promise.all(queries.map((q) => researchWeb(q, /site:/.test(q) ? 4 : 12).catch((e) => {
       // Swallowing this per-query so one failed query doesn't sink the
       // other -- but silently, `.catch(() => [])` was indistinguishable
       // from "DuckDuckGo returned zero relevant results" (see
