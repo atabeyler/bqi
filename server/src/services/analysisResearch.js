@@ -49,7 +49,7 @@ const QUERY_STOPWORDS = new Set([
 
 export function buildSearchQuery(topic, maxWords = 7) {
   const words = String(topic || '')
-    .replace(/[()[\]{}"'“”‘’:;,!?\/\\]+/g, ' ')
+    .replace(/[()[\]{}"'“”‘’:;,!?/\\]+/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 2 && !QUERY_STOPWORDS.has(w.toLocaleLowerCase('tr-TR')));
   return [...new Set(words)].slice(0, maxWords).join(' ');
