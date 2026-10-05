@@ -164,6 +164,7 @@ export function analysisTraceMiddleware(req, res, next) {
       // field, added to the response body for exactly this purpose). Read
       // it before the field is stripped below so it never reaches the client.
       const realProvider = body._realProvider || body.provider;
+      const modelName = body._modelName;
 
       saveDecisionRecord({
         analysisId: body.analysisId || null,
@@ -178,6 +179,7 @@ export function analysisTraceMiddleware(req, res, next) {
         evidence,
         decisionTrace: trace,
         aiProvider: realProvider,
+        modelName,
         dataClassification,
         durationMs,
         quantumParams: buildQuantumParams(body),
@@ -186,6 +188,7 @@ export function analysisTraceMiddleware(req, res, next) {
       }).catch(() => {});
 
       if (body._realProvider !== undefined) delete body._realProvider;
+      if (body._modelName !== undefined) delete body._modelName;
 
       body.decisionMeta = {
         source: provenance.type,

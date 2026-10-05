@@ -518,6 +518,7 @@ ${quantumMode ? '\nKUANTUM MOD AKTİF: Birden fazla senaryo hesapla, olasılık 
       // field above isn't enough for saveDecisionRecord()'s ai_provider/
       // model_name columns.
       _realProvider: result.realProvider,
+      _modelName: result.modelName,
       title: responseTitle,
       content: reportContent,
       research: { status: research.status, sourceCount: research.sourceCount },

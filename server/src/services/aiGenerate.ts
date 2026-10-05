@@ -64,6 +64,9 @@ interface GenerateResult {
   // audit/provenance purposes (never for the client response) read this
   // field instead.
   realProvider: string;
+  // Concrete model id that actually answered (differs from the provider's
+  // default when a Gemini fallback model was used); audit-only, like realProvider.
+  modelName?: string;
   content: string;
   usage: unknown;
 }
@@ -158,11 +161,11 @@ export async function generateAnalysis(
     // Gemini is retried on its fallback models (same provider, same policy
     // gate) before moving on, since its failures are usually transient
     // model-level overload rather than a key/billing problem.
-    const modelFactories: Array<() => any> = key === 'gemini'
-      ? geminiModelChain().map((m) => () => googleProvider!(m))
-      : [call.model];
+    const modelFactories: Array<{ id?: string; make: () => any }> = key === 'gemini'
+      ? geminiModelChain().map((m) => ({ id: m, make: () => googleProvider!(m) }))
+      : [{ make: call.model }];
     let lastErr: unknown;
-    for (const makeModel of modelFactories) {
+    for (const { id: modelId, make: makeModel } of modelFactories) {
       try {
         const { text, usage } = await generateText({
           model: makeModel(),
@@ -172,7 +175,7 @@ export async function generateAnalysis(
           ...(key === 'gemini' ? { maxRetries: 1 } : {}),
         });
         recordAiAttempt(key, startedAt, true);
-        return { provider: PUBLIC_CLOUD_PROVIDER_LABEL, realProvider: name, content: text, usage: usage ?? null };
+        return { provider: PUBLIC_CLOUD_PROVIDER_LABEL, realProvider: name, ...(modelId ? { modelName: modelId } : {}), content: text, usage: usage ?? null };
       } catch (err) {
         lastErr = err;
         logger.warn({ err, provider: name }, 'AI provider model failed, trying next');
