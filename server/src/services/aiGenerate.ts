@@ -17,6 +17,13 @@ export { PolicyDenialError };
 
 export const PUBLIC_CLOUD_PROVIDER_LABEL = 'Q CLOUD';
 
+// Gemini failures are usually transient model-level overload (503), so every
+// Gemini call site tries the primary model and then MODELS.geminiFallbacks
+// (same provider, same egress-policy gate) before the next provider is used.
+function geminiModelChain(): string[] {
+  return [MODELS.gemini, ...MODELS.geminiFallbacks];
+}
+
 // item 18: a plain-text stream that just stops looks identical to the
 // client whether it finished normally or was cut off mid-answer (a dropped
 // connection, a provider erroring after the first chunk) -- there was no
@@ -152,7 +159,7 @@ export async function generateAnalysis(
     // gate) before moving on, since its failures are usually transient
     // model-level overload rather than a key/billing problem.
     const modelFactories: Array<() => any> = key === 'gemini'
-      ? [MODELS.gemini, ...MODELS.geminiFallbacks].map((m) => () => googleProvider!(m))
+      ? geminiModelChain().map((m) => () => googleProvider!(m))
       : [call.model];
     let lastErr: unknown;
     for (const makeModel of modelFactories) {
@@ -213,7 +220,11 @@ export async function streamConsultationText(
     gemini: () => googleProvider!(MODELS.gemini),
     openai: () => openaiProvider!.chat(MODELS.openai),
   };
-  const attempts: (AttemptDef & { key: string })[] = allowedKeys.map(({ key, name }) => ({ key, name, model: MODEL_FACTORY[key]() }));
+  const attempts: (AttemptDef & { key: string })[] = allowedKeys.flatMap(({ key, name }) =>
+    key === 'gemini'
+      ? geminiModelChain().map((m) => ({ key, name, model: googleProvider!(m) }))
+      : [{ key, name, model: MODEL_FACTORY[key]() }]
+  );
 
   for (const attempt of attempts) {
     const startedAt = Date.now();
@@ -221,7 +232,7 @@ export async function streamConsultationText(
     let startedSending = false;
     let full = '';
     try {
-      const result = streamText({ model: attempt.model, system: systemPrompt, prompt: userPrompt });
+      const result = streamText({ model: attempt.model, system: systemPrompt, prompt: userPrompt, ...(attempt.key === 'gemini' ? { maxRetries: 1 } : {}) });
       for await (const chunk of result.textStream) {
         if (!startedSending) {
           res.writeHead(200, {
@@ -303,11 +314,19 @@ export async function generateStructuredWithMetadata<T>(
   };
 
   for (const { key, name } of allowed) {
-    try {
-      const { object } = await generateObject({ model: MODEL_FACTORY[key](), schema, system: systemPrompt, prompt: userPrompt });
-      return { object, realProvider: name };
-    } catch (err) {
-      logger.warn({ err, provider: key, route }, 'generateStructured: provider failed, trying next');
+    const factories: Array<() => any> = key === 'gemini'
+      ? geminiModelChain().map((m) => () => googleProvider!(m))
+      : [MODEL_FACTORY[key]];
+    for (const makeModel of factories) {
+      try {
+        const { object } = await generateObject({
+          model: makeModel(), schema, system: systemPrompt, prompt: userPrompt,
+          ...(key === 'gemini' ? { maxRetries: 1 } : {}),
+        });
+        return { object, realProvider: name };
+      } catch (err) {
+        logger.warn({ err, provider: key, route }, 'generateStructured: provider model failed, trying next');
+      }
     }
   }
 
@@ -364,16 +383,19 @@ export async function parseVoiceIntent(systemPrompt: string, userMessage: string
   if (googleProvider) {
     if (isCloudProviderAllowed(classification, 'gemini')) {
       attempted.any = true;
-      try {
-        const { object } = await generateObject({
-          model: googleProvider(MODELS.gemini),
-          schema: voiceIntentSchema,
-          system: systemPrompt,
-          prompt: userMessage,
-        });
-        return object;
-      } catch (err) {
-        logger.warn({ err }, '[VoiceIntent] Gemini failed, trying GPT-4o');
+      for (const modelId of geminiModelChain()) {
+        try {
+          const { object } = await generateObject({
+            model: googleProvider(modelId),
+            schema: voiceIntentSchema,
+            system: systemPrompt,
+            prompt: userMessage,
+            maxRetries: 1,
+          });
+          return object;
+        } catch (err) {
+          logger.warn({ err, model: modelId }, '[VoiceIntent] Gemini model failed, trying next');
+        }
       }
     } else {
       logger.warn({ classification, provider: 'gemini', route: 'parseVoiceIntent', reason: 'classification_forbids_cloud_provider' }, '[DataEgressPolicy] cloud AI provider call denied');

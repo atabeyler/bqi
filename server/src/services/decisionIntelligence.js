@@ -154,6 +154,8 @@ export function publicModelRegistry() {
   return [
     { provider: 'Anthropic', model: 'claude-sonnet-4-6', purpose: 'analysis' },
     { provider: 'Google', model: 'gemini-3.5-flash', purpose: 'fallback-analysis' },
+    { provider: 'Google', model: 'gemini-3.6-flash', purpose: 'fallback-analysis' },
+    { provider: 'Google', model: 'gemini-3.5-flash-lite', purpose: 'fallback-analysis' },
     { provider: 'OpenAI', model: 'gpt-4o', purpose: 'fallback-analysis' },
     { provider: 'Anthropic', model: 'claude-haiku-4-5-20251001', purpose: 'voice-intent' },
   ];
