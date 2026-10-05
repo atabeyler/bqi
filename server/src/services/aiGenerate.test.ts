@@ -18,7 +18,7 @@ vi.mock('./aiProviders.js', () => {
     anthropicProvider,
     googleProvider,
     openaiProvider,
-    MODELS: { claudeText: 'claude-x', claudeVoice: 'claude-voice-x', gemini: 'gemini-x', openai: 'openai-x' },
+    MODELS: { claudeText: 'claude-x', claudeVoice: 'claude-voice-x', gemini: 'gemini-x', geminiFallbacks: ['gemini-y'], openai: 'openai-x' },
     // All three "configured" and offered, in the fixed order -- this is
     // exactly the scenario a real deployment with all three API keys set
     // would produce, so a RESTRICTED request here is the strongest possible
@@ -127,5 +127,17 @@ describe('BQI-001/BQI-014: other classifications still reach the provider (polic
     await generateAnalysis('sys', 'user prompt', {}, 'CONFIDENTIAL');
     expect(claudeModelFactory).not.toHaveBeenCalled();
     expect(geminiModelFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it('generateAnalysis: an overloaded primary Gemini model falls back to the next Gemini model', async () => {
+    process.env.APPROVED_CLOUD_PROVIDERS = 'gemini';
+    const { generateText } = await import('ai');
+    (generateText as any)
+      .mockRejectedValueOnce(new Error('high demand'))
+      .mockResolvedValueOnce({ text: 'from fallback', usage: null });
+    const result = await generateAnalysis('sys', 'user prompt', {}, 'CONFIDENTIAL');
+    expect(geminiModelFactory).toHaveBeenNthCalledWith(1, 'gemini-x');
+    expect(geminiModelFactory).toHaveBeenNthCalledWith(2, 'gemini-y');
+    expect(result.content).toBe('from fallback');
   });
 });

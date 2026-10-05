@@ -24,6 +24,8 @@ export const MODELS = {
   claudeText: 'claude-sonnet-4-6',
   claudeVoice: 'claude-haiku-4-5-20251001',
   gemini: 'gemini-3.5-flash',
+  // Tried in order when the primary Gemini model is overloaded (503/high demand).
+  geminiFallbacks: ['gemini-3.6-flash', 'gemini-3.5-flash-lite'],
   openai: 'gpt-4o',
 };
 

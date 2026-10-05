@@ -148,20 +148,31 @@ export async function generateAnalysis(
     // existing default (Gemini's binding here takes no maxOutputTokens at
     // all -- see PROVIDER_CALL above).
     const maxOutputTokens = options.maxOutputTokens ?? call.maxOutputTokens;
-    try {
-      const { text, usage } = await generateText({
-        model: call.model(),
-        system: systemPrompt,
-        prompt: userPrompt,
-        ...(maxOutputTokens ? { maxOutputTokens } : {}),
-      });
-      recordAiAttempt(key, startedAt, true);
-      return { provider: PUBLIC_CLOUD_PROVIDER_LABEL, realProvider: name, content: text, usage: usage ?? null };
-    } catch (err) {
-      recordAiAttempt(key, startedAt, false);
-      logger.warn({ err, provider: name }, 'AI provider failed, trying next by policy order');
-      errors.push({ provider: key, error: (err as Error).message });
+    // Gemini is retried on its fallback models (same provider, same policy
+    // gate) before moving on, since its failures are usually transient
+    // model-level overload rather than a key/billing problem.
+    const modelFactories: Array<() => any> = key === 'gemini'
+      ? [MODELS.gemini, ...MODELS.geminiFallbacks].map((m) => () => googleProvider!(m))
+      : [call.model];
+    let lastErr: unknown;
+    for (const makeModel of modelFactories) {
+      try {
+        const { text, usage } = await generateText({
+          model: makeModel(),
+          system: systemPrompt,
+          prompt: userPrompt,
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
+          ...(key === 'gemini' ? { maxRetries: 1 } : {}),
+        });
+        recordAiAttempt(key, startedAt, true);
+        return { provider: PUBLIC_CLOUD_PROVIDER_LABEL, realProvider: name, content: text, usage: usage ?? null };
+      } catch (err) {
+        lastErr = err;
+        logger.warn({ err, provider: name }, 'AI provider model failed, trying next');
+      }
     }
+    recordAiAttempt(key, startedAt, false);
+    errors.push({ provider: key, error: (lastErr as Error).message });
   }
 
   throw new AllProvidersFailedError(`Tüm AI sağlayıcılar başarısız: ${JSON.stringify(errors)}`);
