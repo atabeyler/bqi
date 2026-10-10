@@ -1,0 +1,9 @@
+rules:
+  - id: bci-javascript-dynamic-eval
+    languages: [javascript, typescript]
+    message: Dynamic eval requires review of input trust and sanitization.
+    severity: WARNING
+    pattern: eval($INPUT)
+    metadata:
+      cwe: CWE-95
+      verification: source-signal

@@ -225,6 +225,8 @@ describe('runAnalysisPipeline — BCI Smart Fuzz: BASE runs in full, an external
     });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const target = `http://127.0.0.1:${server.address().port}/search?q=test`;
+    const previousLabOrigins = process.env.BCI_NATIVE_LAB_ORIGINS;
+    process.env.BCI_NATIVE_LAB_ORIGINS = new URL(target).origin;
 
     try {
       const orgId = await createOrg();
@@ -269,6 +271,7 @@ describe('runAnalysisPipeline — BCI Smart Fuzz: BASE runs in full, an external
       // guarantee to hold.
       expect(result.findingIds.length).toBeGreaterThan(0);
     } finally {
+      if (previousLabOrigins === undefined) delete process.env.BCI_NATIVE_LAB_ORIGINS; else process.env.BCI_NATIVE_LAB_ORIGINS = previousLabOrigins;
       server.close();
     }
   }, 60_000);

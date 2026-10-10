@@ -212,7 +212,7 @@ function resolveSchemaType(schema, spec) {
   return schema.type === 'integer' || schema.type === 'number' ? schema.type : 'string';
 }
 
-function extractOpenApiOperations(spec, origin) {
+export function extractOpenApiOperations(spec, origin) {
   const basePath = typeof spec.basePath === 'string' ? spec.basePath : '';
   const operations = [];
   for (const [pathTemplate, pathItem] of Object.entries(spec.paths)) {
@@ -234,9 +234,18 @@ function extractOpenApiOperations(spec, origin) {
         const resolved = bodySchema.$ref
           ? (spec.components?.schemas?.[bodySchema.$ref.split('/').pop()] || spec.definitions?.[bodySchema.$ref.split('/').pop()])
           : bodySchema;
-        for (const propName of Object.keys(resolved?.properties || {})) {
-          params.push({ name: propName, location: 'body', type: resolveSchemaType(resolved.properties[propName], spec) });
-        }
+        const walk = (schema, prefix = '', depth = 0) => {
+          if (!schema || depth > 8 || params.length >= 40) return;
+          if (schema.$ref) schema = spec.components?.schemas?.[schema.$ref.split('/').pop()] || spec.definitions?.[schema.$ref.split('/').pop()];
+          for (const [name, child] of Object.entries(schema?.properties || {})) {
+            if (!/^[A-Za-z0-9_-]{1,80}$/.test(name) || ['__proto__','prototype','constructor'].includes(name)) continue;
+            const field = prefix ? `${prefix}.${name}` : name;
+            if (child.properties || child.$ref) walk(child,field,depth + 1);
+            else if (child.type === 'array') walk(child.items,`${field}.0`,depth + 1);
+            else params.push({name:field,location:'body',type:resolveSchemaType(child,spec)});
+          }
+        };
+        walk(resolved);
       }
       operations.push({ method: method.toUpperCase(), url: `${origin}${basePath}${pathTemplate}`, params });
     }

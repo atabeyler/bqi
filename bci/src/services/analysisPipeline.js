@@ -8,7 +8,7 @@ import { correlateJobObservations } from './correlation.js';
 import { syncSecurityGraph } from './securityGraph.js';
 import { ingestPostureEnvelope } from './postureIntelligence.js';
 import { mapEvidenceBackedTechniques } from './attackMapping.js';
-import { loadPentestContext } from './pentest.js';
+import { loadPentestContext, storePentestResults } from './pentest.js';
 
 const MAX_CVE_ENRICHMENTS_PER_JOB = 5; // NVD's unauthenticated rate limit is strict; this is a per-job ceiling, not a bulk sync.
 
@@ -75,7 +75,7 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
           enginePlan,
           executionTarget,
           { ...job.engine_options?.[enginePlan.engineId], executionOrgId: job.org_id, ...(job.engine_options?.[enginePlan.engineId]?.engagementId
-            ? { pentestContext: await loadPentestContext(job.org_id, job.engine_options[enginePlan.engineId].engagementId, job.target) } : {}) },
+            ? { pentestContext: await loadPentestContext(job.org_id, job.engine_options[enginePlan.engineId].engagementId, job.target, signal) } : {}) },
           signal,
           async (progress) => recordEngineRun(
             job.id,
@@ -113,13 +113,14 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
         ran.push(enginePlan.engineId);
       } catch (err) {
         if (err?.failureObservation && typeof err.failureObservation === 'object') {
-          await storeRawObservation({
+          const partialRawId = await storeRawObservation({
             orgId: job.org_id,
             jobId: job.id,
             engineId: enginePlan.engineId,
             target: job.target,
             payload: err.failureObservation,
           }).catch((evidenceError) => logger.warn({ evidenceError, jobId: job.id, engineId: enginePlan.engineId }, 'Failed engine evidence could not be persisted'));
+          if (partialRawId) await storePentestResults({ orgId: job.org_id, jobId: job.id, engineId: enginePlan.engineId, rawId: partialRawId, payload: err.failureObservation });
         }
         if (err?.name === 'AbortError' || signal?.aborted) {
           await recordEngineRun(job.id, enginePlan.engineId, 'CANCELLED', String(err.message || err), err?.completedObservations ?? 0);

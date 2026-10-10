@@ -42,6 +42,7 @@ export async function prepareExecutionTarget(targetType, target) {
 // mode/capabilities, which always come from the real recommended/selected
 // engine plan, not from job-supplied options.
 export async function runPlannedEngine(plan, executionTarget, engineOptions, signal, onProgress) {
+  try {
   const adapter = getAdapter(plan.engineId);
   if (!adapter) throw new Error(`no adapter registered for engine "${plan.engineId}"`);
 
@@ -56,6 +57,10 @@ export async function runPlannedEngine(plan, executionTarget, engineOptions, sig
     ? adapter.normalizeExecutionTarget(executionTarget)
     : executionTarget;
   const execute = () => adapter.execute({ ...(engineOptions || {}), target: adapterTarget, mode: plan.mode, capabilities: plan.capabilities, signal, onProgress });
-  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId ? { engagement: { target: adapterTarget, environment: 'PRODUCTION' } } : null);
-  return transport ? withPentestTransport(transport, signal, execute) : execute();
+  const labOrigins = (process.env.BCI_NATIVE_LAB_ORIGINS || '').split(',').filter(Boolean);
+  const environment = /^https?:\/\//i.test(adapterTarget) && labOrigins.includes(new URL(adapterTarget).origin) ? 'LAB' : 'PRODUCTION';
+  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId || ['http-fuzz','intrusive-validation','availability-probe'].includes(plan.engineId) ? { engagement: { target: adapterTarget, environment } } : null);
+  return await (transport ? withPentestTransport(transport, signal, execute) : execute());
+  }
+  finally { engineOptions?.pentestContext?.dispose?.(); }
 }

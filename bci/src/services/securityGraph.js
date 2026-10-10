@@ -165,8 +165,11 @@ export async function syncSecurityGraph(orgId) {
   }
 
   const { rows: decisionFindings } = await query(
-    `SELECT id, target, category, title, cve_ids, risk_score, confidence_score, verification_status
-       FROM findings WHERE org_id = $1 AND status NOT IN ('FALSE_POSITIVE', 'VERIFIED_FIXED')`,
+    `SELECT f.id, f.target, f.category, f.title, f.cve_ids, f.risk_score, f.confidence_score, f.verification_status,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('observationId',no.id,'evidenceSha256',no.evidence->'pentestVerification'->>'evidenceSha256','result',no.evidence->'pentestVerification'->>'result'))
+         FROM finding_sources fs JOIN normalized_observations no ON no.id=fs.normalized_observation_id
+         WHERE fs.finding_id=f.id AND no.org_id=f.org_id AND no.evidence->'pentestVerification'->>'status'='VERIFIED'),'[]'::jsonb) AS pentest_proofs
+       FROM findings f WHERE f.org_id = $1 AND f.status NOT IN ('FALSE_POSITIVE', 'VERIFIED_FIXED')`,
     [orgId]
   );
   const findingNodeIds = new Map();
@@ -176,7 +179,7 @@ export async function syncSecurityGraph(orgId) {
        VALUES ($1,'FINDING',$2,$3,$4)
        ON CONFLICT (org_id, node_type, ref_id) DO UPDATE SET label = EXCLUDED.label, metadata = EXCLUDED.metadata
        RETURNING id`,
-      [orgId, finding.id, finding.title, JSON.stringify({ category: finding.category, riskScore: finding.risk_score, confidence: finding.confidence_score, verificationStatus: finding.verification_status })]
+      [orgId, finding.id, finding.title, JSON.stringify({ category: finding.category, riskScore: finding.risk_score, confidence: finding.confidence_score, verificationStatus: finding.verification_status, pentestProofs:finding.pentest_proofs })]
     );
     findingNodeIds.set(finding.id, rows[0].id);
 

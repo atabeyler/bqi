@@ -33,7 +33,7 @@ RUN set -eu; \
         attempt=$((attempt + 1)); sleep $((attempt * 5)); \
       done; \
     }; \
-    install_with_retry github.com/google/osv-scanner/cmd/osv-scanner@v1.9.2; \
+    install_with_retry github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.6.0; \
     install_with_retry github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.11.1; \
     install_with_retry github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.6.1
 
@@ -41,7 +41,7 @@ RUN set -eu; \
 # aquasecurity/trivy's own install docs for the current recommended method.
 RUN set -eu; \
     attempt=1; \
-    until GOEXPERIMENT=jsonv2 go install github.com/aquasecurity/trivy/cmd/trivy@v0.74.0; do \
+    until GOEXPERIMENT=jsonv2 go install github.com/aquasecurity/trivy/cmd/trivy@v0.75.0; do \
       if [ "$attempt" -ge 3 ]; then echo "trivy go install failed after $attempt attempts" >&2; exit 1; fi; \
       attempt=$((attempt + 1)); sleep $((attempt * 5)); \
     done
@@ -73,7 +73,7 @@ RUN apt-get update \
 # --ignore-installed: bookworm-slim ships a system PyJWT via apt/dist-packages
 # that pip can't cleanly uninstall -- same issue documented in the root
 # Dockerfile for the quantum subprocess's pip install.
-RUN pip3 install --break-system-packages --ignore-installed --no-cache-dir semgrep
+RUN pip3 install --break-system-packages --ignore-installed --no-cache-dir semgrep==1.180.0
 
 COPY --from=engines /go/bin/osv-scanner /go/bin/nuclei /go/bin/naabu /go/bin/trivy /usr/local/bin/
 COPY --from=engines /opt/nuclei-templates /opt/nuclei-templates
@@ -81,6 +81,8 @@ COPY --from=engines /opt/nuclei-templates /opt/nuclei-templates
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/bci-browsers
+RUN npx playwright install --with-deps chromium && chmod -R a+rX /opt/bci-browsers
 COPY src/ src/
 
 RUN chown -R node:node /app

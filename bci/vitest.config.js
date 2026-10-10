@@ -14,6 +14,10 @@ export default defineConfig({
     include: ['test/**/*.test.js'],
     globalSetup: ['test/globalSetup.js'],
     fileParallelism: false,
+    // Native PostgreSQL migrations/truncation and actual browser proofs can
+    // exceed Vitest's 5s default on Windows under concurrent IO load.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     env: {
       NODE_ENV: 'test',
       BCI_DATABASE_URL: databaseUrl,

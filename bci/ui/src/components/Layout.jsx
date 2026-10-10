@@ -1,4 +1,5 @@
 import React from 'react';
+import { pentestText } from '../i18n/pentestMessages.js';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../AuthContext.jsx';
 import { useLang, SUPPORTED_LANGS } from '../i18n/LangContext.jsx';
@@ -29,7 +30,7 @@ export default function Layout() {
             {t(item.key)}
           </NavLink>
         ))}
-        <NavLink to="/pentest">Authenticated Pentest</NavLink>
+        <NavLink to="/pentest">{pentestText(lang,'Authenticated Pentest')}</NavLink>
         <div className="controlled-proof-nav">
           {hasPermission('system:manage') ? (
             <NavLink to="/controlled-proof" className={({ isActive }) => `controlled-proof-link${isActive ? ' active' : ''}`}>

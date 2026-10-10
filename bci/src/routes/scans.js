@@ -115,7 +115,7 @@ const createScanSchema = z.object({
       customPorts: z.string().min(1).max(1000),
       rateLimit: z.number().int().positive(),
     }).partial().optional(),
-    semgrep: z.object({ config: z.enum(['auto', 'p/default', 'p/security-audit', 'p/owasp-top-ten']) }).partial().optional(),
+    semgrep: z.object({ config: z.enum(['auto', 'p/default', 'p/security-audit', 'p/owasp-top-ten', 'BCI_CORE']) }).partial().optional(),
     'intrusive-validation': z.object({
       engagementId: z.string().uuid(),
       authProfileId: z.string().regex(/^[A-Za-z0-9_]{1,40}$/),

@@ -43,6 +43,7 @@ export const api = {
   pentestAccounts: () => request('/pentest/accounts'),
   createPentestAccount: (body) => request('/pentest/accounts', { method: 'POST', body }),
   revokePentestAccount: (id) => request(`/pentest/accounts/${id}`, { method: 'DELETE' }),
+  rotatePentestAccounts: () => request('/pentest/accounts/rotate', { method:'POST',body:{} }),
   pentestEngagements: () => request('/pentest/engagements'),
   createPentestEngagement: (body) => request('/pentest/engagements', { method: 'POST', body }),
   revokePentestEngagement: (id) => request(`/pentest/engagements/${id}`, { method: 'DELETE' }),
