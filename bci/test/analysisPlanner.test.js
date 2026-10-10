@@ -47,5 +47,10 @@ describe('dynamic capability registry', () => {
 });
 
 describe('candidateEnginesForTargetType', () => {
+  it('routes restricted API analysis to live contract validation without enabling it below RESTRICTED', () => {
+    expect(planEngines('API', 'RESTRICTED', 'API').map((p) => p.engineId)).toContain('intrusive-validation');
+    expect(planEngines('URL', 'RESTRICTED', 'API').map((p) => p.engineId)).toContain('intrusive-validation');
+    expect(planEngines('API', 'SAFE_ACTIVE', 'API').map((p) => p.engineId)).not.toContain('intrusive-validation');
+  });
   it('lists all registered DOMAIN candidates', () => expect(candidateEnginesForTargetType('DOMAIN').map((p)=>p.engineId).sort()).toEqual(['availability-probe','bci-posture-intelligence','http-fuzz','intrusive-validation','naabu','nuclei']));
 });

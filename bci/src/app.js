@@ -32,6 +32,7 @@ import { quantumRouter } from './routes/quantum.js';
 import { cryptoRouter } from './routes/crypto.js';
 import { decisionRouter } from './routes/decision.js';
 import { controlledProofRouter } from './routes/controlledProof.js';
+import { pentestRouter } from './routes/pentest.js';
 
 export function createApp() {
   const app = express();
@@ -84,6 +85,7 @@ export function createApp() {
   app.use('/api/v1/crypto', cryptoRouter);
   app.use('/api/v1/decision', decisionRouter);
   app.use('/api/v1/controlled-proof', controlledProofRouter);
+  app.use('/api/v1/pentest', pentestRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: 'not_found', requestId: req.id });

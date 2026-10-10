@@ -420,7 +420,7 @@ export const cyberAnalysisApi = {
 
   listEngines: () => bciProxy('/engines'),
   listResilienceModules: () => bciProxy('/engines/resilience-modules'),
-  getIntrusivePlan: (target, priorFindingIds = [], authProfileId) => bciProxy('/engines/intrusive-plan', { method: 'POST', body: { target, priorFindingIds, ...(authProfileId ? { authProfileId } : {}) } }),
+  getIntrusivePlan: (target, priorFindingIds = [], authProfileId, engagementId) => bciProxy('/engines/intrusive-plan', { method: 'POST', body: { target, priorFindingIds, ...(authProfileId ? { authProfileId } : {}), ...(engagementId ? { engagementId } : {}) } }),
   getFuzzCatalog: () => bciProxy('/engines/fuzz-catalog'),
   discoverFuzzSurface: (target, targetType, scope = {}) => bciProxy('/engines/fuzz-discovery', { method: 'POST', body: { target, targetType, ...scope } }),
   runEngineHealthCheck: () => bciProxy('/engines/health-check', { method: 'POST' }),

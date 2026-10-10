@@ -330,10 +330,10 @@ describe('CyberNewAnalysisWizard', () => {
     })));
   });
 
-  it('renders real Smart Fuzz discovery/catalog and sends additive USER probes without touching BASE', async () => {
+  it.each([null, '11111111-1111-4111-8111-111111111111'])('passes additive fuzz probes and the optional engagement (%s)', async (engagementId) => {
     cyberAnalysisApi.createAsset.mockResolvedValue({ asset: { id: 'asset-web', name: 'SPA', asset_type: 'WEB_APP', criticality: 'MEDIUM', status: 'ACTIVE' } });
     cyberAnalysisApi.evaluateScope.mockResolvedValue({ decision: 'ALLOW', targetType: 'URL' });
-    cyberAnalysisApi.getEnginePlan.mockImplementation(async (_targetType, requestedClass) => requestedClass === 'SAFE_ACTIVE' ? {
+    cyberAnalysisApi.getEnginePlan.mockImplementation(async (_targetType, requestedClass) => ['SAFE_ACTIVE', 'RESTRICTED'].includes(requestedClass) ? {
       engines: [{ id: 'http-fuzz', name: 'BCI Smart Fuzz', status: 'HEALTHY', compatible: true, recommended: true, capabilities: ['FUZZ'], targetCapabilities: ['FUZZ'] }],
       capabilities: [{ id: 'FUZZ', name: 'HTTP Input Robustness', available: true }], hasExecutableEngine: true,
     } : { engines: [], capabilities: [], hasExecutableEngine: false });
@@ -359,9 +359,13 @@ describe('CyberNewAnalysisWizard', () => {
     await waitFor(() => expect(cyberAnalysisApi.createAsset).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: /Next/i }));
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('SAFE_ACTIVE'));
+    if (engagementId) {
+      fireEvent.change(screen.getAllByRole('combobox').find((select) => [...select.options].some((option) => option.value === 'RESTRICTED')), { target: { value: 'RESTRICTED' } });
+      fireEvent.change(await screen.findByLabelText('Pentest engagement ID'), { target: { value: engagementId } });
+    }
     fireEvent.click(await screen.findByRole('button', { name: 'START DISCOVERY' }));
     await waitFor(() => expect(cyberAnalysisApi.discoverFuzzSurface).toHaveBeenCalledWith(
-      'https://example.com/#/account/login', 'URL', expect.objectContaining({ baseProfile: 'STANDARD' }),
+      'https://example.com/#/account/login', 'URL', expect.objectContaining({ baseProfile: 'STANDARD', ...(engagementId ? { engagementId } : {}) }),
     ));
     await waitFor(() => expect(screen.getByText(/2.*Endpoint/)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Smart Fuzz Next/i }));
@@ -378,7 +382,8 @@ describe('CyberNewAnalysisWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Start Analysis/i }));
     await waitFor(() => expect(cyberAnalysisApi.createScan).toHaveBeenCalledWith(expect.objectContaining({
       selectedEngineIds: ['http-fuzz'], selectedCapabilities: ['FUZZ'],
-      engineOptions: { 'http-fuzz': expect.objectContaining({ baseProfile: 'STANDARD', userPlan: [{ method: 'GET', url: 'https://example.com/search', parameter: 'q', location: 'query', categoryId: 'XSS_MARKER' }] }) },
+      requestedClass: engagementId ? 'RESTRICTED' : 'SAFE_ACTIVE',
+      engineOptions: { 'http-fuzz': expect.objectContaining({ baseProfile: 'STANDARD', ...(engagementId ? { engagementId } : {}), userPlan: [{ method: 'GET', url: 'https://example.com/search', parameter: 'q', location: 'query', categoryId: 'XSS_MARKER' }] }) },
     })));
   });
 

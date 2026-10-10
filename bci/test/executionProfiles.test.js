@@ -31,4 +31,14 @@ describe('canonical engine execution profiles', () => {
     expect(() => resolveAuthProfile('../../PATH')).toThrow(/invalid auth profile/);
     delete process.env.BCI_AUTH_PROFILE_TEST_ADMIN;
   });
+  it('requires tenant and origin binding for legacy profiles at API/worker boundaries', () => {
+    process.env.BCI_AUTH_PROFILE_BOUND = 'Authorization: Bearer private-token';
+    expect(() => resolveAuthProfile('BOUND', { orgId: 'org-a', target: 'https://example.com' })).toThrow(/tenant/);
+    process.env.BCI_AUTH_PROFILE_OWNER_BOUND = 'org-a';
+    process.env.BCI_AUTH_PROFILE_ORIGIN_BOUND = 'https://example.com';
+    expect(resolveAuthProfile('BOUND', { orgId: 'org-a', target: 'https://example.com' }).headers).toHaveLength(1);
+    expect(() => resolveAuthProfile('BOUND', { orgId: 'org-b', target: 'https://example.com' })).toThrow(/tenant/);
+    expect(() => resolveAuthProfile('BOUND', { orgId: 'org-a', target: 'https://other.example' })).toThrow(/target/);
+    for (const key of ['BCI_AUTH_PROFILE_BOUND', 'BCI_AUTH_PROFILE_OWNER_BOUND', 'BCI_AUTH_PROFILE_ORIGIN_BOUND']) delete process.env[key];
+  });
 });

@@ -15,6 +15,9 @@ import { buildBasePlan, MAX_BASE_PARAMETERS, MAX_ADAPTIVE_PROBES } from '../engi
 import { discoverEndpoints } from '../engines/adapters/fuzzDiscovery.js';
 import { assertHttpTarget } from '../engines/adapters/nativeHttp.js';
 import { resolveAuthProfile, resolveFuzzBaseScope } from '../engines/executionProfiles.js';
+import { loadPentestContext } from '../services/pentest.js';
+import { withPentestTransport } from '../pentest/transport.js';
+import { controlledFuzzEndpoints } from '../pentest/fuzz.js';
 
 export const enginesRouter = Router();
 enginesRouter.use(requireAuth);
@@ -74,6 +77,7 @@ enginesRouter.get('/fuzz-catalog', requirePermission('rule:view'), (_req, res) =
 });
 
 const intrusivePlanSchema = z.object({
+  engagementId: z.string().uuid().optional(),
   target: z.string().min(1),
   priorFindingIds: z.array(z.string().uuid()).max(50).default([]),
   authProfileId: z.string().regex(/^[A-Za-z0-9_]{1,40}$/).optional(),
@@ -92,16 +96,22 @@ enginesRouter.post('/intrusive-plan', requirePermission('scan:create'), async (r
   }
   const normalizedTarget = /^https?:\/\//i.test(parsed.data.target) ? parsed.data.target : `https://${parsed.data.target}`;
   let discovery = {};
+  let pentestContext;
   try {
-    const auth = resolveAuthProfile(parsed.data.authProfileId);
-    discovery = await discoverEndpoints(assertHttpTarget(normalizedTarget), { headers: auth.headers });
+    if (parsed.data.engagementId) pentestContext = await loadPentestContext(req.auth.orgId, parsed.data.engagementId, normalizedTarget);
+    const auth = resolveAuthProfile(parsed.data.authProfileId, { orgId: req.auth.orgId, target: normalizedTarget });
+    const discover = () => discoverEndpoints(assertHttpTarget(normalizedTarget), { headers: auth.headers });
+    const transport = pentestContext || (auth.profileId ? { engagement: { target: normalizedTarget, environment: 'PRODUCTION' } } : null);
+    discovery = transport ? await withPentestTransport(transport, undefined, discover) : await discover();
   } catch (err) {
+    if (parsed.data.engagementId) return res.status(400).json({ error: 'invalid_pentest_engagement' });
     if (parsed.data.authProfileId) return res.status(400).json({ error: 'invalid_auth_profile', detail: String(err.message || err), requestId: req.id });
   }
-  res.json({ ...buildIntrusivePlan(normalizedTarget, selectedFindings, discovery), findings });
+  res.json({ ...buildIntrusivePlan(normalizedTarget, selectedFindings, { ...discovery, pentestContext }), findings });
 });
 
 const fuzzDiscoverySchema = z.object({
+  engagementId: z.string().uuid().optional(),
   target: z.string().min(1),
   targetType: z.enum(['DOMAIN', 'SUBDOMAIN', 'URL', 'API']).optional(),
   baseProfile: z.enum(['STANDARD', 'EXTENDED', 'FULL', 'CUSTOM']).default('STANDARD'),
@@ -121,12 +131,19 @@ enginesRouter.post('/fuzz-discovery', requirePermission('scan:create'), async (r
   let authProfile;
   let baseScope;
   try {
-    authProfile = resolveAuthProfile(parsed.data.authProfileId);
+    authProfile = resolveAuthProfile(parsed.data.authProfileId, { orgId: req.auth.orgId, target });
     baseScope = resolveFuzzBaseScope(parsed.data.baseProfile, parsed.data.customMaxParameters);
   } catch (err) {
     return res.status(400).json({ error: 'invalid_execution_scope', detail: String(err.message || err), requestId: req.id });
   }
-  const { endpoints, openapiSource } = await discoverEndpoints(target, { headers: authProfile.headers });
+  let pentestContext;
+  try { if (parsed.data.engagementId) pentestContext = await loadPentestContext(req.auth.orgId, parsed.data.engagementId, target); }
+  catch { return res.status(400).json({ error: 'invalid_pentest_engagement' }); }
+  const discover = () => discoverEndpoints(target, { headers: authProfile.headers });
+  const transport = pentestContext || (authProfile.profileId ? { engagement: { target, environment: 'PRODUCTION' } } : null);
+  const discovery = transport ? await withPentestTransport(transport, undefined, discover) : await discover();
+  const endpoints = [...discovery.endpoints, ...controlledFuzzEndpoints(pentestContext)];
+  const { openapiSource } = discovery;
   const basePlan = buildBasePlan(endpoints, baseScope);
   res.json({
     target, endpoints, openapiSource,

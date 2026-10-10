@@ -68,15 +68,20 @@ export function resolveFuzzBaseScope(baseProfile = 'STANDARD', customMaxParamete
 // Credentials are never persisted in scan_jobs. The persisted value is only
 // a profile id; API discovery and the worker independently resolve that id
 // from identically named deployment secrets.
-export function resolveAuthProfile(profileId) {
+export function resolveAuthProfile(profileId, { orgId, target } = {}) {
   if (!profileId) return { headers: [], profileId: null };
   const normalized = String(profileId).trim().toUpperCase();
   if (!/^[A-Z0-9_]{1,40}$/.test(normalized)) throw new TypeError('invalid auth profile id');
+  if (orgId) {
+    if (process.env[`BCI_AUTH_PROFILE_OWNER_${normalized}`] !== orgId) throw new TypeError('auth profile unavailable for tenant');
+    const origin = new URL(/^https?:\/\//i.test(target) ? target : `https://${target}`).origin;
+    if (process.env[`BCI_AUTH_PROFILE_ORIGIN_${normalized}`] !== origin) throw new TypeError('auth profile target mismatch');
+  }
   const raw = process.env[`BCI_AUTH_PROFILE_${normalized}`];
   if (!raw) throw new TypeError(`auth profile is not configured: ${normalized}`);
   let headers;
   try { headers = JSON.parse(raw); } catch { headers = [raw]; }
-  if (!Array.isArray(headers) || headers.length === 0 || headers.some((header) => typeof header !== 'string' || !header.includes(':'))) {
+  if (!Array.isArray(headers) || headers.length === 0 || headers.some((header) => typeof header !== 'string' || !/^[A-Za-z0-9-]+:[^\r\n]+$/.test(header))) {
     throw new TypeError(`auth profile has invalid header material: ${normalized}`);
   }
   return { headers, profileId: normalized };

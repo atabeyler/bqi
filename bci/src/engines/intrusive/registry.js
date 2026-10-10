@@ -43,6 +43,7 @@ import { cacheProxyBehaviorModule } from './modules/cacheProxyBehavior.js';
 import { webSocketProtocolModule } from './modules/webSocketProtocol.js';
 import { technologySpecificValidationModule } from './modules/technologySpecificValidation.js';
 import { PLANNED_MODULES } from './modules/planned.js';
+import { authenticatedContractModules } from './modules/authenticatedContracts.js';
 
 const MODULES = [
   httpMethodProtocolModule,
@@ -58,7 +59,8 @@ const MODULES = [
   cacheProxyBehaviorModule,
   webSocketProtocolModule,
   technologySpecificValidationModule,
-  ...PLANNED_MODULES,
+  ...authenticatedContractModules,
+  ...PLANNED_MODULES.filter((m) => !authenticatedContractModules.some((implemented) => implemented.id === m.id)),
 ];
 
 const byId = new Map(MODULES.map((m) => [m.id, m]));

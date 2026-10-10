@@ -22,6 +22,8 @@ export const FUZZ_CATEGORIES = Object.freeze([
   { id: 'SQLI_MARKER', value: "' OR '1'='1", appliesTo: ['generic', 'string'] },
   { id: 'XSS_MARKER', value: '<script>bci_fuzz_marker</script>', appliesTo: ['generic', 'string'], reflectionMarker: 'bci_fuzz_marker' },
   { id: 'NULL_LITERAL', value: 'null', appliesTo: ['generic'] },
+  { id: 'SSRF_MARKER', value: 'https://example.invalid/bci-pentest-canary', appliesTo: [] },
+  { id: 'PARAMETER_MANIPULATION', value: '__BCI_UNEXPECTED_ENUM__', appliesTo: ['generic'] },
 ]);
 
 export function getCategory(id) {

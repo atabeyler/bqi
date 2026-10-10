@@ -8,6 +8,7 @@ import { lookup } from 'node:dns/promises';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { runBinary } from '../execFileAsync.js';
+import { getPentestTransport, pentestFetch } from '../../pentest/transport.js';
 
 export const CURL_DISCARD_PATH = os.devNull;
 
@@ -217,6 +218,8 @@ function parseResponseHeaders(raw) {
 // callers that need another method pass it explicitly, and this never
 // mutates BCI's own filesystem state beyond its own scratch directory.
 export async function curlFetch(url, { method = 'GET', headers = [], body = null, followRedirects = true, timeoutMs = 7_000, allowedExitCodes = [0], signal } = {}) {
+  const pentest = getPentestTransport();
+  if (pentest) return pentestFetch(url, { engagement: pentest.engagement, method, headers, body, timeoutMs, signal: signal || pentest.signal });
   if (body != null && (typeof body !== 'string' || Buffer.byteLength(body, 'utf8') > 4096)) {
     throw new TypeError('HTTP request body must be a string no larger than 4096 bytes');
   }

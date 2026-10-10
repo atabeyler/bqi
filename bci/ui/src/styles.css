@@ -35,6 +35,13 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .content h2 { margin-top: 0; }
 
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.pentest-page .card > label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.pentest-page textarea { width: 100%; resize: vertical; font-family: ui-monospace, monospace; }
+.pentest-page button { margin: 4px 8px 4px 0; }
+.pentest-account-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.pentest-account-row label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.pentest-account-row code, .pentest-page pre { overflow-wrap: anywhere; }
+.pentest-page details { margin-top: 12px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .tile { text-align: center; }
 .tile .value { font-size: 32px; font-weight: 600; }

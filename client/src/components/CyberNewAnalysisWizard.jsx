@@ -375,6 +375,7 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
   const [fuzzBaseProfile, setFuzzBaseProfile] = useState('STANDARD');
   const [fuzzCustomMaxParameters, setFuzzCustomMaxParameters] = useState(100);
   const [authProfileId, setAuthProfileId] = useState('');
+  const [engagementId, setEngagementId] = useState('');
 
   useEffect(() => {
     setClassTouchedByUser(false);
@@ -475,7 +476,9 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
   async function refreshIntrusivePlan(priorFindingIds = intrusivePriorFindingIds) {
     setIntrusivePlanLoading(true); setError(null);
     try {
-      const plan = authProfileId
+      const plan = engagementId
+        ? await cyberAnalysisApi.getIntrusivePlan(resolvedAsset.target, priorFindingIds, authProfileId || undefined, engagementId)
+        : authProfileId
         ? await cyberAnalysisApi.getIntrusivePlan(resolvedAsset.target, priorFindingIds, authProfileId)
         : await cyberAnalysisApi.getIntrusivePlan(resolvedAsset.target, priorFindingIds);
       setIntrusivePlan(plan);
@@ -509,6 +512,7 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
       // by the policy classifier (URL, IP, DOMAIN, …). Passing WEB_APP here
       // made every scan class fail schema validation with `invalid_request`.
       const discovery = await cyberAnalysisApi.discoverFuzzSurface(resolvedAsset.target, scopeDecision?.targetType, {
+        ...(engagementId ? { engagementId } : {}),
         baseProfile: fuzzBaseProfile,
         ...(fuzzBaseProfile === 'CUSTOM' ? { customMaxParameters: Number(fuzzCustomMaxParameters) } : {}),
         ...(authProfileId ? { authProfileId } : {}),
@@ -672,8 +676,9 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
       if (selectedEngineIds.includes('naabu')) engineOptions.naabu = { portProfile: naabuPortProfile, ...(naabuPortProfile === 'CUSTOM' ? { customPorts: naabuCustomPorts } : {}) };
       if (selectedEngineIds.includes('semgrep')) engineOptions.semgrep = { config: semgrepConfig };
       if (resilienceSelected) engineOptions['availability-probe'] = { requestedPlan: resiliencePlan, userSelectedModuleIds: resilienceUserModuleIds };
-      if (fuzzSelected) engineOptions['http-fuzz'] = { baseProfile: fuzzBaseProfile, ...(fuzzBaseProfile === 'CUSTOM' ? { customMaxParameters: Number(fuzzCustomMaxParameters) } : {}), ...(authProfileId ? { authProfileId } : {}), userPlan: fuzzUserPlan };
+      if (fuzzSelected) engineOptions['http-fuzz'] = { baseProfile: fuzzBaseProfile, ...(engagementId ? { engagementId } : {}), ...(fuzzBaseProfile === 'CUSTOM' ? { customMaxParameters: Number(fuzzCustomMaxParameters) } : {}), ...(authProfileId ? { authProfileId } : {}), userPlan: fuzzUserPlan };
       if (intrusiveSelected) engineOptions['intrusive-validation'] = {
+        ...(engagementId ? { engagementId } : {}),
         ...(authProfileId ? { authProfileId } : {}),
         userSelectedModuleIds: intrusiveUserModuleIds,
         priorFindings: (intrusivePlan?.selectedPriorFindings || []).map((finding) => ({
@@ -762,7 +767,7 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
     try {
       const { job: created } = await cyberAnalysisApi.createScan({
         target: resolvedAsset.target, requestedClass, selectedEngineIds: ['http-fuzz'], selectedCapabilities: ['FUZZ'], selectedComputeMode,
-        engineOptions: { 'http-fuzz': { baseProfile: fuzzBaseProfile, ...(fuzzBaseProfile === 'CUSTOM' ? { customMaxParameters: Number(fuzzCustomMaxParameters) } : {}), ...(authProfileId ? { authProfileId } : {}), userPlan: fuzzUserPlan, adaptivePlan: fuzzAdaptivePlanDraft } },
+        engineOptions: { 'http-fuzz': { baseProfile: fuzzBaseProfile, ...(engagementId ? { engagementId } : {}), ...(fuzzBaseProfile === 'CUSTOM' ? { customMaxParameters: Number(fuzzCustomMaxParameters) } : {}), ...(authProfileId ? { authProfileId } : {}), userPlan: fuzzUserPlan, adaptivePlan: fuzzAdaptivePlanDraft } },
       });
       setJob(created); setEngineRuns([]); setFuzzExecutions([]); setFuzzAdvice(null); setEditingFuzzAdaptivePlan(false); setStep(3);
     } catch (err) { setError(err.message); } finally { setStarting(false); }
@@ -792,6 +797,7 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
         target: resolvedAsset.target, requestedClass, selectedEngineIds: ['intrusive-validation'],
         selectedCapabilities: ['INTRUSIVE'], selectedComputeMode,
         engineOptions: { 'intrusive-validation': {
+          ...(engagementId ? { engagementId } : {}),
           ...(authProfileId ? { authProfileId } : {}),
           userSelectedModuleIds: intrusiveUserModuleIds,
           adaptivePlan: intrusiveAdaptivePlanDraft,
@@ -1116,6 +1122,7 @@ export default function CyberNewAnalysisWizard({ onClose, onGoToFindings }) {
                     </div>
                   </div>
                 )}
+                {(fuzzSelected || intrusiveSelected) && <label className="block mt-4 text-cyan-100/60 text-xs">Pentest engagement ID<input aria-label="Pentest engagement ID" className={inputCls} value={engagementId} onChange={(e) => { setEngagementId(e.target.value.trim()); setFuzzDiscovery(null); setIntrusivePlan(null); }} placeholder="Optional saved BCI engagement UUID" /></label>}
                 {fuzzSelected && <div className="mt-4 border border-cyan-300/25 rounded-xl p-3 sm:p-4 space-y-4">
                   <div><p className="text-cyan-100 text-sm tracking-wider">{t('bciSmartFuzzTitle')}</p><p className="text-cyan-100/45 text-[11px]">{t('bciFuzzBaseGuaranteeNote', { count: fuzzCatalog?.baseMinTestsPerParameter ?? '—' })}</p></div>
                   <div className="flex flex-wrap gap-1.5">{FUZZ_SECTION_KEYS.map((key, index) => <span key={key} className={`px-2 py-1 rounded border text-[10px] ${index === fuzzSection ? 'border-cyan-300/50 text-cyan-100 bg-cyan-400/10' : 'border-cyan-300/10 text-cyan-100/35'}`}>{index + 1} · {t(key)}</span>)}</div>

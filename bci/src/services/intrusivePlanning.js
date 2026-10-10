@@ -62,7 +62,7 @@ export function buildIntrusivePlan(target, priorFindings = [], discovery = {}) {
     blockedOn: module.blockedOn ?? null,
     applicable: module.status === 'IMPLEMENTED' && applicable.has(module.id),
     applicability: module.id === 'FINDING_REPRODUCIBILITY_VERIFICATION' ? 'SELECTED_PRIOR_FINDING' : module.id === 'OPENAPI_SCHEMA_BEHAVIOR' ? 'DISCOVERED_OPENAPI' : module.id === 'WEBSOCKET_API_PROTOCOL' ? 'WEBSOCKET_LIKE_PATH' : 'HTTP_TARGET',
-    requiredEvidence: module.id === 'FINDING_REPRODUCIBILITY_VERIFICATION' ? 'At least one persisted prior finding' : module.id === 'OPENAPI_SCHEMA_BEHAVIOR' ? 'A discoverable OpenAPI document' : 'Reachable HTTP target',
+    requiredEvidence: module.family && ['AUTHENTICATION', 'SESSION', 'AUTHORIZATION', 'BOLA', 'UPLOAD', 'BUSINESS_LOGIC', 'API_INPUT'].includes(module.family) ? 'Tenant-bound engagement, configured test case and live test accounts' : module.id === 'FINDING_REPRODUCIBILITY_VERIFICATION' ? 'At least one persisted prior finding' : module.id === 'OPENAPI_SCHEMA_BEHAVIOR' ? 'A discoverable OpenAPI document' : 'Reachable HTTP target',
     source: 'BCI_NATIVE_REGISTRY',
   }));
   return {

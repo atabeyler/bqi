@@ -2,6 +2,7 @@ import { assertHttpTarget, curlHealthCheck } from './nativeHttp.js';
 import { selectApplicableModules, getIntrusiveModule, listImplementedModules } from '../intrusive/registry.js';
 import { discoverEndpoints } from './fuzzDiscovery.js';
 import { resolveAuthProfile } from '../executionProfiles.js';
+import { buildCoverage } from '../../pentest/verification.js';
 
 // BCI Smart Intrusive -- orchestrates the Dynamic Intrusive Validation
 // Registry (bci/src/engines/intrusive/registry.js). This file itself
@@ -36,9 +37,10 @@ export const intrusiveValidationAdapter = {
   name: 'BCI Smart Intrusive',
   license: 'BCI-NATIVE',
   intrusiveness: 'RESTRICTED',
-  capabilities: ['INTRUSIVE'],
+  capabilities: ['INTRUSIVE', 'API'],
+  capabilitiesByTargetType: { DOMAIN: ['INTRUSIVE'], SUBDOMAIN: ['INTRUSIVE'], URL: ['INTRUSIVE', 'API'], API: ['INTRUSIVE', 'API'] },
   supportedTargetTypes: ['DOMAIN', 'SUBDOMAIN', 'URL', 'API'],
-  supportedAnalysisTypes: ['INTRUSIVE'],
+  supportedAnalysisTypes: ['INTRUSIVE', 'API'],
 
   async healthCheck() { return curlHealthCheck(); },
 
@@ -54,7 +56,7 @@ export const intrusiveValidationAdapter = {
   // run makes, for authenticated validation.
   async execute({
     target, timeoutMs = 30_000, priorFindings = [], userSelectedModuleIds = [], adaptivePlan: externalAdaptivePlan = [],
-    authProfileId, authHeader, customHeaders = [], signal,
+    authProfileId, authHeader, customHeaders = [], signal, pentestContext, executionOrgId,
   }) {
     const throwIfCancelled = () => {
       if (!signal?.aborted) return;
@@ -64,11 +66,11 @@ export const intrusiveValidationAdapter = {
     };
     throwIfCancelled();
     const validatedTarget = assertHttpTarget(target);
-    const authProfile = resolveAuthProfile(authProfileId);
+    const authProfile = resolveAuthProfile(authProfileId, { orgId: executionOrgId, target: validatedTarget });
     const headers = [...authProfile.headers, ...(authHeader ? [authHeader] : []), ...customHeaders];
     const probeTimeoutMs = Math.min(timeoutMs, 7_000);
-    const discovery = await discoverEndpoints(validatedTarget, { timeoutMs: probeTimeoutMs, headers });
-    const context = { target: validatedTarget, timeoutMs: probeTimeoutMs, headers, priorFindings, roundNumber: 1, ...discovery };
+    const discovery = await discoverEndpoints(validatedTarget, { timeoutMs: probeTimeoutMs, headers, signal });
+    const context = { target: validatedTarget, timeoutMs: probeTimeoutMs, headers, priorFindings, roundNumber: 1, signal, pentestContext, ...discovery };
 
     // Reject the complete external plan before the first network request.
     // A malformed USER/AI entry must never cause partial execution followed
@@ -100,6 +102,11 @@ export const intrusiveValidationAdapter = {
         const records = await module.run({ ...context, roundNumber });
         for (const record of records) raw.push({ ...record, source });
       } catch (err) {
+        if (err?.name === 'AbortError' || signal?.aborted) {
+          const completed = [...raw, ...(err.failureObservation?.raw || []).map((r) => ({ ...r, source }))];
+          err.failureObservation = { raw: completed, pentestCoverage: buildCoverage(completed) };
+          throw err;
+        }
         failures += 1;
         raw.push({
           type: 'INTRUSIVE_VALIDATION_RECORD', module: module.id, family: module.family, target: validatedTarget,
@@ -135,6 +142,7 @@ export const intrusiveValidationAdapter = {
     if (failures === attempts) throw new Error('all intrusive validation modules failed to execute');
     return {
       raw,
+      pentestCoverage: buildCoverage(raw),
       moduleMeta: {
         attempted: attempts,
         base: baseModules.length,

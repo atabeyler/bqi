@@ -3,7 +3,7 @@
 // still read as "needs manual verification," not get hidden or silently
 // promoted. Deterministic and versioned for the same reason as
 // verification.js -- an old score must stay explainable.
-export const CONFIDENCE_MODEL_VERSION = 1;
+export const CONFIDENCE_MODEL_VERSION = 2;
 
 const BASE_BY_SOURCE_COUNT = { 1: 40, 2: 65 }; // 3+ sources -> 85 (see below)
 
@@ -14,6 +14,8 @@ function baseScoreForSourceCount(count) {
 
 export function computeConfidenceScore(observations, verificationStatus) {
   if (observations.length === 0) return 0;
+  const pentest = observations.map((o) => o.evidence?.pentestVerification).filter(Boolean);
+  if (pentest.length) return Math.min(verificationStatus === 'CONFIRMED' ? 95 : 50, Math.max(...pentest.map((p) => p.confidence || 0)));
 
   const distinctEngines = new Set(observations.map((o) => o.engine_id));
   let score = baseScoreForSourceCount(distinctEngines.size);

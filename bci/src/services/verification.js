@@ -2,7 +2,7 @@
 // bump VERIFICATION_MODEL_VERSION whenever this logic changes, so an old
 // Finding's verification_status stays explainable against the model
 // version that actually produced it (spec section 63).
-export const VERIFICATION_MODEL_VERSION = 1;
+export const VERIFICATION_MODEL_VERSION = 2;
 
 const LIVE_CONFIRMING_CATEGORIES = new Set(['WEB', 'API', 'NETWORK_DISCOVERY']);
 const NOISY_SINGLE_SOURCE_CATEGORIES = new Set(['SECRETS']);
@@ -10,6 +10,8 @@ const NOISY_SINGLE_SOURCE_CATEGORIES = new Set(['SECRETS']);
 // observations: the normalized_observations currently backing one Finding.
 export function computeVerificationStatus(observations) {
   if (observations.length === 0) return 'UNVERIFIED';
+  const pentest = observations.filter((o) => o.evidence?.pentestVerification);
+  if (pentest.length) return pentest.some((o) => o.evidence.pentestVerification.status === 'VERIFIED' && o.evidence.pentestVerification.reproducible === true) ? 'CONFIRMED' : 'MANUAL_REVIEW_REQUIRED';
 
   // An active engine (Nuclei's matcher already ran against the live target;
   // naabu directly observed the port) has already done a safe, live check

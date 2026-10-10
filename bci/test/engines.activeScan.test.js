@@ -364,7 +364,7 @@ describe('BCI Smart Intrusive against a purpose-built local server', () => {
     });
     expect(raw.some((r) => r.module === 'SECURITY_HEADER_BEHAVIOR' && r.source === 'BASE')).toBe(true);
     expect(raw.some((r) => r.module === 'SECURITY_HEADER_BEHAVIOR' && r.source === 'USER')).toBe(true);
-    await expect(adapter.execute({ target, userSelectedModuleIds: ['IDOR_BOLA_VALIDATION'] })).rejects.toThrow(/not implemented/);
+    await expect(adapter.execute({ target, userSelectedModuleIds: ['IDOR_BOLA_VALIDATION'] })).rejects.toThrow(/not applicable/);
     await expect(adapter.execute({ target, userSelectedModuleIds: ['NOT_A_REAL_MODULE'] })).rejects.toThrow(/unknown USER/);
   }, 30_000);
 

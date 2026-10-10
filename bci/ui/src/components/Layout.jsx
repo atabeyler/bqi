@@ -29,6 +29,7 @@ export default function Layout() {
             {t(item.key)}
           </NavLink>
         ))}
+        <NavLink to="/pentest">Authenticated Pentest</NavLink>
         <div className="controlled-proof-nav">
           {hasPermission('system:manage') ? (
             <NavLink to="/controlled-proof" className={({ isActive }) => `controlled-proof-link${isActive ? ' active' : ''}`}>

@@ -2,6 +2,9 @@ import { assertHttpTarget, curlFetch, curlHealthCheck } from './nativeHttp.js';
 import { discoverEndpoints } from './fuzzDiscovery.js';
 import { FUZZ_CATEGORY_IDS, defaultCategoriesFor, getCategory } from './fuzzCatalog.js';
 import { FUZZ_BASE_PROFILES, resolveAuthProfile, resolveFuzzBaseScope } from '../executionProfiles.js';
+import { runControlledFuzz, controlledFuzzEndpoints } from '../../pentest/fuzz.js';
+import { buildCoverage, unverifiedFuzzEvidence } from '../../pentest/verification.js';
+import { responseEvidence } from '../../pentest/transport.js';
 
 // BCI Smart Fuzz. Real endpoint/parameter discovery (fuzzDiscovery.js: same-
 // origin HTML links/forms, robots.txt/sitemap, OpenAPI/Swagger when
@@ -178,7 +181,7 @@ export const httpFuzzAdapter = {
   // forwarded on every request this run makes, discovery included, so an
   // OpenAPI document or page only visible when authenticated is still
   // found. Never logged, never included in any observation this returns.
-  async execute({ target, timeoutMs = 30_000, baseProfile = 'STANDARD', customMaxParameters, userPlan: externalUserPlan = [], adaptivePlan: externalAdaptivePlan, authProfileId, authHeader, customHeaders = [], signal, onProgress }) {
+  async execute({ target, timeoutMs = 30_000, baseProfile = 'STANDARD', customMaxParameters, userPlan: externalUserPlan = [], adaptivePlan: externalAdaptivePlan, authProfileId, authHeader, customHeaders = [], signal, onProgress, pentestContext, executionOrgId }) {
     const throwIfCancelled = () => {
       if (!signal?.aborted) return;
       const error = new Error('Smart Fuzz execution cancelled by user');
@@ -187,14 +190,19 @@ export const httpFuzzAdapter = {
     };
     throwIfCancelled();
     const validatedTarget = assertHttpTarget(target);
-    const authProfile = resolveAuthProfile(authProfileId);
+    const authProfile = resolveAuthProfile(authProfileId, { orgId: executionOrgId, target: validatedTarget });
     const headers = [...authProfile.headers, ...(authHeader ? [authHeader] : []), ...customHeaders];
     const probeTimeoutMs = Math.min(timeoutMs, 7_000);
 
-    const { endpoints, openapiSource } = await discoverEndpoints(validatedTarget, { timeoutMs: probeTimeoutMs, headers });
+    const { endpoints, openapiSource } = await discoverEndpoints(validatedTarget, { timeoutMs: probeTimeoutMs, headers, signal });
     throwIfCancelled();
 
-    const raw = [];
+    const controlledEndpoints = controlledFuzzEndpoints(pentestContext);
+    const controlledMatches = (entry) => controlledEndpoints.some((op) => op.method === entry.method && op.url === entry.url);
+    const allUserPlan = sanitizeUserPlan(externalUserPlan, [...endpoints, ...controlledEndpoints]);
+    const allAdaptivePlan = sanitizeAdaptivePlan(externalAdaptivePlan || [], [...endpoints, ...controlledEndpoints]);
+    const controlled = pentestContext ? await runControlledFuzz(pentestContext, { signal, userPlan: allUserPlan.filter(controlledMatches), adaptivePlan: allAdaptivePlan.filter(controlledMatches) }) : { raw: [] };
+    const raw = [...controlled.raw];
     const discoveredNotExecuted = endpoints.filter((e) => !e.executable);
     for (const endpoint of discoveredNotExecuted) {
       raw.push({
@@ -209,8 +217,8 @@ export const httpFuzzAdapter = {
     // layered on top, on its own independent budget.
     const baseScope = resolveFuzzBaseScope(baseProfile, customMaxParameters);
     const basePlan = buildBasePlan(endpoints, baseScope);
-    const userPlan = sanitizeUserPlan(externalUserPlan, endpoints);
-    const adaptivePlan = externalAdaptivePlan ? sanitizeAdaptivePlan(externalAdaptivePlan, endpoints) : [];
+    const userPlan = allUserPlan.filter((entry) => !controlledMatches(entry));
+    const adaptivePlan = allAdaptivePlan.filter((entry) => !controlledMatches(entry));
     const plan = [...basePlan, ...userPlan, ...adaptivePlan];
 
     if (plan.length === 0) {
@@ -248,7 +256,7 @@ export const httpFuzzAdapter = {
       const baselineKey = `${entry.method} ${entry.url}`;
       if (!baselines.has(baselineKey)) {
         try {
-          const baseline = await curlFetch(entry.url, { method: entry.method, headers, timeoutMs: probeTimeoutMs });
+          const baseline = await curlFetch(entry.url, { method: entry.method, headers, timeoutMs: probeTimeoutMs, signal });
           baselines.set(baselineKey, baseline);
         } catch (err) {
           baselines.set(baselineKey, { status: null, sizeBytes: null, timeMs: null, body: '', error: String(err.message || err) });
@@ -259,7 +267,7 @@ export const httpFuzzAdapter = {
 
       try {
         const { url, headers: probeHeaders } = applyProbe(entry.url, entry.location, entry.parameter, category.value, headers);
-        const result = await curlFetch(url, { method: entry.method, headers: probeHeaders, timeoutMs: probeTimeoutMs });
+        const result = await curlFetch(url, { method: entry.method, headers: probeHeaders, timeoutMs: probeTimeoutMs, signal });
 
         const reasons = [];
         if (result.status >= 500) reasons.push('server_error');
@@ -276,6 +284,7 @@ export const httpFuzzAdapter = {
           category: entry.categoryId, source: entry.source, status: result.status, sizeBytes: result.sizeBytes, timeMs: result.timeMs,
           baselineStatus: baseline.status, baselineSizeBytes: baseline.sizeBytes, baselineTimeMs: baseline.timeMs,
           reflected, anomalous: reasons.length > 0, anomalyReasons: reasons,
+          pentestVerification: unverifiedFuzzEvidence(baseline.status == null ? null : responseEvidence(baseline), [responseEvidence(result, category.reflectionMarker)], { method: entry.method, endpoint: entry.url.split('?')[0], parameter: entry.parameter, categoryId: entry.categoryId }),
         };
       } catch (err) {
         if (err?.name === 'AbortError' || signal?.aborted) throw err;
@@ -306,7 +315,7 @@ export const httpFuzzAdapter = {
       throw err;
     }
 
-    if (failures === plan.length) {
+    if (failures === plan.length && !controlled.raw.some((r) => r.status != null)) {
       const failureSummary = summarizeHttpFuzzFailures(raw);
       const counts = Object.entries(failureSummary.counts).map(([code, count]) => `${code}: ${count}`).join(', ');
       const error = new Error(`all HTTP fuzz probes failed (${counts || 'HTTP_TRANSPORT'})`);
@@ -319,6 +328,7 @@ export const httpFuzzAdapter = {
     }
     return {
       raw,
+      pentestCoverage: buildCoverage(raw),
       discoveryMeta: {
         endpointsDiscovered: endpoints.length, openapiSource,
         baseProbesRun: basePlan.length, userProbesRun: userPlan.length, adaptiveProbesRun: adaptivePlan.length, probesRun: plan.length,

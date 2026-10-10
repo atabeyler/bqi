@@ -1,11 +1,13 @@
 const REASON_TITLES = {
+  database_error_disclosed: 'Input triggered a database error disclosure; SQL injection remains unverified',
   server_error: 'Boundary input triggered a server error',
   response_size_deviation: 'Boundary input produced a significantly different response size',
   latency_deviation: 'Boundary input produced a significantly slower response',
-  payload_reflected_unescaped: 'Input value reflected unescaped in the response body',
+  payload_reflected_unescaped: 'Input marker reflected in the response; injection remains unverified',
 };
 
 const REASON_RULE_IDS = {
+  database_error_disclosed: 'BCI-HTTP-FUZZ-DATABASE-ERROR',
   server_error: 'BCI-HTTP-FUZZ-5XX',
   response_size_deviation: 'BCI-HTTP-FUZZ-SIZE-DEVIATION',
   latency_deviation: 'BCI-HTTP-FUZZ-LATENCY-DEVIATION',
@@ -18,13 +20,14 @@ const REASON_RULE_IDS = {
 // pure timing/size deviation (weaker, more speculative signal on its own).
 function severityFor(reasons) {
   if (reasons.includes('payload_reflected_unescaped')) return 'HIGH';
-  if (reasons.includes('server_error')) return 'MEDIUM';
+  if (reasons.includes('server_error') || reasons.includes('database_error_disclosed')) return 'MEDIUM';
   return 'LOW';
 }
 
 function primaryReason(reasons) {
   return reasons.includes('payload_reflected_unescaped') ? 'payload_reflected_unescaped'
     : reasons.includes('server_error') ? 'server_error'
+    : reasons.includes('database_error_disclosed') ? 'database_error_disclosed'
     : reasons.includes('response_size_deviation') ? 'response_size_deviation'
     : 'latency_deviation';
 }
@@ -64,6 +67,7 @@ export function normalizeHttpFuzz(rawPayload) {
           baselineTimeMs: probe.baselineTimeMs,
           reflected: probe.reflected,
           anomalyReasons: probe.anomalyReasons,
+          pentestVerification: probe.pentestVerification ?? null,
         },
         references: [],
       };

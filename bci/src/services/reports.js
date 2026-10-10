@@ -10,6 +10,7 @@ import { RISK_MODEL_VERSION } from './risk.js';
 import { SECURITY_SCORE_MODEL_VERSION } from './securityScore.js';
 import { COVERAGE_SCORE_MODEL_VERSION } from './coverageScore.js';
 import { recordAuditEvent } from './audit.js';
+import { getPentestReport } from './pentest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BCI_VERSION = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8')).version;
@@ -113,6 +114,7 @@ export async function generateReport(orgId, actorUserId, reportType, options = {
   }
   const language = SUPPORTED_LANGUAGES.has(options.language) ? options.language : 'en';
   const builtContent = await builder(orgId, { ...options, targets });
+  if (options.scanJobId) builtContent.pentest = await getPentestReport(orgId, options.scanJobId);
   const content = addLocalizedPresentation(reportType, builtContent, language);
   const contentHash = hashContent(content);
 

@@ -8,6 +8,7 @@ import { correlateJobObservations } from './correlation.js';
 import { syncSecurityGraph } from './securityGraph.js';
 import { ingestPostureEnvelope } from './postureIntelligence.js';
 import { mapEvidenceBackedTechniques } from './attackMapping.js';
+import { loadPentestContext } from './pentest.js';
 
 const MAX_CVE_ENRICHMENTS_PER_JOB = 5; // NVD's unauthenticated rate limit is strict; this is a per-job ceiling, not a bulk sync.
 
@@ -73,7 +74,8 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
         const raw = await runPlannedEngine(
           enginePlan,
           executionTarget,
-          job.engine_options?.[enginePlan.engineId],
+          { ...job.engine_options?.[enginePlan.engineId], executionOrgId: job.org_id, ...(job.engine_options?.[enginePlan.engineId]?.engagementId
+            ? { pentestContext: await loadPentestContext(job.org_id, job.engine_options[enginePlan.engineId].engagementId, job.target) } : {}) },
           signal,
           async (progress) => recordEngineRun(
             job.id,

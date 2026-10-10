@@ -13,6 +13,8 @@ import { resolveAuthProfile, resolveFuzzBaseScope, resolveNaabuScope, resolveNuc
 import { postureSnapshotSchema, redactSnapshotValue } from '../engines/adapters/postureIntelligence.js';
 import { normalizeTargetForExecution } from '../lib/targetMatcher.js';
 import { recordAuditEvent } from '../services/audit.js';
+import { loadPentestContext } from '../services/pentest.js';
+import { withPentestTransport } from '../pentest/transport.js';
 
 export const scansRouter = Router();
 
@@ -84,18 +86,19 @@ const createScanSchema = z.object({
   // for real finding summaries, not arbitrary large payloads.
   engineOptions: z.object({
     'http-fuzz': z.object({
+      engagementId: z.string().uuid(),
       baseProfile: z.enum(['STANDARD', 'EXTENDED', 'FULL', 'CUSTOM']),
       customMaxParameters: z.number().int().positive(),
       authProfileId: z.string().regex(/^[A-Za-z0-9_]{1,40}$/),
       userPlan: z.array(z.object({
-        method: z.literal('GET'),
+        method: z.enum(['GET', 'POST', 'PUT', 'PATCH']),
         url: z.string().url(),
         parameter: z.string().min(1),
         location: z.enum(['query', 'header', 'body']),
         categoryId: z.string().refine((id) => FUZZ_CATEGORY_IDS.includes(id), 'unknown fuzz category'),
       })),
       adaptivePlan: z.array(z.object({
-        method: z.literal('GET'),
+        method: z.enum(['GET', 'POST', 'PUT', 'PATCH']),
         url: z.string().min(1),
         parameter: z.string().min(1),
         location: z.enum(['query', 'header', 'body']),
@@ -114,6 +117,7 @@ const createScanSchema = z.object({
     }).partial().optional(),
     semgrep: z.object({ config: z.enum(['auto', 'p/default', 'p/security-audit', 'p/owasp-top-ten']) }).partial().optional(),
     'intrusive-validation': z.object({
+      engagementId: z.string().uuid(),
       authProfileId: z.string().regex(/^[A-Za-z0-9_]{1,40}$/),
       userSelectedModuleIds: z.array(z.string().min(1)).max(20),
       adaptivePlan: z.array(z.object({
@@ -166,12 +170,22 @@ scansRouter.post('/', requirePermission('scan:create'), async (req, res) => {
     return res.status(400).json({ error: 'invalid_request', details: parsed.error.flatten(), requestId: req.id });
   }
   const normalizedScanTarget = normalizeTargetForExecution(parsed.data.target);
+  const pentestContexts = {};
+  try {
+    for (const engineId of ['http-fuzz', 'intrusive-validation']) {
+      const id = parsed.data.engineOptions?.[engineId]?.engagementId;
+      if (id) {
+        if (parsed.data.requestedClass !== 'RESTRICTED') throw new Error('pentest engagement requires RESTRICTED execution class');
+        pentestContexts[engineId] = await loadPentestContext(req.auth.orgId, id, normalizedScanTarget);
+      }
+    }
+  } catch { return res.status(400).json({ error: 'invalid_pentest_execution' }); }
 
   try {
     const fuzz = parsed.data.engineOptions?.['http-fuzz'];
     if (fuzz) {
       resolveFuzzBaseScope(fuzz.baseProfile, fuzz.customMaxParameters);
-      resolveAuthProfile(fuzz.authProfileId);
+      resolveAuthProfile(fuzz.authProfileId, { orgId: req.auth.orgId, target: normalizedScanTarget });
     }
     const nuclei = parsed.data.engineOptions?.nuclei;
     if (nuclei) resolveNucleiScope(nuclei.scanProfile, nuclei.templateCategories);
@@ -193,18 +207,20 @@ scansRouter.post('/', requirePermission('scan:create'), async (req, res) => {
     const normalizedTarget = /^https?:\/\//i.test(normalizedScanTarget) ? normalizedScanTarget : `https://${normalizedScanTarget}`;
     let discovery = {};
     try {
-      const auth = resolveAuthProfile(intrusiveOptions.authProfileId);
+      const auth = resolveAuthProfile(intrusiveOptions.authProfileId, { orgId: req.auth.orgId, target: normalizedTarget });
       const requestedModuleIds = [
         ...(intrusiveOptions.userSelectedModuleIds || []),
         ...(intrusiveOptions.adaptivePlan || []).map((entry) => entry.moduleId),
       ];
       if (requestedModuleIds.includes('OPENAPI_SCHEMA_BEHAVIOR')) {
-        discovery = await discoverEndpoints(assertHttpTarget(normalizedTarget), { headers: auth.headers });
+        const discover = () => discoverEndpoints(assertHttpTarget(normalizedTarget), { headers: auth.headers });
+        const transport = pentestContexts['intrusive-validation'] || (auth.profileId ? { engagement: { target: normalizedTarget, environment: 'PRODUCTION' } } : null);
+        discovery = transport ? await withPentestTransport(transport, undefined, discover) : await discover();
       }
     } catch (err) {
       return res.status(400).json({ error: 'intrusive_preflight_failed', detail: String(err.message || err), requestId: req.id });
     }
-    const applicableIds = new Set(selectApplicableModules({ target: normalizedTarget, priorFindings: canonicalPriorFindings, ...discovery }).map((module) => module.id));
+    const applicableIds = new Set(selectApplicableModules({ target: normalizedTarget, priorFindings: canonicalPriorFindings, pentestContext: pentestContexts['intrusive-validation'], ...discovery }).map((module) => module.id));
     for (const [source, ids] of [
       ['USER', intrusiveOptions.userSelectedModuleIds || []],
       ['AI_ADAPTIVE', (intrusiveOptions.adaptivePlan || []).map((entry) => entry.moduleId)],

@@ -40,6 +40,14 @@ async function request(path, { method = 'GET', body } = {}) {
 }
 
 export const api = {
+  pentestAccounts: () => request('/pentest/accounts'),
+  createPentestAccount: (body) => request('/pentest/accounts', { method: 'POST', body }),
+  revokePentestAccount: (id) => request(`/pentest/accounts/${id}`, { method: 'DELETE' }),
+  pentestEngagements: () => request('/pentest/engagements'),
+  createPentestEngagement: (body) => request('/pentest/engagements', { method: 'POST', body }),
+  revokePentestEngagement: (id) => request(`/pentest/engagements/${id}`, { method: 'DELETE' }),
+  pentestResults: (id) => request(`/pentest/results/${id}`),
+  pentestReport: (scanJobId) => request('/reports', { method: 'POST', body: { reportType: 'TECHNICAL', scanJobId } }),
   login: (orgSlug, email, password) => request('/auth/login', { method: 'POST', body: { orgSlug, email, password } }),
   me: () => request('/auth/me'),
 

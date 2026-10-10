@@ -1,5 +1,6 @@
 import { query } from '../db/client.js';
 import { normalizeRaw } from '../normalization/normalize.js';
+import { storePentestResults } from './pentest.js';
 
 export async function storeRawObservation({ orgId, jobId, engineId, target, payload }) {
   const { rows } = await query(
@@ -7,7 +8,9 @@ export async function storeRawObservation({ orgId, jobId, engineId, target, payl
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
     [orgId, jobId, engineId, target, JSON.stringify(payload)]
   );
-  return rows[0].id;
+  const rawId = rows[0].id;
+  await storePentestResults({ orgId, jobId, engineId, rawId, payload });
+  return rawId;
 }
 
 // Reads one raw_observations row back and writes its normalized form.

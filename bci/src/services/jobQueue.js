@@ -51,6 +51,13 @@ export function resolveJobTimeoutMs(job, explicitTimeoutMs) {
 // or unhealthy one. Omitted entirely (the pre-existing quick-scan path),
 // it defaults to the full recommended plan, identical to today's behavior.
 export async function enqueueScan({ orgId, actorUserId, target, requestedClass, selectedEngineIds, selectedCapabilities, selectedComputeMode, engineOptions }) {
+  for (const engineId of ['http-fuzz', 'intrusive-validation']) {
+    if (engineOptions?.[engineId]?.engagementId) {
+      if (requestedClass !== 'RESTRICTED') return { accepted: false, decision: { reason: 'pentest_requires_restricted_class' } };
+      const { loadPentestContext } = await import('./pentest.js');
+      await loadPentestContext(orgId, engineOptions[engineId].engagementId, target);
+    }
+  }
   const normalizedTarget = normalizeTargetForExecution(target);
   const { targetType } = await evaluateScopeAuthorization({ orgId, actorUserId, target: normalizedTarget, requestedClass });
 

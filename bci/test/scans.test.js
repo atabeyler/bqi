@@ -182,7 +182,7 @@ describe('POST /api/v1/scans', () => {
     const planned = await request(app).post('/api/v1/scans').set('Authorization', `Bearer ${token}`)
       .send({ ...base, engineOptions: { 'intrusive-validation': { userSelectedModuleIds: ['IDOR_BOLA_VALIDATION'] } } });
     expect(planned.status).toBe(400);
-    expect(planned.body.error).toBe('intrusive_module_not_implemented');
+    expect(planned.body.error).toBe('intrusive_module_not_applicable');
 
     const unknownAi = await request(app).post('/api/v1/scans').set('Authorization', `Bearer ${token}`)
       .send({ ...base, engineOptions: { 'intrusive-validation': { adaptivePlan: [{ moduleId: 'NOT_REAL' }] } } });

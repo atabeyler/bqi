@@ -13,6 +13,7 @@ import EnginesPage from './pages/EnginesPage.jsx';
 import QuantumPage from './pages/QuantumPage.jsx';
 import DecisionPage from './pages/DecisionPage.jsx';
 import ControlledProofPage from './pages/ControlledProofPage.jsx';
+import PentestPage from './pages/PentestPage.jsx';
 
 function RequireAuth({ children }) {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="quantum" element={<QuantumPage />} />
         <Route path="decision" element={<DecisionPage />} />
         <Route path="controlled-proof" element={<ControlledProofPage />} />
+        <Route path="pentest" element={<PentestPage />} />
       </Route>
     </Routes>
   );

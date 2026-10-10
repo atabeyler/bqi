@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { runBinary } from '../engines/execFileAsync.js';
 import { getAdapter } from '../engines/registry.js';
+import { withPentestTransport } from '../pentest/transport.js';
 
 // Some target types need local material on disk before an engine can run
 // against them (a REPOSITORY has to be cloned first); others are already
@@ -54,5 +55,7 @@ export async function runPlannedEngine(plan, executionTarget, engineOptions, sig
   const adapterTarget = adapter.normalizeExecutionTarget
     ? adapter.normalizeExecutionTarget(executionTarget)
     : executionTarget;
-  return adapter.execute({ ...(engineOptions || {}), target: adapterTarget, mode: plan.mode, capabilities: plan.capabilities, signal, onProgress });
+  const execute = () => adapter.execute({ ...(engineOptions || {}), target: adapterTarget, mode: plan.mode, capabilities: plan.capabilities, signal, onProgress });
+  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId ? { engagement: { target: adapterTarget, environment: 'PRODUCTION' } } : null);
+  return transport ? withPentestTransport(transport, signal, execute) : execute();
 }
