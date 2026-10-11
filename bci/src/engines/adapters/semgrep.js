@@ -13,9 +13,12 @@ export const semgrepAdapter = {
   async execute({ target, config: ruleset = 'auto', timeoutMs = 180_000 }) {
     const allowed = this.executionOptions.configs;
     if (!allowed.includes(ruleset)) throw new TypeError(`unsupported Semgrep config: ${ruleset}`);
-    const resolved = ruleset === 'BCI_CORE' ? fileURLToPath(new URL('../rules/semgrep',import.meta.url)) : ruleset;
+    // Semgrep's auto config requires telemetry. Keep metrics disabled and
+    // resolve that legacy choice to the standard registry rules explicitly.
+    const executedConfig = ruleset === 'auto' ? 'p/default' : ruleset;
+    const resolved = executedConfig === 'BCI_CORE' ? fileURLToPath(new URL('../rules/semgrep',import.meta.url)) : executedConfig;
     const { stdout } = await runBinary(BIN, ['--config', resolved, '--json', '--quiet', '--metrics=off', target], { timeoutMs, allowedExitCodes: [0, 1] });
     const raw = JSON.parse(stdout);
-    return { raw, executionMeta: { requestedScope: { config: ruleset, recursiveRepository: true }, executedScope: { config: ruleset, recursiveRepository: true }, resultCount: raw.results?.length || 0 } };
+    return { raw, executionMeta: { requestedScope: { config: ruleset, recursiveRepository: true }, executedScope: { config: executedConfig, recursiveRepository: true }, resultCount: raw.results?.length || 0 } };
   },
 };

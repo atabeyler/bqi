@@ -167,6 +167,8 @@ export function classifyTarget(target) {
     || v.startsWith('/')
     || v.startsWith('./')
     || v.startsWith('../')
+    || /^[a-z]:[\\/]/i.test(v)
+    || v.startsWith('\\\\')
   ) return 'REPOSITORY';
   if (/^https?:\/\//i.test(v)) return 'URL';
   return 'DOMAIN';

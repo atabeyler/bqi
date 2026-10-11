@@ -75,7 +75,7 @@ describe('runAnalysisPipeline — REPOSITORY (real clone + real engines, skips i
     const userId = await createUser(orgId, { roleId: 'operator' });
     await approveScope(orgId, userId, repoDir, 'REPOSITORY');
 
-    const { job, accepted } = await enqueueScan({ orgId, actorUserId: userId, target: repoDir, requestedClass: 'PASSIVE' });
+    const { job, accepted } = await enqueueScan({ orgId, actorUserId: userId, target: repoDir, requestedClass: 'PASSIVE', engineOptions: { semgrep: { config: 'BCI_CORE' } } });
     expect(accepted).toBe(true);
 
     const claimed = await claimNextJob('test-worker');
@@ -86,17 +86,18 @@ describe('runAnalysisPipeline — REPOSITORY (real clone + real engines, skips i
 
     // The guard above only requires at least one of the three real SAST/SCA
     // binaries to be healthy -- not all three -- so a planned-but-unhealthy
-    // engine here is legitimately SKIPPED, never FAILED, matching the
-    // "one engine unavailable never masks as job-level success" contract
-    // tested explicitly below. Only the engines that actually ran must be
-    // COMPLETED; asserting it of every planned engine would fail on any
+    // engine here is SKIPPED; a healthy binary can also fail execution
+    // when its external database is unavailable. Both must retain a real
+    // reason and must never be recorded as COMPLETED. Only the engines
+    // that actually ran must be COMPLETED; asserting it of every planned engine would fail on any
     // real environment (this one included) that doesn't have every one of
     // osv-scanner/semgrep/trivy installed.
-    const { rows: runs } = await query('SELECT engine_id, status FROM scan_job_engine_runs WHERE job_id = $1', [job.id]);
+    const { rows: runs } = await query('SELECT engine_id, status, detail FROM scan_job_engine_runs WHERE job_id = $1', [job.id]);
     const ranRuns = runs.filter((r) => result.enginesRun.includes(r.engine_id));
     const notRanRuns = runs.filter((r) => !result.enginesRun.includes(r.engine_id));
     expect(ranRuns.every((r) => r.status === 'COMPLETED')).toBe(true);
-    expect(notRanRuns.every((r) => r.status === 'SKIPPED')).toBe(true);
+    expect(notRanRuns.every((r) => ['SKIPPED','FAILED'].includes(r.status) && Boolean(r.detail))).toBe(true);
+    expect(notRanRuns.every((r) => result.enginesSkipped.some((s) => s.engineId === r.engine_id && s.reason === r.detail))).toBe(true);
 
     const { rows: findings } = await query('SELECT * FROM findings WHERE id = ANY($1)', [result.findingIds]);
     expect(findings.every((f) => f.risk_score !== null)).toBe(true);
@@ -147,7 +148,7 @@ describe('runAnalysisPipeline — one engine unavailable never masks as job-leve
     const userId = await createUser(orgId, { roleId: 'operator' });
     await approveScope(orgId, userId, repoDir, 'REPOSITORY');
 
-    const { job, accepted } = await enqueueScan({ orgId, actorUserId: userId, target: repoDir, requestedClass: 'PASSIVE' });
+    const { job, accepted } = await enqueueScan({ orgId, actorUserId: userId, target: repoDir, requestedClass: 'PASSIVE', engineOptions: { semgrep: { config: 'BCI_CORE' } } });
     expect(accepted).toBe(true);
 
     const claimed = await claimNextJob('test-worker-skip');
@@ -180,6 +181,8 @@ describe('runAnalysisPipeline — DOMAIN/URL via Nuclei against a self-owned loc
     const server = http.createServer((_req, res) => res.end('ok'));
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const target = `http://127.0.0.1:${server.address().port}`;
+    const previousLabOrigins = process.env.BCI_NATIVE_LAB_ORIGINS;
+    process.env.BCI_NATIVE_LAB_ORIGINS = target;
 
     try {
       const orgId = await createOrg();
@@ -206,6 +209,8 @@ describe('runAnalysisPipeline — DOMAIN/URL via Nuclei against a self-owned loc
       expect(result.enginesRun).toContain('nuclei');
       expect(result.findingIds.length).toBeGreaterThan(0);
     } finally {
+      if (previousLabOrigins === undefined) delete process.env.BCI_NATIVE_LAB_ORIGINS;
+      else process.env.BCI_NATIVE_LAB_ORIGINS = previousLabOrigins;
       server.close();
     }
   }, 60_000);

@@ -71,7 +71,7 @@ describe('real engine execution (skips if the binary is not installed)', () => {
   it('Trivy fs-scans a local directory and returns parseable JSON', async () => {
     const { adapter, healthy } = await ifHealthy('trivy');
     if (!healthy) return;
-    const { raw } = await adapter.execute({ target: SAST_FIXTURE, timeoutMs: 60_000 });
+    const { raw } = await adapter.execute({ target: SAST_FIXTURE, capabilities: ['SECRETS'], timeoutMs: 60_000 });
     expect(raw).toBeTypeOf('object');
   }, 60_000);
 
@@ -83,14 +83,12 @@ describe('real engine execution (skips if the binary is not installed)', () => {
   }, 60_000);
 
   it('Semgrep scans a real source file and returns parseable JSON', async () => {
-    // Not asserting a specific finding count: which rules the `auto`
-    // registry config pulls in varies by network/cache state, and pinning
-    // this test to "the eval() in the fixture gets flagged" would make it
-    // flaky for reasons that have nothing to do with the adapter's own
-    // correctness (argv construction, exit-code handling, JSON parsing).
+    // Run the shipped real rules against the real fixture. Registry and
+    // vulnerability database downloads are not prerequisites for this
+    // deterministic binary/JSON smoke test.
     const { adapter, healthy } = await ifHealthy('semgrep');
     if (!healthy) return;
-    const { raw } = await adapter.execute({ target: SAST_FIXTURE, timeoutMs: 90_000 });
+    const { raw } = await adapter.execute({ target: SAST_FIXTURE, config: 'BCI_CORE', timeoutMs: 90_000 });
     expect(Array.isArray(raw.results)).toBe(true);
     expect(Array.isArray(raw.errors)).toBe(true);
   }, 90_000);

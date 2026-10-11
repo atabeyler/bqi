@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTargetForExecution, targetMatchesTyped } from '../src/lib/targetMatcher.js';
+import { classifyTarget, normalizeTargetForExecution, targetMatchesTyped } from '../src/lib/targetMatcher.js';
+
+describe('classifyTarget — native repository paths', () => {
+  it('routes Windows drive and UNC paths to repository scanning while retaining URL/domain types', () => {
+    expect(classifyTarget('C:\\work\\repository')).toBe('REPOSITORY');
+    expect(classifyTarget('D:/work/repository')).toBe('REPOSITORY');
+    expect(classifyTarget('\\\\server\\share\\repository')).toBe('REPOSITORY');
+    expect(classifyTarget('https://example.com/api')).toBe('URL');
+    expect(classifyTarget('example.com')).toBe('DOMAIN');
+  });
+});
 
 describe('normalizeTargetForExecution', () => {
   it('removes browser-only SPA fragments at the execution boundary', () => {
