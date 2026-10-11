@@ -6,6 +6,7 @@ it('uses actual TLS Vault provisioning, tenant isolation, rotation, backup and r
   const url=new URL(process.env.BCI_PENTEST_VAULT_URL);
   if(!['127.0.0.1','localhost'].includes(url.hostname) || process.env.BCI_PROVIDER_LAB !== '1') throw new Error('isolated Vault laboratory required');
   const key=`bci-lab-${randomBytes(6).toString('hex')}`;process.env.BCI_PENTEST_VAULT_TRANSIT_KEY=key;
+  process.env.BCI_VAULT_ALLOW_TRANSIT_BACKUP='1';
   const enabled=await fetch(new URL('/v1/sys/mounts/transit',url),{method:'POST',headers:{'X-Vault-Token':process.env.BCI_PENTEST_VAULT_OPERATOR_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({type:'transit'})});
   if(!enabled.ok && enabled.status!==400) throw new Error('transit mount failed');
   await vaultLifecycle('provision');
