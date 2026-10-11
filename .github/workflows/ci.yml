@@ -236,6 +236,17 @@ jobs:
 
   bci-worker-image:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bci
+          POSTGRES_PASSWORD: bci
+          POSTGRES_DB: bci_worker_image_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bci -d bci_worker_image_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Build the real deployment worker image
@@ -260,6 +271,24 @@ jobs:
           await page.setContent("<title>BCI worker browser smoke</title>");
           if (await page.title() !== "BCI worker browser smoke") throw new Error("Chromium runtime smoke failed");
           await browser.close();'
+      - name: Verify actual worker migrations and PostgreSQL heartbeat health
+        run: |
+          set -eu
+          database=postgres://bci:bci@127.0.0.1:5432/bci_worker_image_test
+          docker run --rm --network host -e BCI_DATABASE_URL="$database" --entrypoint node bci-worker:ci src/db/migrate.js
+          trap 'docker rm -f bci-worker-health >/dev/null 2>&1 || true' EXIT
+          docker run -d --name bci-worker-health --network host -e BCI_DATABASE_URL="$database" -e LOG_LEVEL=silent bci-worker:ci
+          ready=0
+          for attempt in $(seq 1 20); do
+            if docker exec bci-worker-health node scripts/worker-healthcheck.mjs; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          docker exec bci-worker-health node --input-type=module -e 'import {pool} from "./src/db/client.js"; await pool.query("UPDATE job_workers SET last_seen_at=now()-interval '\''120 seconds'\''"); await pool.end();'
+          if docker exec bci-worker-health node scripts/worker-healthcheck.mjs; then
+            echo "Stale worker incorrectly reported healthy" >&2
+            exit 1
+          fi
 
   bci-api-image:
     runs-on: ubuntu-latest

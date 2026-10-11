@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import http from 'node:http';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/lib/jwt.js';
@@ -8,6 +9,13 @@ import { query } from '../src/db/client.js';
 import { config } from '../src/config.js';
 
 const app = createApp();
+let discoveryServer,discoveryTarget;
+beforeAll(async()=>{
+  discoveryServer=http.createServer((_req,res)=>{res.writeHead(404);res.end('Owned BCI discovery laboratory');});
+  await new Promise((resolve)=>discoveryServer.listen(0,'127.0.0.1',resolve));
+  discoveryTarget=`http://127.0.0.1:${discoveryServer.address().port}`;
+});
+afterAll(async()=>{discoveryServer?.closeAllConnections();if(discoveryServer) await new Promise((resolve)=>discoveryServer.close(resolve));});
 
 beforeEach(resetDatabase);
 
@@ -167,7 +175,7 @@ describe('GET /engines/plan -- real engine selection preview (analysis wizard st
     const orgId = await createOrg();
     const token = await tokenFor(orgId, 'operator');
     const res = await request(app).post('/api/v1/engines/intrusive-plan')
-      .set('Authorization', `Bearer ${token}`).send({ target: 'example.com', priorFindingIds: [] });
+      .set('Authorization', `Bearer ${token}`).send({ target: discoveryTarget, priorFindingIds: [] });
     expect(res.status).toBe(200);
     expect(res.body.summary.total).toBe(res.body.modules.length);
     expect(res.body.modules.some((module) => module.status === 'IMPLEMENTED' && module.applicable)).toBe(true);
@@ -176,11 +184,11 @@ describe('GET /engines/plan -- real engine selection preview (analysis wizard st
 
     const { rows } = await query(
       `INSERT INTO findings (org_id, correlation_key, category, title, target, location)
-       VALUES ($1, 'intrusive-plan-finding', 'WEB', 'Real prior finding', 'example.com', 'https://example.com/') RETURNING id`,
-      [orgId]
+       VALUES ($1, 'intrusive-plan-finding', 'WEB', 'Real prior finding', $2, $2) RETURNING id`,
+      [orgId,discoveryTarget]
     );
     const withFinding = await request(app).post('/api/v1/engines/intrusive-plan')
-      .set('Authorization', `Bearer ${token}`).send({ target: 'example.com', priorFindingIds: [rows[0].id] });
+      .set('Authorization', `Bearer ${token}`).send({ target: discoveryTarget, priorFindingIds: [rows[0].id] });
     expect(withFinding.status).toBe(200);
     expect(withFinding.body.selectedPriorFindings[0].id).toBe(rows[0].id);
     expect(withFinding.body.baseModuleIds).toContain('FINDING_REPRODUCIBILITY_VERIFICATION');
