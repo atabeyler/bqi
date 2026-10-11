@@ -1,6 +1,6 @@
 {
   "name": "bci-api",
-  "version": "0.1.146",
+  "version": "0.1.147",
   "private": true,
   "type": "module",
   "main": "src/index.js",
