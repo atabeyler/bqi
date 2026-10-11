@@ -182,7 +182,25 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run migrate
+      - name: Install Chromium for actual XSS verification
+        run: npx playwright install --with-deps chromium
       - run: npm test
+      - name: Prepare isolated browser-worker database
+        run: PGPASSWORD=bci psql -h localhost -U bci -d postgres -c 'CREATE DATABASE bci_completion_e2e'
+      - name: Install pentest browser UI dependencies
+        working-directory: bci/ui
+        run: npm ci
+      - name: Run actual API-worker-browser pentest E2E
+        working-directory: bci
+        env:
+          BCI_DATABASE_URL: postgres://bci:bci@localhost:5432/bci_completion_e2e
+        run: npm run test:browser
+      - name: Publish actual pentest execution results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bci-pentest-results
+          path: bci/evidence/pentest-completion/
 
   bci-ui:
     runs-on: ubuntu-latest

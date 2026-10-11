@@ -2,6 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runBinary } from '../execFileAsync.js';
 import { config } from '../../config.js';
+import { getPentestTransport } from '../../pentest/transport.js';
+import { withBinaryProxy } from '../../pentest/binaryProxy.js';
 import {
   NUCLEI_SAFE_CATEGORIES, NUCLEI_SCAN_PROFILES, NUCLEI_TEMPLATES_DIR,
   NUCLEI_TEMPLATES_VERSION, resolveNucleiScope,
@@ -9,6 +11,7 @@ import {
 const BIN = config.engineBins.nuclei;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLED_TEMPLATES_DIR = path.join(__dirname, '..', 'templates', 'nuclei');
+const PROXY_TOKEN = Symbol('internal-scanner-proxy');
 const PROFILE_TIMEOUT_MS = Object.freeze({
   BCI_BUNDLED: 120_000,
   STANDARD: 10 * 60_000,
@@ -27,7 +30,12 @@ export const nucleiAdapter = {
     excludedTags: ['dos', 'fuzz', 'intrusive', 'bruteforce', 'default-login', 'token-spray', 'credential-stuffing'],
   },
   async healthCheck() { try { const { stdout, stderr } = await runBinary(BIN, ['-version'], { timeoutMs: 15_000 }); const version = (stdout + stderr).match(/Nuclei Engine Version:\s*(\S+)/)?.[1] || 'unknown'; return { status: 'HEALTHY', version }; } catch (err) { return { status: 'OFFLINE', detail: String(err.message || err) }; } },
-  async execute({ target, timeoutMs, rateLimit = 10, scanProfile = 'STANDARD', templateCategories, templatesDir, templateId }) {
+  async execute({ target, timeoutMs, rateLimit = 10, scanProfile = 'STANDARD', templateCategories, templatesDir, templateId, signal, guardedProxy, guardedProxyToken }) {
+    const guard = getPentestTransport();
+    if (guard && guardedProxyToken !== PROXY_TOKEN) return withBinaryProxy(guard.engagement,signal || guard.signal,async (proxy,policy) => {
+      const result = await this.execute({target,timeoutMs,rateLimit,scanProfile,templateCategories,templatesDir,templateId,signal,guardedProxy:proxy,guardedProxyToken:PROXY_TOKEN});
+      result.executionMeta.networkPolicy = policy();return result;
+    });
     const scope = templateId
       ? { profile: 'BCI_BUNDLED', categories: [], templateVersion: 'BCI_BUNDLED' }
       : resolveNucleiScope(scanProfile, templateCategories);
@@ -35,6 +43,7 @@ export const nucleiAdapter = {
     const excludedTags = this.executionOptions.excludedTags.join(',');
     const invocations = [];
     const baseArgs = ['-target', target, '-jsonl', '-silent', '-etags', excludedTags, '-rate-limit', String(rateLimit), '-no-interactsh', '-disable-update-check'];
+    if (guardedProxy) baseArgs.push('-proxy',guardedProxy,'-proxy-internal','-disable-redirects','-type','http');
     const bundledArgs = [...baseArgs, '-templates', templatesDir || BUNDLED_TEMPLATES_DIR];
     if (templateId) bundledArgs.push('-template-id', templateId);
     invocations.push({ source: 'BCI_BUNDLED', categories: ['BCI_BUNDLED'], args: bundledArgs });
@@ -59,7 +68,7 @@ export const nucleiAdapter = {
 
     const findings = [];
     for (const invocation of invocations) {
-      const { stdout } = await runBinary(BIN, invocation.args, { timeoutMs: effectiveTimeoutMs, allowedExitCodes: [0] });
+      const { stdout } = await runBinary(BIN, invocation.args, { timeoutMs: effectiveTimeoutMs, allowedExitCodes: [0],signal });
       for (const line of stdout.split('\n').filter(Boolean)) {
         const finding = JSON.parse(line);
         findings.push({ ...finding, 'bci-template-source': invocation.source, 'bci-template-categories': invocation.categories });
@@ -70,7 +79,7 @@ export const nucleiAdapter = {
       raw: unique,
       executionMeta: {
         requestedScope: { scanProfile: scope.profile, templateCategories: scope.categories, rateLimit },
-        executedScope: { bundledTemplates: true, officialTemplateVersion: scope.templateVersion, templateCategories: scope.categories, excludedTags: this.executionOptions.excludedTags },
+        executedScope: { bundledTemplates: true, officialTemplateVersion: scope.templateVersion, templateCategories: scope.categories, excludedTags: this.executionOptions.excludedTags,...(guard ? {protocols:['http'],redirects:false} : {}) },
         resultCount: unique.length,
       },
     };

@@ -59,7 +59,7 @@ export async function runPlannedEngine(plan, executionTarget, engineOptions, sig
   const execute = () => adapter.execute({ ...(engineOptions || {}), target: adapterTarget, mode: plan.mode, capabilities: plan.capabilities, signal, onProgress });
   const labOrigins = (process.env.BCI_NATIVE_LAB_ORIGINS || '').split(',').filter(Boolean);
   const environment = /^https?:\/\//i.test(adapterTarget) && labOrigins.includes(new URL(adapterTarget).origin) ? 'LAB' : 'PRODUCTION';
-  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId || ['http-fuzz','intrusive-validation','availability-probe'].includes(plan.engineId) ? { engagement: { target: adapterTarget, environment } } : null);
+  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId || ['http-fuzz','intrusive-validation','availability-probe','nuclei','naabu'].includes(plan.engineId) ? { engagement: { target: adapterTarget, environment } } : null);
   return await (transport ? withPentestTransport(transport, signal, execute) : execute());
   }
   finally { engineOptions?.pentestContext?.dispose?.(); }

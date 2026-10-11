@@ -1,6 +1,7 @@
 import { runBinary } from '../execFileAsync.js';
 import { config } from '../../config.js';
 import { resolveNaabuScope, NAABU_PORT_PROFILES } from '../executionProfiles.js';
+import {getPentestTransport,resolvePentestNetworkTarget} from '../../pentest/transport.js';
 const BIN = config.engineBins.naabu;
 export const naabuAdapter = {
   id: 'naabu', name: 'naabu', license: 'MIT', intrusiveness: 'SAFE_ACTIVE', capabilities: ['NETWORK_DISCOVERY'],
@@ -15,12 +16,14 @@ export const naabuAdapter = {
     try { return new URL(target).hostname; } catch { return target; }
   },
   async healthCheck() { try { const { stdout, stderr } = await runBinary(BIN, ['-version'], { timeoutMs: 10_000 }); const version = (stdout + stderr).match(/[Vv]ersion:?\s+v?(\S+)/)?.[1] || 'unknown'; return { status: 'HEALTHY', version }; } catch (err) { return { status: 'OFFLINE', detail: String(err.message || err) }; } },
-  async execute({ target, portProfile = 'TOP_PORTS', customPorts, ports, timeoutMs = 60_000, rateLimit = 100 }) {
+  async execute({ target, portProfile = 'TOP_PORTS', customPorts, ports, timeoutMs = 60_000, rateLimit = 100, signal }) {
+    const guard = getPentestTransport();
+    const resolvedTarget = guard ? await resolvePentestNetworkTarget(target,guard.engagement.environment) : target;
     const scope = ports
       ? { portProfile: 'CUSTOM', requested: ports, executed: ports, args: ['-p', ports] }
       : resolveNaabuScope(portProfile, customPorts);
-    const { stdout } = await runBinary(BIN, ['-host', target, ...scope.args, '-scan-type', 'connect', '-rate', String(rateLimit), '-json', '-silent'], { timeoutMs, allowedExitCodes: [0] });
+    const { stdout } = await runBinary(BIN, ['-host', resolvedTarget, ...scope.args, '-scan-type', 'connect', '-rate', String(rateLimit), '-json', '-silent'], { timeoutMs, allowedExitCodes: [0],signal:signal || guard?.signal });
     const raw = stdout.split('\n').filter(Boolean).map((line) => JSON.parse(line));
-    return { raw, executionMeta: { requestedScope: { portProfile: scope.portProfile, ports: scope.requested, rateLimit }, executedScope: { ports: scope.executed, rateLimit }, resultCount: raw.length } };
+    return { raw, executionMeta: { requestedScope: { portProfile: scope.portProfile, ports: scope.requested, rateLimit }, executedScope: { ports: scope.executed, rateLimit,...(guard ? {pinnedAddress:resolvedTarget,networkPolicy:'checked-pinned-IP'} : {}) }, resultCount: raw.length } };
   },
 };

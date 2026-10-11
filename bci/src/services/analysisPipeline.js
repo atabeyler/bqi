@@ -120,7 +120,12 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
             target: job.target,
             payload: err.failureObservation,
           }).catch((evidenceError) => logger.warn({ evidenceError, jobId: job.id, engineId: enginePlan.engineId }, 'Failed engine evidence could not be persisted'));
-          if (partialRawId) await storePentestResults({ orgId: job.org_id, jobId: job.id, engineId: enginePlan.engineId, rawId: partialRawId, payload: err.failureObservation });
+          if (partialRawId) {
+            await storePentestResults({ orgId: job.org_id, jobId: job.id, engineId: enginePlan.engineId, rawId: partialRawId, payload: err.failureObservation });
+            await normalizeStoredObservation(partialRawId);
+            await correlateJobObservations(job.org_id,job.id);
+            await syncSecurityGraph(job.org_id);
+          }
         }
         if (err?.name === 'AbortError' || signal?.aborted) {
           await recordEngineRun(job.id, enginePlan.engineId, 'CANCELLED', String(err.message || err), err?.completedObservations ?? 0);

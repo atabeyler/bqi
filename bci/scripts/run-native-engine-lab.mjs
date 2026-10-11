@@ -15,6 +15,7 @@ const {osvScannerAdapter} = await import('../src/engines/adapters/osvScanner.js'
 const {semgrepAdapter} = await import('../src/engines/adapters/semgrep.js');
 const {nucleiAdapter} = await import('../src/engines/adapters/nuclei.js');
 const {naabuAdapter} = await import('../src/engines/adapters/naabu.js');
+const {withPentestTransport} = await import('../src/pentest/transport.js');
 await mkdir(labRoot,{recursive:true}); const fixture = await mkdtemp(path.join(labRoot,'native-scan-'));
 await writeFile(path.join(fixture,'package-lock.json'),await readFile('test/fixtures/sca-sample/package-lock.json'));
 await writeFile(path.join(fixture,'inert-source.js'),'export function inspect(input) { return eval(input); }\n');
@@ -29,7 +30,7 @@ try {
     const health = await adapter.healthCheck(); const started = new Date().toISOString();
     if (health.status !== 'HEALTHY') { results.push({engine:adapter.id,health,status:'NOT_EXECUTED',reason:'binary health check failed'}); continue; }
     try {
-      const response = await adapter.execute(options);
+      const response = await (['nuclei','naabu'].includes(adapter.id) ? withPentestTransport({engagement:{target,environment:'LAB'}},undefined,()=>adapter.execute(options)) : adapter.execute(options));
       const count = response.executionMeta.resultCount;
       assert.ok(count > 0,`${adapter.id} did not identify its supplied laboratory canary`);
       if (adapter.id === 'naabu') assert.ok(response.raw.some((record) => Number(record.port) === port));

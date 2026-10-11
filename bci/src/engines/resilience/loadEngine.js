@@ -1,6 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import { setMaxListeners } from 'node:events';
+import { getPentestTransport, pentestFetch } from '../../pentest/transport.js';
 
 // Canonical API/Wizard request-count choices. These are choices, not product
 // ceilings: CUSTOM and UNLIMITED deliberately have no numeric maximum.
@@ -155,7 +156,17 @@ function buildHeaders(headers) {
 // Response bodies are discarded (res.resume()) -- load testing measures
 // network/server behavior, not response content, and never buffers
 // arbitrary response bodies under load.
-function issueRequest(url, { method = 'GET', headers = [], timeoutMs, agent, signal }) {
+async function issueRequest(url, { method = 'GET', headers = [], timeoutMs, agent, signal }) {
+  const guarded = getPentestTransport();
+  if (guarded) {
+    const startedAt = Date.now();
+    try {
+      const response = await pentestFetch(url,{engagement:guarded.engagement,method,headers,timeoutMs,signal:signal || guarded.signal});
+      return {startedAt,endedAt:Date.now(),status:response.status,timedOut:false,aborted:false,connectionError:null,responseHeaders:response.headers};
+    } catch (error) {
+      return {startedAt,endedAt:Date.now(),status:null,timedOut:!signal?.aborted && error.name === 'AbortError',aborted:Boolean(signal?.aborted),connectionError:'guarded resilience request failed',responseHeaders:{}};
+    }
+  }
   return new Promise((resolve) => {
     const startedAt = Date.now();
     let target;
