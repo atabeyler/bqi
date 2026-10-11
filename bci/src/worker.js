@@ -5,6 +5,8 @@
 // This process only touches scan_jobs/job_workers -- it has no route
 // handlers and never terminates the API.
 import { randomUUID } from 'node:crypto';
+import {writeFile} from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from './db/client.js';
@@ -121,6 +123,7 @@ function sleep(ms) {
 async function main() {
   const signal = { stopped: false };
   const workers = Array.from({ length: CONCURRENCY }, (_, i) => `worker-${process.pid}-${i}-${randomUUID().slice(0, 8)}`);
+  await writeFile(process.env.BCI_WORKER_HEALTH_FILE || path.join(os.tmpdir(),'bci-worker-health.json'),JSON.stringify({workers}),{mode:0o600});
 
   logger.info({ concurrency: CONCURRENCY, workers }, 'BCI worker pool starting');
 
@@ -129,6 +132,9 @@ async function main() {
   const sweeper = setInterval(() => {
     sweepTimedOutJobs().catch((err) => logger.error({ err }, 'Timeout sweep failed'));
   }, SWEEP_INTERVAL_MS);
+  const heartbeat = setInterval(()=> {
+    pool.query('UPDATE job_workers SET last_seen_at=now() WHERE worker_id=ANY($1::text[])',[workers]).catch(()=>{});
+  },30000);
 
   runHealthChecks().catch((err) => logger.error({ err }, 'Startup engine health check failed'));
   const healthChecker = setInterval(() => {
@@ -138,6 +144,7 @@ async function main() {
   const shutdown = async () => {
     signal.stopped = true;
     clearInterval(sweeper);
+    clearInterval(heartbeat);
     clearInterval(healthChecker);
     await Promise.all(loops);
     await pool.end();

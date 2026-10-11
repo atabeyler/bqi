@@ -1,0 +1,62 @@
+name: BCI production security integrations
+on:
+  push:
+    branches: [main, atabeyler-production-completion]
+  pull_request:
+    paths: ['bci/**', '.github/workflows/bci-production-security.yml']
+permissions:
+  contents: read
+jobs:
+  vault-tls:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: bci/package-lock.json
+      - run: npm ci
+      - name: Install checksum-verified isolated Vault
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"
+          curl --fail --retry 3 -sS -O https://releases.hashicorp.com/vault/1.21.4/vault_1.21.4_linux_amd64.zip
+          curl --fail --retry 3 -sS -O https://releases.hashicorp.com/vault/1.21.4/vault_1.21.4_SHA256SUMS
+          grep ' vault_1.21.4_linux_amd64.zip$' vault_1.21.4_SHA256SUMS | sha256sum -c -
+          unzip -q vault_1.21.4_linux_amd64.zip
+          token=$(openssl rand -hex 32)
+          echo "::add-mask::$token"
+          mkdir -p "$RUNNER_TEMP/vault-tls"
+          VAULT_DEV_ROOT_TOKEN_ID="$token" "$RUNNER_TEMP/vault" server -dev -dev-tls -dev-listen-address=127.0.0.1:8200 -dev-tls-cert-dir="$RUNNER_TEMP/vault-tls" > "$RUNNER_TEMP/vault.log" 2>&1 &
+          echo "BCI_PENTEST_VAULT_URL=https://127.0.0.1:8200" >> "$GITHUB_ENV"
+          echo "BCI_PENTEST_VAULT_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "BCI_PENTEST_VAULT_OPERATOR_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/vault-tls/vault-ca.pem" >> "$GITHUB_ENV"
+          echo "BCI_PROVIDER_LAB=1" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            if curl --silent --fail --cacert "$RUNNER_TEMP/vault-tls/vault-ca.pem" https://127.0.0.1:8200/v1/sys/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Real TLS Vault lifecycle regressions
+        run: npx vitest run --config vitest.providers.config.js --reporter=default --reporter=json --outputFile=evidence/production-completion/vault-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bci-vault-live-results
+          path: bci/evidence/production-completion/vault-results.json
+  kernel-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify actual container network namespace blocks egress
+        run: |
+          set -eu
+          docker network create bci-lab
+          docker run -d --name bci-fixture --network bci-lab node:22-bookworm-slim node -e 'require("http").createServer((q,s)=>s.end("BCI_KERNEL_CANARY")).listen(8080,"0.0.0.0")'
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' bci-fixture)
+          docker run --rm --network bci-lab node:22-bookworm-slim node -e 'fetch("http://bci-fixture:8080").then(r=>r.text()).then(v=>{if(v!=="BCI_KERNEL_CANARY")process.exit(1)})'
+          docker run --rm --network none -e FIXTURE_IP="$ip" node:22-bookworm-slim node -e 'fetch(`http://${process.env.FIXTURE_IP}:8080`,{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(1)).catch(e=>{if(!["ENETUNREACH","EHOSTUNREACH"].includes(e.cause?.code))process.exit(1);else console.log("Kernel egress isolation verified")})'

@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bci-worker-default-deny
+spec:
+  podSelector:
+    matchLabels:
+      app: bci-worker
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: bci-postgres
+      ports:
+        - {protocol: TCP, port: 5432}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: bci-vault
+      ports:
+        - {protocol: TCP, port: 8200}
+# No DNS or Internet exception. Operators must add narrowly scoped IP/port
+# policies for approved targets and provider endpoints before running jobs.
+# Requires a CNI that actually enforces NetworkPolicy; YAML alone is not proof.

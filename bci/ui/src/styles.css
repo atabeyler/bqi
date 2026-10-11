@@ -85,3 +85,7 @@ button.danger-action { background: var(--danger); color: #240606; }
 
 .error { color: var(--danger); font-size: 13px; }
 .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+:focus-visible { outline: 3px solid #80c7ff; outline-offset: 3px; }
+.sidebar .logout, .logout { background: transparent; color: var(--text); border: 1px solid var(--border); }
+[dir="rtl"] .content { text-align: start; }
+pre { overflow-wrap: anywhere; }

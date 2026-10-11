@@ -10,9 +10,9 @@ import { spawn } from 'node:child_process';
 // exactly what Node hands a child by default -- and never time out on their
 // own. An interactive terminal doesn't have that problem because stdin
 // there isn't an empty pipe; a spawned child's is.
-export function runBinary(bin, args, { timeoutMs = 60_000, allowedExitCodes = [0], maxBufferBytes = 32 * 1024 * 1024, signal } = {}) {
+export function runBinary(bin, args, { timeoutMs = 60_000, allowedExitCodes = [0], maxBufferBytes = 32 * 1024 * 1024, signal, env = process.env } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env, windowsHide: true });
 
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);

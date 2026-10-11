@@ -12,6 +12,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.js'],
+    exclude: ['node_modules/**','test/providers/**'],
     globalSetup: ['test/globalSetup.js'],
     fileParallelism: false,
     // Native PostgreSQL migrations/truncation and actual browser proofs can

@@ -52,9 +52,9 @@ export default function Layout() {
             {SUPPORTED_LANGS.map((code) => <option key={code} value={code}>{LANG_NAMES[code]}</option>)}
           </select>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>{user?.email}</div>
-          <a className="logout" onClick={logout}>
+          <button type="button" className="logout" onClick={logout}>
             {t('logout')}
-          </a>
+          </button>
         </div>
       </nav>
       <main className="content">

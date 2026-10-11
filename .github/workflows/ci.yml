@@ -182,6 +182,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run migrate
+      - name: Cache vulnerability database (daily refresh)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-v2-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-v2-${{ runner.os }}-
+      - name: Prepare real Trivy database outside scan timeout
+        run: node scripts/prepare-trivy-db.mjs
       - name: Install Chromium for actual XSS verification
         run: npx playwright install --with-deps chromium
       - name: Run PostgreSQL regressions and write actual CI evidence
@@ -203,7 +211,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bci-pentest-results
-          path: bci/evidence/pentest-completion/
+          path: |
+            bci/evidence/pentest-completion/
+            bci/evidence/production-completion/
 
   bci-ui:
     runs-on: ubuntu-latest

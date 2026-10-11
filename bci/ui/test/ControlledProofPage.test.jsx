@@ -33,7 +33,7 @@ beforeEach(() => {
 describe('Controlled Proof UI', () => {
   it('shows a locked restricted page to non-admin users', () => {
     authValue.hasPermission.mockReturnValue(false);
-    render(<ControlledProofPage />);
+    render(<LangProvider><ControlledProofPage /></LangProvider>);
     expect(screen.getByText('RESTRICTED ADMIN MODULE')).toBeInTheDocument();
     expect(screen.getByText(/System Administrator access required/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ANALYZE TARGET' })).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('Controlled Proof UI', () => {
       publicProofStatus: 'ACTIVE', publicValidator: 'cloudflare-edge-worker', publicVisibilityVerified: true,
       publicExpiresAt: new Date(Date.now() + 30_000).toISOString(), publicEvidenceHash: 'c'.repeat(64),
     } });
-    render(<ControlledProofPage />);
+    render(<LangProvider><ControlledProofPage /></LangProvider>);
     await userEvent.type(screen.getByLabelText('Target URL'), 'https://customer.example');
     await userEvent.click(screen.getByRole('button', { name: 'ANALYZE TARGET' }));
     expect((await screen.findAllByText('VERIFIED IMPACT PATH')).length).toBeGreaterThan(0);
