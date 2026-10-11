@@ -275,9 +275,11 @@ jobs:
         run: |
           set -eu
           database=postgres://bci:bci@127.0.0.1:5432/bci_worker_image_test
-          docker run --rm --network host -e BCI_DATABASE_URL="$database" --entrypoint node bci-worker:ci src/db/migrate.js
+          export BCI_JWT_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$BCI_JWT_SECRET"
+          docker run --rm --network host -e BCI_DATABASE_URL="$database" -e BCI_JWT_SECRET --entrypoint node bci-worker:ci src/db/migrate.js
           trap 'docker rm -f bci-worker-health >/dev/null 2>&1 || true' EXIT
-          docker run -d --name bci-worker-health --network host -e BCI_DATABASE_URL="$database" -e LOG_LEVEL=silent bci-worker:ci
+          docker run -d --name bci-worker-health --network host -e BCI_DATABASE_URL="$database" -e BCI_JWT_SECRET -e LOG_LEVEL=silent bci-worker:ci
           ready=0
           for attempt in $(seq 1 20); do
             if docker exec bci-worker-health node scripts/worker-healthcheck.mjs; then ready=1; break; fi
