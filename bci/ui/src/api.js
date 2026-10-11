@@ -42,6 +42,7 @@ async function request(path, { method = 'GET', body } = {}) {
 export const api = {
   pentestAccounts: () => request('/pentest/accounts'),
   discoverPentestSchema: (id,body) => request(`/pentest/engagements/${id}/discover`,{method:'POST',body}),
+  pentestDiscoveries: (id) => request(`/pentest/engagements/${id}/discoveries`),
   createPentestAccount: (body) => request('/pentest/accounts', { method: 'POST', body }),
   revokePentestAccount: (id) => request(`/pentest/accounts/${id}`, { method: 'DELETE' }),
   rotatePentestAccounts: () => request('/pentest/accounts/rotate', { method:'POST',body:{} }),

@@ -1,4 +1,4 @@
-import {readFile,mkdir,mkdtemp,writeFile,rename,rm} from 'node:fs/promises';
+import {readFile,stat,mkdir,mkdtemp,writeFile,rename,rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {createHash} from 'node:crypto';
@@ -7,7 +7,11 @@ export function trivyCacheDirectory() {
   return process.env.TRIVY_CACHE_DIR || (process.platform === 'win32' ? path.join(process.env.LOCALAPPDATA || os.homedir(),'trivy') : path.join(os.homedir(),'.cache','trivy'));
 }
 export async function trivyDatabaseReady(cache=trivyCacheDirectory()) {
-  try {const metadata=JSON.parse(await readFile(path.join(cache,'db','metadata.json'),'utf8'));return metadata.Version === 2 && Date.parse(metadata.NextUpdate)>Date.now() && Date.parse(metadata.DownloadedAt)>0;} catch {return false;}
+  try {
+    const metadata=JSON.parse(await readFile(path.join(cache,'db','metadata.json'),'utf8'));
+    const database=await stat(path.join(cache,'db','trivy.db'));
+    return database.isFile() && database.size>0 && metadata.Version === 2 && Date.parse(metadata.NextUpdate)>Date.now() && Date.parse(metadata.DownloadedAt)>0;
+  } catch {return false;}
 }
 // Fallback for slow OCI clients/proxies: bounded parallel range downloads,
 // checked against the registry's content digest before any cache is replaced.

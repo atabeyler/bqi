@@ -55,7 +55,8 @@ export async function enqueueScan({ orgId, actorUserId, target, requestedClass, 
     if (engineOptions?.[engineId]?.engagementId) {
       if (requestedClass !== 'RESTRICTED') return { accepted: false, decision: { reason: 'pentest_requires_restricted_class' } };
       const { loadPentestContext } = await import('./pentest.js');
-      await loadPentestContext(orgId, engineOptions[engineId].engagementId, target);
+      const context = await loadPentestContext(orgId, engineOptions[engineId].engagementId, target);
+      context.dispose();
     }
   }
   const normalizedTarget = normalizeTargetForExecution(target);

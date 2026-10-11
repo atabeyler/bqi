@@ -3,6 +3,7 @@ import { selectApplicableModules, getIntrusiveModule, listImplementedModules } f
 import { discoverEndpoints } from './fuzzDiscovery.js';
 import { resolveAuthProfile } from '../executionProfiles.js';
 import { buildCoverage } from '../../pentest/verification.js';
+import {discoverSchema} from '../../pentest/schemaDiscovery.js';
 
 // BCI Smart Intrusive -- orchestrates the Dynamic Intrusive Validation
 // Registry (bci/src/engines/intrusive/registry.js). This file itself
@@ -56,7 +57,7 @@ export const intrusiveValidationAdapter = {
   // run makes, for authenticated validation.
   async execute({
     target, timeoutMs = 30_000, priorFindings = [], userSelectedModuleIds = [], adaptivePlan: externalAdaptivePlan = [],
-    authProfileId, authHeader, customHeaders = [], signal, pentestContext, executionOrgId,
+    authProfileId, authHeader, customHeaders = [], signal, pentestContext, executionOrgId, schemaDiscovery,
   }) {
     const throwIfCancelled = () => {
       if (!signal?.aborted) return;
@@ -65,6 +66,11 @@ export const intrusiveValidationAdapter = {
       throw error;
     };
     throwIfCancelled();
+    if(schemaDiscovery) {
+      if(!pentestContext) throw new Error('authenticated discovery context required');
+      const surface=await discoverSchema(pentestContext,schemaDiscovery,signal);
+      return {raw:[],schemaDiscovery:surface,executionMeta:{protocol:surface.protocol,operations:surface.operations.length,testsExecuted:0}};
+    }
     const validatedTarget = assertHttpTarget(target);
     const authProfile = resolveAuthProfile(authProfileId, { orgId: executionOrgId, target: validatedTarget });
     const headers = [...authProfile.headers, ...(authHeader ? [authHeader] : []), ...customHeaders];

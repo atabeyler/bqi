@@ -9,6 +9,7 @@ import { syncSecurityGraph } from './securityGraph.js';
 import { ingestPostureEnvelope } from './postureIntelligence.js';
 import { mapEvidenceBackedTechniques } from './attackMapping.js';
 import { loadPentestContext, storePentestResults } from './pentest.js';
+import {targetMatchesTyped} from '../lib/targetMatcher.js';
 
 const MAX_CVE_ENRICHMENTS_PER_JOB = 5; // NVD's unauthenticated rate limit is strict; this is a per-job ceiling, not a bulk sync.
 
@@ -71,6 +72,11 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
       }
       try {
         await recordEngineRun(job.id, enginePlan.engineId, 'RUNNING', JSON.stringify({ phase: 'STARTING' }), 0);
+        const schemaDiscovery=job.engine_options?.[enginePlan.engineId]?.schemaDiscovery;
+        if(schemaDiscovery) {
+          const scopes=await query("SELECT target,target_type FROM authorized_scopes WHERE org_id=$1 AND status='APPROVED' AND valid_from<=now() AND (valid_until IS NULL OR valid_until>now()) AND 'RESTRICTED'=ANY(allowed_scan_classes)",[job.org_id]);
+          if(!scopes.rows.some((scope)=>targetMatchesTyped(scope.target_type,scope.target,schemaDiscovery.url))) throw new Error('discovery authorization expired or revoked');
+        }
         const raw = await runPlannedEngine(
           enginePlan,
           executionTarget,
@@ -102,6 +108,7 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
           payload: raw,
         });
         const normalizedIds = await normalizeStoredObservation(rawId);
+        if(raw.schemaDiscovery) await query('INSERT INTO pentest_schema_discoveries(org_id,engagement_id,job_id,surface) VALUES($1,$2,$3,$4) ON CONFLICT(job_id) DO NOTHING',[job.org_id,job.engine_options[enginePlan.engineId].engagementId,job.id,JSON.stringify(raw.schemaDiscovery)]);
 
         const { rows: cveRows } = await query(
           `SELECT DISTINCT unnest(cve_ids) AS cve_id FROM normalized_observations WHERE id = ANY($1)`,
