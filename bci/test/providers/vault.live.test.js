@@ -2,6 +2,11 @@ import {it,expect} from 'vitest';
 import {randomBytes} from 'node:crypto';
 import {vaultLifecycle} from '../../src/pentest/vaultLifecycle.js';
 import {protectCredentials,unprotectCredentials,rewrapCredentials} from '../../src/pentest/vault.js';
+import {provisionVaultRuntimeIdentity} from '../../src/pentest/vaultProvisioning.js';
+import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {vaultRuntimeToken} from '../../src/pentest/vaultIdentity.js';
 it('uses actual TLS Vault provisioning, tenant isolation, rotation, backup and restore',async()=> {
   const url=new URL(process.env.BCI_PENTEST_VAULT_URL);
   if(!['127.0.0.1','localhost'].includes(url.hostname) || process.env.BCI_PROVIDER_LAB !== '1') throw new Error('isolated Vault laboratory required');
@@ -21,4 +26,24 @@ it('uses actual TLS Vault provisioning, tenant isolation, rotation, backup and r
   process.env.BCI_PENTEST_VAULT_TRANSIT_KEY=`${key}-restored`;
   await vaultLifecycle('restore',backup);expect(await unprotectCredentials(rotated,'lab-tenant-a')).toEqual(material);
   expect((await vaultLifecycle('status')).latestVersion).toBe(2);
+  // Exercise the actual AppRole exchange, not an operator token posing as a worker.
+  const identity=await provisionVaultRuntimeIdentity(`bci-${randomBytes(6).toString('hex')}`);
+  const directory=await mkdtemp(path.join(os.tmpdir(),'bci-vault-identity-'));
+  const previousToken=process.env.BCI_PENTEST_VAULT_TOKEN;
+  try {
+    process.env.BCI_PENTEST_VAULT_ROLE_ID=identity.roleId;
+    process.env.BCI_PENTEST_VAULT_SECRET_ID_FILE=path.join(directory,'secret-id');
+    await writeFile(process.env.BCI_PENTEST_VAULT_SECRET_ID_FILE,identity.secretId,{mode:0o600});
+    delete process.env.BCI_PENTEST_VAULT_TOKEN;
+    const runtime=await vaultRuntimeToken();
+    const protectedMaterial=await protectCredentials(material,'lab-worker-tenant');
+    expect(await unprotectCredentials(protectedMaterial,'lab-worker-tenant')).toEqual(material);
+    for(const deniedPath of [`transit/backup/${process.env.BCI_PENTEST_VAULT_TRANSIT_KEY}`,`transit/export/encryption-key/${process.env.BCI_PENTEST_VAULT_TRANSIT_KEY}`]) {
+      const denied=await fetch(new URL(`/v1/${deniedPath}`,url),{headers:{'X-Vault-Token':runtime}});expect(denied.status).toBe(403);
+    }
+  } finally {
+    process.env.BCI_PENTEST_VAULT_TOKEN=previousToken;
+    delete process.env.BCI_PENTEST_VAULT_ROLE_ID;delete process.env.BCI_PENTEST_VAULT_SECRET_ID_FILE;
+    await rm(directory,{recursive:true,force:true});
+  }
 });

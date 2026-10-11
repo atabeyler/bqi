@@ -1,8 +1,17 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { vaultLifecycle } from '../src/pentest/vaultLifecycle.js';
+import {provisionVaultRuntimeIdentity} from '../src/pentest/vaultProvisioning.js';
 import {createCipheriv,createDecipheriv,publicEncrypt,privateDecrypt,randomBytes,constants} from 'node:crypto';
 const [operation,path] = process.argv.slice(2);
 try {
+  if(operation==='provision-identity') {
+    const name=process.argv[4];
+    if(!path || !name) throw new Error('provision-identity requires an operator-owned path prefix and bci-role name');
+    const identity=await provisionVaultRuntimeIdentity(name);
+    for(const [suffix,value] of [['role-id',identity.roleId],['secret-id',identity.secretId],['secret-accessor',identity.accessor]]) await writeFile(`${path}.${suffix}`,value,{mode:0o600,flag:'wx'});
+    console.log(JSON.stringify({operation,completed:true}));
+    process.exit(0);
+  }
   if (['backup','restore'].includes(operation) && !path) throw new Error('backup/restore requires an operator-owned file path');
   let backup;
   if(operation === 'restore') {
