@@ -20,6 +20,8 @@ Configure Ed25519 signing keys and the historical public-key trust map. `BCI_EVI
 
 ## Network and discovery
 
+The worker allocates one private pin map per job execution attempt, before account login. Authenticated HTTP, gRPC and native scanner contexts share it, including the port scanner's hostname resolution; concurrent lookups share the first promise. A retry starts a new attempt and revalidates resolution. Pin maps are never supplied by job JSON or shared across tenants/jobs.
+
 HTTP, native HTTP scanner proxy and gRPC share the pinned engagement address. IPv4 and IPv6 ranges are checked for reserved/private/documentation overlap. Discovery requires the tenant's active APPROVED RESTRICTED scope, exact engagement origin and controlled account. GraphQL introspection, OpenAPI parameters/links and gRPC reflection descriptors produce persisted DISCOVERED_NOT_EXECUTED metadata; they never fabricate fixture object IDs or infer business rules as established facts. Streaming RPC proofs are bounded by message count, aggregate bytes, deadlines and cancellation.
 
 `deploy/worker-network-policy.yaml` denies ingress and all unlisted egress, with narrow PostgreSQL/Vault exceptions. Add approved target/provider IP and port rules through deployment configuration, and use a NetworkPolicy-enforcing CNI. No Internet/DNS exception is included by default. This applies to the whole worker container, including child scanners. Dynamic per-job namespace provisioning and an enforced Kubernetes CNI deployment are not verified by this repository. The Linux CI kernel test verifies actual Docker network namespace denial, not Kubernetes NetworkPolicy enforcement.

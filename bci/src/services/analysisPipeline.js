@@ -62,6 +62,7 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
   const ran = [];
   const skipped = [];
   const newCveIds = new Set();
+  const networkPins = new Map();
 
   try {
     for (const enginePlan of plan) {
@@ -80,8 +81,8 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
         const raw = await runPlannedEngine(
           enginePlan,
           executionTarget,
-          { ...job.engine_options?.[enginePlan.engineId], executionOrgId: job.org_id, ...(job.engine_options?.[enginePlan.engineId]?.engagementId
-            ? { pentestContext: await loadPentestContext(job.org_id, job.engine_options[enginePlan.engineId].engagementId, job.target, signal) } : {}) },
+          { ...job.engine_options?.[enginePlan.engineId], executionOrgId: job.org_id, networkPins, ...(job.engine_options?.[enginePlan.engineId]?.engagementId
+            ? { pentestContext: await loadPentestContext(job.org_id, job.engine_options[enginePlan.engineId].engagementId, job.target, signal,networkPins) } : {}) },
           signal,
           async (progress) => recordEngineRun(
             job.id,
