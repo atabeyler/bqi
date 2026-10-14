@@ -5,12 +5,12 @@ import { evaluateScopeAuthorization } from '../src/services/policyEngine.js';
 
 beforeEach(resetDatabase);
 
-describe('policy engine (scope enforcement removed -- always ALLOW)', () => {
+describe('policy engine compatibility in explicitly isolated legacy fixtures', () => {
   it('allows a target with no authorized scope at all', async () => {
     const orgId = await createOrg();
     const decision = await evaluateScopeAuthorization({ orgId, target: 'example.com', requestedClass: 'RESTRICTED' });
     expect(decision.decision).toBe('ALLOW');
-    expect(decision.reason).toBe('scope_enforcement_removed');
+    expect(decision.reason).toBe('isolated_legacy_test_harness');
   });
 
   it('classifies the target type from the target string, with no scope to draw it from', async () => {

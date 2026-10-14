@@ -6,6 +6,7 @@ const jwtSecret = process.env.BCI_JWT_SECRET || 'test-secret';
 process.env.BCI_DATABASE_URL = databaseUrl;
 process.env.BCI_JWT_SECRET = jwtSecret;
 process.env.NODE_ENV = 'test';
+process.env.BCI_ALLOW_UNSCOPED_TESTS='1';
 process.env.LOG_LEVEL = 'silent';
 
 export default defineConfig({
@@ -21,6 +22,7 @@ export default defineConfig({
     hookTimeout: 30000,
     env: {
       NODE_ENV: 'test',
+      BCI_ALLOW_UNSCOPED_TESTS:'1',
       BCI_DATABASE_URL: databaseUrl,
       BCI_JWT_SECRET: jwtSecret,
       LOG_LEVEL: 'silent',

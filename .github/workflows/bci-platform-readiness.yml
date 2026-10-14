@@ -1,0 +1,48 @@
+name: BCI platform readiness
+on:
+  push:
+    branches: [main, atabeyler-production-completion]
+  pull_request:
+    paths: ['bci/**', '.github/workflows/bci-platform-readiness.yml']
+permissions:
+  contents: read
+jobs:
+  kubernetes-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BCI_KERNEL_LAB: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install checksum-verified kind
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"
+          curl --fail --retry 3 -sSLO https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64
+          curl --fail --retry 3 -sSLO https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64.sha256sum
+          sha256sum -c kind-linux-amd64.sha256sum
+          sudo install kind-linux-amd64 /usr/local/bin/kind
+      - name: Create isolated dual-stack cluster and enforcing Calico CNI
+        run: |
+          set -eu
+          export KUBECONFIG="$RUNNER_TEMP/bci-kind.config"
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+          kind create cluster --name bci-egress-lab --config bci/deploy/kind-dualstack.yaml --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
+          curl --fail --retry 3 -sSL https://raw.githubusercontent.com/projectcalico/calico/v3.31.0/manifests/tigera-operator.yaml -o "$RUNNER_TEMP/tigera-operator.yaml"
+          kubectl create -f "$RUNNER_TEMP/tigera-operator.yaml"
+          kubectl wait --for=condition=Established crd/installations.operator.tigera.io --timeout=120s
+          kubectl apply -f bci/deploy/calico-dualstack.yaml
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      - name: Verify actual IPv4/IPv6 policy and hardened container behavior
+        run: node bci/scripts/verify-kubernetes-egress.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bci-real-kubernetes-network-proof
+          path: bci/evidence/production-completion/kubernetes-network-results.json
+      - name: Remove only the isolated CI cluster
+        if: always()
+        run: kind delete cluster --name bci-egress-lab

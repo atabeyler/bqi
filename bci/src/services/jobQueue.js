@@ -51,6 +51,10 @@ export function resolveJobTimeoutMs(job, explicitTimeoutMs) {
 // or unhealthy one. Omitted entirely (the pre-existing quick-scan path),
 // it defaults to the full recommended plan, identical to today's behavior.
 export async function enqueueScan({ orgId, actorUserId, target, requestedClass, selectedEngineIds, selectedCapabilities, selectedComputeMode, engineOptions }) {
+  const normalizedTarget = normalizeTargetForExecution(target);
+  const authorization = await evaluateScopeAuthorization({ orgId, actorUserId, target: normalizedTarget, requestedClass });
+  if(authorization.decision!=='ALLOW')return {accepted:false,decision:authorization};
+  const {targetType}=authorization;
   for (const engineId of ['http-fuzz', 'intrusive-validation']) {
     if (engineOptions?.[engineId]?.engagementId) {
       if (requestedClass !== 'RESTRICTED') return { accepted: false, decision: { reason: 'pentest_requires_restricted_class' } };
@@ -59,8 +63,6 @@ export async function enqueueScan({ orgId, actorUserId, target, requestedClass, 
       context.dispose();
     }
   }
-  const normalizedTarget = normalizeTargetForExecution(target);
-  const { targetType } = await evaluateScopeAuthorization({ orgId, actorUserId, target: normalizedTarget, requestedClass });
 
   const hasPostureSnapshot = Boolean(engineOptions?.['bci-posture-intelligence']?.snapshot);
   const executionEligible = (plan) => plan.engineId !== 'bci-posture-intelligence' || hasPostureSnapshot;
@@ -159,7 +161,7 @@ export async function enqueueScan({ orgId, actorUserId, target, requestedClass, 
      RETURNING id, status, created_at, recommended_engine_ids, selected_engine_ids,
        recommended_capability_ids, selected_capability_ids, recommended_compute_mode, selected_compute_mode, engine_options`,
     [
-      orgId, actorUserId, normalizedTarget, requestedClass, null, targetType, recommendedIds, selected, recommendedCapabilityIds, selectedCapabilityIds,
+      orgId, actorUserId, normalizedTarget, requestedClass, authorization.scopeId || null, targetType, recommendedIds, selected, recommendedCapabilityIds, selectedCapabilityIds,
       recommendedComputeMode, selectedComputeMode ?? null,
       sanitizedEngineOptions && Object.keys(sanitizedEngineOptions).length > 0 ? JSON.stringify(sanitizedEngineOptions) : null,
     ]
@@ -285,9 +287,10 @@ export async function claimNextJob(workerId, { timeoutMs } = {}) {
     const { rows } = await client.query(
       `SELECT * FROM scan_jobs
         WHERE status = 'QUEUED'
+            AND ($1::uuid IS NULL OR org_id=$1)
         ORDER BY created_at
         FOR UPDATE SKIP LOCKED
-        LIMIT 1`
+          LIMIT 1`,[process.env.BCI_WORKER_ORG_ID || null]
     );
     if (rows.length === 0) {
       await client.query('COMMIT');

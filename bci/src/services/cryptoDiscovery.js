@@ -214,7 +214,9 @@ async function insertCryptoFinding(orgId, source, target, fields) {
 
 // The one entry point for network-probe-based discovery (TLS, SSH).
 export async function runCryptoDiscovery({ orgId, actorUserId, target, port, protocol = 'TLS' }) {
-  const { targetType } = await evaluateScopeAuthorization({ orgId, actorUserId, target, requestedClass: 'SAFE_ACTIVE' });
+  const authorization = await evaluateScopeAuthorization({ orgId, actorUserId, target, requestedClass: 'SAFE_ACTIVE' });
+  if(authorization.decision!=='ALLOW')throw new Error('crypto discovery requires an approved scope');
+  const {targetType}=authorization;
 
   const host = hostnameFromTarget(targetType, target);
 

@@ -122,6 +122,7 @@ jobs:
       BCI_DATABASE_URL: postgres://bci:bci@localhost:5432/bci_test
       BCI_JWT_SECRET: ci-test-secret-not-for-production
       BCI_NUCLEI_TEMPLATES_DIR: /tmp/nuclei-templates
+      BCI_REQUIRE_DB_BACKUP_TESTS: '1'
     defaults:
       run:
         working-directory: bci
@@ -177,6 +178,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-client openssh-server
+          sudo apt-get install -y postgresql-client
           sudo mkdir -p /run/sshd
       - run: npm ci
       - run: npm run typecheck

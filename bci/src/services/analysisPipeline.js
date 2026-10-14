@@ -10,6 +10,7 @@ import { ingestPostureEnvelope } from './postureIntelligence.js';
 import { mapEvidenceBackedTechniques } from './attackMapping.js';
 import { loadPentestContext, storePentestResults } from './pentest.js';
 import {targetMatchesTyped} from '../lib/targetMatcher.js';
+import {evaluateScopeAuthorization} from './policyEngine.js';
 
 const MAX_CVE_ENRICHMENTS_PER_JOB = 5; // NVD's unauthenticated rate limit is strict; this is a per-job ceiling, not a bulk sync.
 
@@ -58,6 +59,8 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
     };
   }
 
+  const authorization=await evaluateScopeAuthorization({orgId:job.org_id,actorUserId:job.requested_by,target:job.target,requestedClass:job.requested_class});
+  if(authorization.decision!=='ALLOW')throw new Error('scan authorization expired, excluded or revoked');
   const { executionTarget, cleanup } = await prepareExecutionTarget(job.target_type, job.target);
   const ran = [];
   const skipped = [];
