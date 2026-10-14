@@ -1,5 +1,15 @@
 # BCI son kaynak incelemesi ve teslim — 14 Ekim 2026
 
+## Current delivery update — 14 October 2026
+
+This section supersedes the historical CI/billing blockers below. Commit `45c6d95` completed all eight GitHub workflows successfully. Actual BCI job logs show **651/651 tests**, **73/73 browser E2E**, and UI **32/32**. TLS Vault/RFC3161 show **2 passed, 2 AWS skipped**; isolated dual-stack Calico and kernel/container isolation checks actually passed. This is isolated CI evidence, not a production cluster or customer assessment.
+
+The current follow-up removes full finding payloads from new immutable archives: v2 signed hash commitments replace free-form contents; checkpoints reject extra fields. Real Ed25519 tamper/privacy tests and an explicitly mocked S3 transport contract test were added. Local focused regressions: **20/20**, typecheck/lint passed. The current commit must additionally pass CI; do not reuse the base commit's totals as its result.
+
+External acceptance requirements remain explicit: actual AWS/CloudHSM resources and identities, independent TSA endpoint/trust, production Kubernetes context/canaries, customer scope/fixtures and data-retention review. No credentials or AWS profile were configured in the available workspace. Existing full locked archives cannot be retroactively minimized. The new archive metadata still contains tenant/job identifiers and hashes; it is not a blanket personal-data compliance certification.
+
+Full evidence recovery requires the database backup; a hash commitment alone cannot restore evidence content. No production resources were provisioned or deployed in this update.
+
 Bu teslim, önceki geliştirme dalındaki pentest altyapısını korur ve aşağıdaki
 gerçek kaynak eksiklerini kapatır. Main'e doğrudan aktarım kullanıcının son
 talimatıdır. Üretim servisine veya gerçek AWS/Kubernetes kaynaklarına dağıtım

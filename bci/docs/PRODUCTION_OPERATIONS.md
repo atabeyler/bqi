@@ -180,3 +180,11 @@ environment; no CloudHSM/KMS/S3 deployment has been claimed.
 ## Retention mode selection
 
 `BCI_EVIDENCE_RETENTION_MODE=GOVERNANCE` selects governance consistently for provisioning, worker writes, IAM retention conditions and checkpoint validation. Default remains COMPLIANCE for compatibility; it requires `BCI_EVIDENCE_COMPLIANCE_APPROVED=1`. Governance does not grant workers bypass or deletion permissions. Changing configuration does not shorten existing locked objects. Use separate buckets when changing modes; regenerate the worker IAM policy and verify retained canaries before enabling workers. Days default to 365 with operator maximum capped at 2555. Neither mode establishes that evidence is free of personal data; review payload contents and data retention obligations before enabling external archives.
+
+## Evidence privacy and recovery contract
+
+New `pentest/` WORM objects contain a v2 signed evidence commitment only: fixed format/version, tenant UUID, job UUID, original evidence hash, previous hash and optional timestamp-response hash. Finding text, target URLs, request values, markers, response contents and opaque TSA certificate bytes are excluded by an allowlist. Checkpoint payloads use a strict metadata schema and reject extra fields. Historical signed full archives remain readable and cannot be shortened by this change. Tenant UUIDs and hashes are pseudonymous metadata; do not claim that all personal-data obligations disappear.
+
+The database remains the source of full evidence and timestamp receipts. Restore it from the protected PostgreSQL backup before checking its reconstructed evidence hashes against WORM commitments. A commitment does not reconstruct deleted finding content and is not a backup. WORM signature verification alone does not mean the corresponding full evidence is available. Existing reporting and original database signatures are unchanged.
+
+Before customer production acceptance, run the actual target-deployment preflight, the AWS lab checks against dedicated resources, and a customer-approved reversible pilot fixture. Missing credentials or a skipped AWS test are blockers for the respective production integration, not proof of completion.
