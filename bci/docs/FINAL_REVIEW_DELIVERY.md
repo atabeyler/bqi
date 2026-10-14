@@ -281,3 +281,17 @@ iddia edilmemektedir.
 - `server/package-lock.json`
 - `server/package.json`
 - `bci/docs/FINAL_REVIEW_DELIVERY.md` (bu rapor)
+
+## Claude review follow-up — 14 October 2026
+
+GOVERNANCE is now available consistently in provisioning, worker writes, IAM, retention readback and checkpoint verification. Worker deletion and governance bypass remain denied. COMPLIANCE remains the compatibility default with explicit approval. Existing locked objects were not changed. Bucket readiness also verifies the configured default mode and retention days.
+
+Validation: 14/14 focused operator/retention/IAM tests passed; typecheck and lint passed. Prior full-suite counts refer to the prior commit, not a new complete integration run.
+
+Branch protection: the real GitHub API returned HTTP 403: "Upgrade to GitHub Pro or make this repository public to enable this feature." No repository visibility or subscription changes were made. Enforcement requires an eligible GitHub plan.
+
+CI billing blocks and missing live AWS/Kubernetes/TSA access remain external requirements. Evidence payloads have NOT been comprehensively certified free of personal data; credential redaction does not establish this. Actual customer data classification and payload review are required before retention is enabled.
+
+Delivery status: locally checked source changes, with CI and live infrastructure verification outstanding.
+
+The additional broad `test:pure` run did not complete or produce results and was interrupted; it is not counted as passing. Focused tests are registered in the permanent pure-test configuration for CI reproducibility. An initial focused command used the wrong working directory and failed at config loading; the corrected command ran 14 real tests successfully.

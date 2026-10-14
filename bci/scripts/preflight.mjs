@@ -37,8 +37,8 @@ await check('evidence-signing',async()=>{
   if(!JSON.parse(process.env.BCI_PENTEST_EVIDENCE_PUBLIC_KEYS)[envelope.keyId] || verifyEvidence(payload,envelope)!=='VERIFIED') throw new Error();
 },['BCI_PENTEST_EVIDENCE_PRIVATE_KEY','BCI_PENTEST_EVIDENCE_PUBLIC_KEYS']);
 await check('timestamp-authority',async()=>{await access(process.env.BCI_EVIDENCE_TSA_CA_FILE);await timestampEvidence(randomBytes(32).toString('hex'));},['BCI_EVIDENCE_TSA_URL','BCI_EVIDENCE_TSA_CA_FILE']);
-await check('immutable-evidence-stores',async()=>{evidenceRetentionPolicy();await verifyEvidenceBuckets();},['AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_EVIDENCE_COMPLIANCE_APPROVED']);
-await check('immutable-evidence-write-canary',()=>verifyEvidenceWriteCanary(process.env.BCI_PREFLIGHT_TENANT_ID),['BCI_PREFLIGHT_CLOUD_CANARY_APPROVED','BCI_PREFLIGHT_TENANT_ID','AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_EVIDENCE_COMPLIANCE_APPROVED','BCI_PENTEST_EVIDENCE_PRIVATE_KEY','BCI_PENTEST_EVIDENCE_PUBLIC_KEYS']);
+await check('immutable-evidence-stores',async()=>{evidenceRetentionPolicy();await verifyEvidenceBuckets();},['AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID']);
+await check('immutable-evidence-write-canary',()=>verifyEvidenceWriteCanary(process.env.BCI_PREFLIGHT_TENANT_ID),['BCI_PREFLIGHT_CLOUD_CANARY_APPROVED','BCI_PREFLIGHT_TENANT_ID','AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_PENTEST_EVIDENCE_PRIVATE_KEY','BCI_PENTEST_EVIDENCE_PUBLIC_KEYS']);
 for(const [name,bin] of Object.entries(config.engineBins).filter(([name])=>name !== 'sshKeyscan')) await check(`scanner-${name}`,()=>runBinary(bin,[name === 'nuclei' || name === 'naabu' ? '-version' : '--version'],{timeoutMs:name==='semgrep'?30000:10000}));
 await check('trivy-database',async()=>{if(!await trivyDatabaseReady()) throw new Error();});
 await check('chromium',async()=>{const browser=await chromium.launch({headless:true});await browser.close();});

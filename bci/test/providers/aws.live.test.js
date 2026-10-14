@@ -1,3 +1,4 @@
+import {evidenceRetentionPolicy} from '../../src/pentest/retentionPolicy.js';
 import {it,expect} from 'vitest';
 import {randomUUID,generateKeyPairSync} from 'node:crypto';
 import {protectCredentials,unprotectCredentials,rewrapCredentials} from '../../src/pentest/vault.js';
@@ -9,7 +10,8 @@ import {kmsReadiness} from '../../src/pentest/kms.js';
 const live=process.env.BCI_PROVIDER_AWS_LAB==='1';
 function requireLab(){
  for(const name of ['AWS_REGION','BCI_PENTEST_KMS_KEY_ID','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_PREFLIGHT_TENANT_ID'])if(!process.env[name])throw new Error(`Missing isolated AWS lab configuration: ${name}`);
- if(!['BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET'].every((name)=>process.env[name].startsWith('bci-lab-')) || process.env.BCI_EVIDENCE_COMPLIANCE_APPROVED!=='1')throw new Error('Dedicated bci-lab buckets and irreversible retention approval required');
+ if(!['BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET'].every((name)=>process.env[name].startsWith('bci-lab-')))throw new Error('Dedicated bci-lab buckets and irreversible retention approval required');
+ evidenceRetentionPolicy();
  return process.env.BCI_PREFLIGHT_TENANT_ID;
 }
 it.skipIf(!live)('encrypts, rejects foreign tenant context and rewraps using the actual AWS KMS service',async()=>{

@@ -176,3 +176,7 @@ retained canary objects only after COMPLIANCE approval is configured. Without
 these prerequisites the two AWS tests are skipped and must not be counted as
 passing. No AWS account credentials or profiles were available in this delivery
 environment; no CloudHSM/KMS/S3 deployment has been claimed.
+
+## Retention mode selection
+
+`BCI_EVIDENCE_RETENTION_MODE=GOVERNANCE` selects governance consistently for provisioning, worker writes, IAM retention conditions and checkpoint validation. Default remains COMPLIANCE for compatibility; it requires `BCI_EVIDENCE_COMPLIANCE_APPROVED=1`. Governance does not grant workers bypass or deletion permissions. Changing configuration does not shorten existing locked objects. Use separate buckets when changing modes; regenerate the worker IAM policy and verify retained canaries before enabling workers. Days default to 365 with operator maximum capped at 2555. Neither mode establishes that evidence is free of personal data; review payload contents and data retention obligations before enabling external archives.
