@@ -67,7 +67,8 @@ describe('Controlled Proof API', () => {
     expect(normalScans.body.jobs).toHaveLength(0);
     const actions = await query('SELECT action, metadata FROM audit_events WHERE org_id=$1', [orgId]);
     expect(actions.rows.map((row) => row.action)).toContain('controlled_proof.target_analyzed');
-    expect(actions.rows.every((row) => row.metadata.proofId === analyzed.body.run.proofId)).toBe(true);
+    expect(actions.rows.filter((row)=>row.action.startsWith('controlled_proof.')).every((row) => row.metadata.proofId === analyzed.body.run.proofId)).toBe(true);
+    expect(actions.rows.some((row)=>row.action==='policy.evaluate')).toBe(true);
     expect(analyzed.body.run.publicProofStatus).toBe('UNAVAILABLE');
     await request(app).post(`/api/v1/controlled-proof/${analyzed.body.run.id}/public-proof/start`)
       .set('Authorization', `Bearer ${admin.token}`).send({ durationSeconds: 30 }).expect(409);

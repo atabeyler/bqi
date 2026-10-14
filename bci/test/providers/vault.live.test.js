@@ -1,4 +1,4 @@
-import {it,expect} from 'vitest';
+import {it,expect,beforeEach,afterEach} from 'vitest';
 import {randomBytes} from 'node:crypto';
 import {vaultLifecycle} from '../../src/pentest/vaultLifecycle.js';
 import {protectCredentials,unprotectCredentials,rewrapCredentials} from '../../src/pentest/vault.js';
@@ -7,6 +7,9 @@ import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {vaultRuntimeToken} from '../../src/pentest/vaultIdentity.js';
+const kmsKey=process.env.BCI_PENTEST_KMS_KEY_ID;
+beforeEach(()=>{delete process.env.BCI_PENTEST_KMS_KEY_ID;});
+afterEach(()=>{if(kmsKey===undefined)delete process.env.BCI_PENTEST_KMS_KEY_ID;else process.env.BCI_PENTEST_KMS_KEY_ID=kmsKey;});
 it('uses actual TLS Vault provisioning, tenant isolation, rotation, backup and restore',async()=> {
   const url=new URL(process.env.BCI_PENTEST_VAULT_URL);
   if(!['127.0.0.1','localhost'].includes(url.hostname) || process.env.BCI_PROVIDER_LAB !== '1') throw new Error('isolated Vault laboratory required');

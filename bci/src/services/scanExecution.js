@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { runBinary } from '../engines/execFileAsync.js';
 import { getAdapter } from '../engines/registry.js';
-import { withPentestTransport,bindEngagementPins } from '../pentest/transport.js';
+import { withPentestTransport,bindEngagementPins,getPentestTransport } from '../pentest/transport.js';
+import {operatorOrigins} from '../pentest/environmentPolicy.js';
 
 // Some target types need local material on disk before an engine can run
 // against them (a REPOSITORY has to be cloned first); others are already
@@ -57,9 +58,9 @@ export async function runPlannedEngine(plan, executionTarget, engineOptions, sig
     ? adapter.normalizeExecutionTarget(executionTarget)
     : executionTarget;
   const execute = () => adapter.execute({ ...(engineOptions || {}), target: adapterTarget, mode: plan.mode, capabilities: plan.capabilities, signal, onProgress });
-  const labOrigins = (process.env.BCI_NATIVE_LAB_ORIGINS || '').split(',').filter(Boolean);
+  const labOrigins = operatorOrigins('BCI_NATIVE_LAB_ORIGINS');
   const environment = /^https?:\/\//i.test(adapterTarget) && labOrigins.includes(new URL(adapterTarget).origin) ? 'LAB' : 'PRODUCTION';
-  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId || ['http-fuzz','intrusive-validation','availability-probe','nuclei','naabu'].includes(plan.engineId) ? { engagement: { target: adapterTarget, environment } } : null);
+  const transport = engineOptions?.pentestContext || (engineOptions?.authProfileId || ['http-fuzz','intrusive-validation','availability-probe','nuclei','naabu'].includes(plan.engineId) ? getPentestTransport() || { engagement: { target: adapterTarget, environment } } : null);
   if(transport && engineOptions?.networkPins) bindEngagementPins(transport.engagement,engineOptions.networkPins);
   return await (transport ? withPentestTransport(transport, signal, execute) : execute());
   }

@@ -5,6 +5,8 @@ metadata:
 spec:
   calicoNetwork:
     bgp: Enabled
+    nodeAddressAutodetectionV6:
+      firstFound: true
     ipPools:
       - blockSize: 26
         cidr: 10.244.0.0/16

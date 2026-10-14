@@ -19,7 +19,7 @@ export default defineConfig({
     // Native PostgreSQL migrations/truncation and actual browser proofs can
     // exceed Vitest's 5s default on Windows under concurrent IO load.
     testTimeout: 30000,
-    hookTimeout: 30000,
+    hookTimeout: 60000,
     env: {
       NODE_ENV: 'test',
       BCI_ALLOW_UNSCOPED_TESTS:'1',

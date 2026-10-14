@@ -1,0 +1,40 @@
+{
+  "method": "Latest actual result per file; full regression plus changed-file runs, not an invented single run",
+  "runs": [
+    {
+      "file": "final-review-regression-v2.json",
+      "total": 645,
+      "passed": 641,
+      "failed": 0,
+      "pending": 4
+    },
+    {
+      "file": "final-safety-regressions.json",
+      "total": 55,
+      "passed": 55,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "file": "final-scope-regressions.json",
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "file": "final-preflight-regressions.json",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "pending": 0
+    }
+  ],
+  "files": 96,
+  "counts": {
+    "passed": 645,
+    "failed": 0,
+    "pending": 4,
+    "total": 649
+  }
+}

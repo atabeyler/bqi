@@ -15,6 +15,8 @@ import {
 } from '../controlledProof/publicVisibility/registry.js';
 import { discoverPublicVisibilityProviders } from '../controlledProof/publicVisibility/providerDiscovery.js';
 import { collectLiveControlledProofEvidence } from '../controlledProof/liveEngineEvidence.js';
+import {withAuthorizedTransport} from './authorizedTransport.js';
+import {evaluateScopeAuthorization} from './policyEngine.js';
 
 const REQUEST_TIMEOUT_MS = 7_000;
 const activeRuns = new Map();
@@ -152,7 +154,11 @@ function summarizeRejections(rejections) {
   }, {}));
 }
 
-export async function analyzeControlledProofTarget({ orgId, actorUserId, target, resumeRunId = null, workerJobId = null }) {
+export async function analyzeControlledProofTarget(input){
+  try{return await withAuthorizedTransport({orgId:input.orgId,actorUserId:input.actorUserId,target:normalizeProofTarget(input.target),requestedClass:'RESTRICTED'},(authorization)=>analyzeAuthorizedControlledProofTarget({...input,scopeId:authorization.scopeId || null}));}
+  catch(error){if(input.resumeRunId && error.status===403)await query("UPDATE controlled_proof_runs SET status='FAILED',failure_reason='authorization_unavailable',completed_at=now(),updated_at=now() WHERE id=$1 AND org_id=$2 AND status='ANALYZING'",[input.resumeRunId,input.orgId]);throw error;}
+}
+async function analyzeAuthorizedControlledProofTarget({ orgId, actorUserId, target, resumeRunId = null, workerJobId = null,scopeId=null }) {
   const existing = resumeRunId
     ? (await query('SELECT * FROM controlled_proof_runs WHERE id=$1 AND org_id=$2 AND status=\'ANALYZING\'', [resumeRunId, orgId])).rows[0]
     : null;
@@ -181,8 +187,8 @@ export async function analyzeControlledProofTarget({ orgId, actorUserId, target,
   // Scanner binaries deliberately live only in the worker image. A new
   // analysis therefore becomes a normal Postgres-backed worker job; the
   // worker resumes this same run (same Proof ID/timestamps) and executes
-  // the existing adapters there. No scope-approval record or new RBAC
-  // permission is introduced: the route has already enforced system:manage.
+  // the existing adapters there. system:manage and a current approved target
+  // scope are independent requirements, including when a worker resumes it.
   if (!resumeRunId) {
     let job;
     try {
@@ -191,7 +197,7 @@ export async function analyzeControlledProofTarget({ orgId, actorUserId, target,
          org_id, requested_by, target, requested_class, scope_id, target_type,
          recommended_engine_ids, selected_engine_ids, recommended_capability_ids,
          selected_capability_ids, engine_options, controlled_proof_run_id
-       ) VALUES ($1,$2,$3,'RESTRICTED',NULL,'URL',$4,$4,$5,$5,$6,$7)
+       ) VALUES ($1,$2,$3,'RESTRICTED',$8,'URL',$4,$4,$5,$5,$6,$7)
        RETURNING id, status, created_at`,
       [orgId, actorUserId, normalizedTarget,
         CONTROLLED_PROOF_EVIDENCE_ENGINES,
@@ -201,7 +207,7 @@ export async function analyzeControlledProofTarget({ orgId, actorUserId, target,
           'http-fuzz': { baseProfile: 'STANDARD', timeoutMs: 30_000 },
           'intrusive-validation': { timeoutMs: 30_000 },
           naabu: { portProfile: 'TOP_PORTS', rateLimit: 50, timeoutMs: 60_000 },
-        }), runId]
+        }), runId,scopeId]
       );
     } catch (error) {
       await query(
@@ -410,6 +416,8 @@ export async function startPublicVisibilityProof({ orgId, actorUserId, runId, du
   let activation = null;
   try {
     if (!provider || provider.id !== row.public_validator_id) throw new Error('public_visibility_provider_unavailable');
+    const authorization=await evaluateScopeAuthorization({orgId,actorUserId,target,requestedClass:'RESTRICTED'});
+    if(authorization.decision!=='ALLOW')throw new Error('public visibility target scope unavailable');
     await audit({ orgId, actorUserId, action: 'controlled_proof.public_started', runId, target, proofId: row.proof_id, validator: provider.id, result: 'SUCCESS' });
     activation = await activatePublicVisibilityProvider(provider.id, { target, marker, proofId: row.proof_id, durationSeconds });
     const { startedAt, expiresAt } = activation;

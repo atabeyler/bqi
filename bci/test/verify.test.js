@@ -7,6 +7,7 @@ import { verifyFix } from '../src/services/verify.js';
 import { nucleiAdapter } from '../src/engines/adapters/nuclei.js';
 import { naabuAdapter } from '../src/engines/adapters/naabu.js';
 import { storeRawObservation, normalizeStoredObservation } from '../src/services/normalization.js';
+import {authorizeLab} from './helpers/authorizeLab.js';
 
 beforeEach(resetDatabase);
 
@@ -39,8 +40,8 @@ async function ifHealthy(adapter) {
   return health.status === 'HEALTHY';
 }
 
-describe('verifyFix on a WEB finding with no scope check in the way', () => {
-  it('runs the real re-check (scope enforcement removed) against an unreachable target', async () => {
+describe('verifyFix on a WEB finding with an unreachable control', () => {
+  it('never confirms a fix when the independent target control is unreachable', async () => {
     const orgId = await createOrg();
     const userId = await createUser(orgId, { roleId: 'operator' });
     const jobId = (await query(`INSERT INTO scan_jobs (org_id, requested_by, target, requested_class) VALUES ($1,$2,'http://example.invalid','SAFE_ACTIVE') RETURNING id`, [orgId, userId])).rows[0].id;
@@ -50,24 +51,8 @@ describe('verifyFix on a WEB finding with no scope check in the way', () => {
     const [findingId] = await correlateJobObservations(orgId, jobId);
 
     const outcome = await verifyFix(orgId, userId, findingId);
-    if (await ifHealthy(nucleiAdapter)) {
-      // nuclei's CLI exits 0 even when a target is unreachable -- it just
-      // produces zero JSONL matches, with no distinct "couldn't connect"
-      // signal on this minimal -jsonl/-silent integration. verifyWebFinding
-      // reads "zero matches" as "the original template no longer matches",
-      // i.e. FIX_VERIFIED -- the same real result an actually-fixed target
-      // would produce. This is nuclei's own behavior, not something this
-      // test (or the scope-enforcement removal) invented; asserting
-      // anything else here would just be re-encoding a wrong assumption.
-      expect(outcome.result).toBe('FIX_VERIFIED');
-      expect(outcome.detail).toMatch(/no longer matches/);
-    } else {
-      // nuclei isn't installed in this environment -- execute() itself
-      // throws (binary not found), which verifyFix's own catch honestly
-      // reports as INCONCLUSIVE, never silently swallowed.
-      expect(outcome.result).toBe('INCONCLUSIVE');
-      expect(outcome.detail).toMatch(/re-check failed/);
-    }
+    expect(outcome.result).toBe('INCONCLUSIVE');
+    expect(outcome.detail).toMatch(/re-check failed/);
   });
 });
 
@@ -82,6 +67,7 @@ describe('verifyFix end-to-end against a real, self-owned local target (skips if
     });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const target = `http://127.0.0.1:${server.address().port}`;
+    authorizeLab(target);
 
     try {
       const orgId = await createOrg();
@@ -118,6 +104,7 @@ describe('verifyFix end-to-end against a real, self-owned local target (skips if
     const server = http.createServer((_req, res) => res.end('ok'));
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const port = server.address().port;
+    authorizeLab(`http://127.0.0.1:${port}`);
 
     const orgId = await createOrg();
     const userId = await createUser(orgId, { roleId: 'operator' });

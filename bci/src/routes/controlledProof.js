@@ -37,6 +37,7 @@ controlledProofRouter.post('/analyze', proofLimiter, async (req, res) => {
     });
     return res.status(202).json({ run });
   } catch (error) {
+    if(error.status===403)return res.status(403).json({error:'target_scope_required',requestId:req.id});
     if (error instanceof TypeError && error.message === 'invalid_target') {
       return res.status(400).json({ error: 'invalid_target', requestId: req.id });
     }

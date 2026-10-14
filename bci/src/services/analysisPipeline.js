@@ -69,6 +69,8 @@ export async function runAnalysisPipeline(job, { signal } = {}) {
 
   try {
     for (const enginePlan of plan) {
+      const currentAuthorization=await evaluateScopeAuthorization({orgId:job.org_id,actorUserId:job.requested_by,target:job.target,requestedClass:job.requested_class});
+      if(currentAuthorization.decision!=='ALLOW')throw new Error('scan authorization expired, excluded or revoked');
       if (signal?.aborted) {
         const error = new Error('scan cancelled by user');
         error.name = 'AbortError';

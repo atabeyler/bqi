@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-14T12:28:25.832Z",
+  "run": "https://github.com/atabeyler/bqi/actions/runs/38558700944",
+  "execution": "NOT_STARTED",
+  "annotations": [
+    {
+      "level": "failure",
+      "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+    },
+    {
+      "level": "notice",
+      "message": "\"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748\""
+    }
+  ]
+}

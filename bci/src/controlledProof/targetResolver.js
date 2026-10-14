@@ -1,4 +1,5 @@
 import { curlFetch } from '../engines/adapters/nativeHttp.js';
+import {getPentestTransport} from '../pentest/transport.js';
 
 const MAX_CANONICAL_REDIRECTS = 3;
 
@@ -30,6 +31,9 @@ export async function resolveCanonicalProofTarget(target, { timeoutMs = 7_000, s
       break;
     }
     redirects.push({ from: current.toString(), to: next.toString(), status: response.status, accepted: true });
+    // Only this validated same-site redirect may advance the transient origin.
+    // The bound request policy still checks the next URL's current scope.
+    const active=getPentestTransport();if(active)active.engagement.target=next.toString();
     current = next;
   }
   return { target: current.toString(), redirects, response: terminalResponse };

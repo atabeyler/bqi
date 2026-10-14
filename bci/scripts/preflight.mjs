@@ -6,9 +6,10 @@ import {protectCredentials,unprotectCredentials} from '../src/pentest/vault.js';
 import {sealEvidence,verifyEvidence} from '../src/pentest/evidence.js';
 import {trivyDatabaseReady} from '../src/engines/trivyDatabase.js';
 import {randomBytes,randomUUID} from 'node:crypto';
-import {verifyEvidenceBuckets} from '../src/pentest/providerReadiness.js';
+import {verifyEvidenceBuckets,verifyEvidenceWriteCanary} from '../src/pentest/providerReadiness.js';
 import {timestampEvidence} from '../src/pentest/externalEvidence.js';
 import {evidenceRetentionPolicy} from '../src/pentest/retentionPolicy.js';
+import {verifyDeployedIsolation} from '../src/pentest/deploymentReadiness.js';
 const checks=[];
 async function check(name,operation,required=[]) {const missing=required.filter((v)=>!process.env[v]);if(missing.length){checks.push({name,status:'BLOCKED',code:'CONFIGURATION_MISSING',required:missing});return;}try {await operation();checks.push({name,status:'PASS'});} catch {checks.push({name,status:'FAIL',code:'VERIFICATION_FAILED'});}}
 const required=['BCI_DATABASE_URL',...(process.env.NODE_ENV==='production'?['BCI_JWT_SECRET']:[])];
@@ -37,9 +38,11 @@ await check('evidence-signing',async()=>{
 },['BCI_PENTEST_EVIDENCE_PRIVATE_KEY','BCI_PENTEST_EVIDENCE_PUBLIC_KEYS']);
 await check('timestamp-authority',async()=>{await access(process.env.BCI_EVIDENCE_TSA_CA_FILE);await timestampEvidence(randomBytes(32).toString('hex'));},['BCI_EVIDENCE_TSA_URL','BCI_EVIDENCE_TSA_CA_FILE']);
 await check('immutable-evidence-stores',async()=>{evidenceRetentionPolicy();await verifyEvidenceBuckets();},['AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_EVIDENCE_COMPLIANCE_APPROVED']);
-for(const [name,bin] of Object.entries(config.engineBins).filter(([name])=>name !== 'sshKeyscan')) await check(`scanner-${name}`,()=>runBinary(bin,[name === 'nuclei' || name === 'naabu' ? '-version' : '--version'],{timeoutMs:10000}));
+await check('immutable-evidence-write-canary',()=>verifyEvidenceWriteCanary(process.env.BCI_PREFLIGHT_TENANT_ID),['BCI_PREFLIGHT_CLOUD_CANARY_APPROVED','BCI_PREFLIGHT_TENANT_ID','AWS_REGION','BCI_EVIDENCE_WORM_BUCKET','BCI_EVIDENCE_CHECKPOINT_BUCKET','BCI_EVIDENCE_S3_KMS_KEY_ID','BCI_EVIDENCE_COMPLIANCE_APPROVED','BCI_PENTEST_EVIDENCE_PRIVATE_KEY','BCI_PENTEST_EVIDENCE_PUBLIC_KEYS']);
+for(const [name,bin] of Object.entries(config.engineBins).filter(([name])=>name !== 'sshKeyscan')) await check(`scanner-${name}`,()=>runBinary(bin,[name === 'nuclei' || name === 'naabu' ? '-version' : '--version'],{timeoutMs:name==='semgrep'?30000:10000}));
 await check('trivy-database',async()=>{if(!await trivyDatabaseReady()) throw new Error();});
 await check('chromium',async()=>{const browser=await chromium.launch({headless:true});await browser.close();});
+await check('deployment-network-isolation',verifyDeployedIsolation,['BCI_KUBE_CONTEXT','BCI_KUBE_NAMESPACE','BCI_KUBE_WORKER_POD','BCI_KUBE_CONTROL_POD','BCI_NETWORK_ALLOWED_CANARIES','BCI_NETWORK_DENIED_CANARIES']);
 for(const [name,bin] of [['pg-dump',process.env.BCI_PG_DUMP_BIN || 'pg_dump'],['pg-restore',process.env.BCI_PG_RESTORE_BIN || 'pg_restore']])await check(name,()=>runBinary(bin,['--version'],{timeoutMs:5000}));
 await pool.end();
 console.log(JSON.stringify({ready:checks.every((c)=>c.status==='PASS'),checks},null,2));

@@ -1,0 +1,106 @@
+{
+  "ready": false,
+  "checks": [
+    {
+      "name": "migrations",
+      "status": "PASS"
+    },
+    {
+      "name": "credential-provider",
+      "status": "BLOCKED",
+      "code": "CONFIGURATION_MISSING",
+      "required": [
+        "BCI_PENTEST_KMS_KEY_ID",
+        "AWS_REGION"
+      ]
+    },
+    {
+      "name": "evidence-signing",
+      "status": "PASS"
+    },
+    {
+      "name": "timestamp-authority",
+      "status": "BLOCKED",
+      "code": "CONFIGURATION_MISSING",
+      "required": [
+        "BCI_EVIDENCE_TSA_URL",
+        "BCI_EVIDENCE_TSA_CA_FILE"
+      ]
+    },
+    {
+      "name": "immutable-evidence-stores",
+      "status": "BLOCKED",
+      "code": "CONFIGURATION_MISSING",
+      "required": [
+        "AWS_REGION",
+        "BCI_EVIDENCE_WORM_BUCKET",
+        "BCI_EVIDENCE_CHECKPOINT_BUCKET",
+        "BCI_EVIDENCE_S3_KMS_KEY_ID",
+        "BCI_EVIDENCE_COMPLIANCE_APPROVED"
+      ]
+    },
+    {
+      "name": "immutable-evidence-write-canary",
+      "status": "BLOCKED",
+      "code": "CONFIGURATION_MISSING",
+      "required": [
+        "BCI_PREFLIGHT_CLOUD_CANARY_APPROVED",
+        "BCI_PREFLIGHT_TENANT_ID",
+        "AWS_REGION",
+        "BCI_EVIDENCE_WORM_BUCKET",
+        "BCI_EVIDENCE_CHECKPOINT_BUCKET",
+        "BCI_EVIDENCE_S3_KMS_KEY_ID",
+        "BCI_EVIDENCE_COMPLIANCE_APPROVED"
+      ]
+    },
+    {
+      "name": "scanner-trivy",
+      "status": "PASS"
+    },
+    {
+      "name": "scanner-osvScanner",
+      "status": "PASS"
+    },
+    {
+      "name": "scanner-semgrep",
+      "status": "PASS"
+    },
+    {
+      "name": "scanner-nuclei",
+      "status": "PASS"
+    },
+    {
+      "name": "scanner-naabu",
+      "status": "PASS"
+    },
+    {
+      "name": "trivy-database",
+      "status": "PASS"
+    },
+    {
+      "name": "chromium",
+      "status": "PASS"
+    },
+    {
+      "name": "deployment-network-isolation",
+      "status": "BLOCKED",
+      "code": "CONFIGURATION_MISSING",
+      "required": [
+        "BCI_KUBE_CONTEXT",
+        "BCI_KUBE_NAMESPACE",
+        "BCI_KUBE_WORKER_POD",
+        "BCI_KUBE_CONTROL_POD",
+        "BCI_NETWORK_ALLOWED_CANARIES",
+        "BCI_NETWORK_DENIED_CANARIES"
+      ]
+    },
+    {
+      "name": "pg-dump",
+      "status": "PASS"
+    },
+    {
+      "name": "pg-restore",
+      "status": "PASS"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # BCI — BOLD Cyber Intelligence Platform
 
-![Version](https://img.shields.io/badge/version-0.1.157-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
+![Version](https://img.shields.io/badge/version-0.1.158-blue) ![License](https://img.shields.io/badge/license-Proprietary-lightgrey)
 
 **Autonomous Cyber Security Discovery & Decision-Support Engine**
 Bold Askeri Teknoloji ve Savunma Sanayi A.Ş.
@@ -1043,3 +1043,12 @@ visibility. The security-impact runtime dependency remains the existing `curl`
 transport; its real health check must pass or analysis fails closed.
 See [CONTROLLED_PROOF_AUDIT.md](./CONTROLLED_PROOF_AUDIT.md) for the architecture,
 evidence boundaries, and corrected capability separation.
+
+Production integration, tenant-specific IAM identities, CloudHSM/KMS/S3
+provisioning, immutable checkpoints, preflight and tested database recovery are
+documented in [Production operations](docs/PRODUCTION_OPERATIONS.md).
+Active scans, Controlled Proof and live finding rechecks require a current
+approved tenant scope. LAB/STAGING additionally require operator-configured
+origins; existing BCI user permissions remain in place.
+The latest source review and actual validation limits are recorded in
+[Final review delivery](docs/FINAL_REVIEW_DELIVERY.md).

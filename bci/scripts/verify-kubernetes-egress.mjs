@@ -3,7 +3,7 @@ import {promisify} from 'node:util';
 import {writeFile} from 'node:fs/promises';
 const execute=promisify(execFile),namespace='bci-network-lab';
 const kubectl=async(args)=>JSON.parse((await execute('kubectl',['--context','kind-bci-egress-lab',...args],{timeout:60000,maxBuffer:1024*1024})).stdout);
-const run=async(args)=>execute('kubectl',['--context','kind-bci-egress-lab',...args],{timeout:60000,maxBuffer:1024*1024});
+const run=async(args)=>execute('kubectl',['--context','kind-bci-egress-lab',...args],{timeout:args.includes('wait')?300000:60000,maxBuffer:1024*1024});
 if(process.env.BCI_KERNEL_LAB!=='1')throw new Error('explicit isolated Kubernetes lab flag required');
 await run(['create','namespace',namespace]);
 const code="const http=require('node:http');for(const port of [5432,8080,9090])http.createServer((q,s)=>s.end('BCI_NETWORK_CANARY')).listen(port,'::');";

@@ -2,6 +2,8 @@ import { query } from '../db/client.js';
 import { recordAuditEvent } from './audit.js';
 import { nucleiAdapter } from '../engines/adapters/nuclei.js';
 import { naabuAdapter } from '../engines/adapters/naabu.js';
+import {withAuthorizedTransport} from './authorizedTransport.js';
+import {getPentestTransport,pentestFetch} from '../pentest/transport.js';
 
 // BCI Verify (spec section 35): re-check one specific Finding, not the
 // whole system. Only re-checkable when the original detection was itself a
@@ -36,20 +38,25 @@ async function recordVerificationRun({ orgId, actorUserId, findingId, result, de
   }
 }
 
-async function verifyWebFinding({ finding, source }) {
-  const { raw } = await nucleiAdapter.execute({ target: finding.target, templateId: source.rule_id });
+async function verifyWebFinding({ orgId,actorUserId,finding, source }) {
+  const { raw } = await withAuthorizedTransport({orgId,actorUserId,target:finding.target,requestedClass:'SAFE_ACTIVE'},async()=>{
+    const engagement=getPentestTransport().engagement,control=await pentestFetch(engagement.target,{engagement});
+    if(control.status<200 || control.status>=300)throw new Error('successful independent HTTP recheck control unavailable');
+    return nucleiAdapter.execute({ target: finding.target, templateId: source.rule_id });
+  });
   const stillMatches = raw.some((r) => r['template-id'] === source.rule_id && r['matcher-status']);
   return stillMatches
     ? { result: 'VULNERABILITY_REMAINS', detail: 'the original template still matches' }
     : { result: 'FIX_VERIFIED', detail: 'the original template no longer matches' };
 }
 
-async function verifyNetworkFinding({ source }) {
-  const [host, portStr] = source.location.split(':');
+async function verifyNetworkFinding({ orgId,actorUserId,source }) {
+  const separator=source.location.lastIndexOf(':'),host=source.location.slice(0,separator).replace(/^\[|\]$/g,''),portStr=source.location.slice(separator+1);
   const port = Number(portStr);
-  if (!host || !port) return { result: 'INCONCLUSIVE', detail: 'could not parse host:port from location' };
+  if (!host || !Number.isInteger(port) || port<1 || port>65535) return { result: 'INCONCLUSIVE', detail: 'could not parse host:port from location' };
 
-  const { raw } = await naabuAdapter.execute({ target: host, ports: String(port) });
+  const url=`http://${host.includes(':')?'['+host+']':host}:${port}`;
+  const { raw } = await withAuthorizedTransport({orgId,actorUserId,target:url,requestedClass:'SAFE_ACTIVE'},()=>naabuAdapter.execute({ target: host, ports: String(port) }));
   const stillOpen = raw.some((r) => r.port === port);
   return stillOpen
     ? { result: 'VULNERABILITY_REMAINS', detail: `port ${port} is still open` }

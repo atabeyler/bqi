@@ -68,7 +68,15 @@ RUN git clone --depth 1 --branch "${NUCLEI_TEMPLATES_VERSION}" \
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl openssl python3 python3-pip libpcap0.8 \
+    && apt-get install -y --no-install-recommends ca-certificates curl openssl git openssh-client python3 python3-pip libpcap0.8 \
+    && rm -rf /var/lib/apt/lists/*
+# Match the deployed PostgreSQL major (compose uses 16). Debian bookworm's
+# default client is 15 and cannot back up a PostgreSQL 16 server.
+ARG POSTGRES_CLIENT_MAJOR=16
+RUN curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/keyrings/postgresql.asc \
+    && echo 'deb [signed-by=/usr/share/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends "postgresql-client-${POSTGRES_CLIENT_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 # --ignore-installed: bookworm-slim ships a system PyJWT via apt/dist-packages
 # that pip can't cleanly uninstall -- same issue documented in the root
@@ -85,6 +93,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/bci-browsers
 RUN node node_modules/playwright/cli.js install --with-deps chromium && chmod -R a+rX /opt/bci-browsers
 COPY src/ src/
 COPY scripts/worker-healthcheck.mjs scripts/worker-healthcheck.mjs
+COPY scripts/preflight.mjs scripts/database-recovery.mjs scripts/kms-lifecycle.mjs scripts/cloudhsm-lifecycle.mjs scripts/iam-lifecycle.mjs scripts/s3-lifecycle.mjs scripts/verify-external-checkpoint.mjs scripts/
 
 RUN chown -R node:node /app
 USER node

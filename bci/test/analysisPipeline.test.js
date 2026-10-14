@@ -24,7 +24,9 @@ const REPOSITORY_ENGINE_TEST_TIMEOUT_MS = 180_000;
 // earlier test file to have called it first is exactly the file-order
 // fragility this suite avoids elsewhere. Run it once here so the
 // selection-narrowing test below is correct regardless of run order.
-beforeAll(runHealthChecks, 30_000);
+// Semgrep alone has a 30s cold-start budget; the registry checks all native
+// scanners. Keep setup longer than their combined subprocess deadlines.
+beforeAll(runHealthChecks, 90_000);
 
 beforeEach(resetDatabase);
 
