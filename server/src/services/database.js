@@ -359,7 +359,7 @@ export async function query(text, params) {
 export async function getUserEmailRecipients() {
   if (!process.env.DATABASE_URL) return [];
   try {
-    const { rows } = await query("SELECT user_code, nickname, email FROM auth_users WHERE email IS NOT NULL AND email <> ''");
+    const { rows } = await query("SELECT user_code, nickname, email FROM auth_users WHERE blocked IS NOT TRUE AND email IS NOT NULL AND email <> ''");
     return rows;
   } catch (err) {
     logger.warn({ err }, '[Database] Failed to load user email recipients');
@@ -408,7 +408,7 @@ export async function getUserEmailByNickname(nickname) {
   if (!process.env.DATABASE_URL || !nickname) return null;
   try {
     const { rows } = await query(
-      "SELECT email FROM auth_users WHERE nickname = $1 AND email IS NOT NULL AND email <> '' LIMIT 1",
+      "SELECT email FROM auth_users WHERE nickname = $1 AND blocked IS NOT TRUE AND email IS NOT NULL AND email <> '' LIMIT 1",
       [nickname]
     );
     return rows[0]?.email || null;

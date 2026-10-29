@@ -64,7 +64,10 @@ export async function notifyIfChanged({ db, pg, registry, send, force = false, v
   const reasons = report.model.sections[0].blocks[0].drivers; const head = tr(lang, 'mailHead', { dir, level: levelNow });
   const text = [head, "", ...reasons.map((d) => `- ${d}`), "", `${tr(lang, 'mailAttached')} ${tr(lang, 'mailDisclaimer')}`].join('\n');
   const esc = (x) => String(x).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  await send({ subject, text, html: `<div dir="${report.model.rtl ? 'rtl' : 'ltr'}"><p><b>${esc(head)}</b></p><ul>${reasons.map((d) => `<li>${esc(d)}</li>`).join('')}</ul><p>${esc(tr(lang, 'mailAttached'))}</p><p style="color:#667085;font-size:12px">${esc(tr(lang, 'mailDisclaimer'))}</p></div>`, attachments: [{ filename: `${tr(lang, 'mailFile')}-${now.toISOString().slice(0, 10)}.html`, content: Buffer.from(html, 'utf8') }] });
+  const delivery = await send({ subject, text, html: `<div dir="${report.model.rtl ? 'rtl' : 'ltr'}"><p><b>${esc(head)}</b></p><ul>${reasons.map((d) => `<li>${esc(d)}</li>`).join('')}</ul><p>${esc(tr(lang, 'mailAttached'))}</p><p style="color:#667085;font-size:12px">${esc(tr(lang, 'mailDisclaimer'))}</p></div>`, attachments: [{ filename: `${tr(lang, 'mailFile')}-${now.toISOString().slice(0, 10)}.html`, content: Buffer.from(html, 'utf8') }] });
+  if (!delivery?.data?.id || delivery.error || delivery.skipped) {
+    throw new Error('BFI e-postası kabul edilmedi; alarm durumu kaydedilmedi.');
+  }
   await db.append('alert_state', { id: `st_${now.getTime()}`, level: assessment.level, at: now.toISOString() });
   return { sent: true, level: assessment.levelTr, previous: last ? LEVEL_TR[last.level] : null };
 }

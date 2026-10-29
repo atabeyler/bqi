@@ -180,7 +180,7 @@ export function initSocketHandlers(io) {
       if (!socket.isAdmin) return;
       const roomId = 'acil-toplanti';
       const startedAt = Date.now();
-      sendVideoMeetingStartedAlert(socket.nickname).catch(() => {});
+      sendVideoMeetingStartedAlert(socket.nickname).catch((err) => logger.warn({ err }, '[Socket] Center meeting email failed'));
       // Also email every registered user (active or not) -- the socket/UI
       // notifications below only reach clients that are currently connected.
       getUserEmailRecipients()

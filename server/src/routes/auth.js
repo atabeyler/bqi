@@ -210,15 +210,12 @@ router.post('/login-request', publicActionLimiter, async (req, res) => {
     const approveUrl = `${APP_URL}/api/auth/approve/${token}`;
     const rejectUrl = `${APP_URL}/api/auth/reject/${token}`;
 
-    // Fire-and-forget: the Resend API round-trip (DNS+TLS+HTTP) can run
-    // 1-9s depending on network conditions, and the client doesn't need the
-    // email to actually be sent before it starts polling /check/:token --
-    // it only needs the approval_tokens row, already inserted above.
-    // Blocking the response on this turned every non-admin login into a
-    // multi-second wait for no functional reason.
-    sendApprovalEmail(userCode, approveUrl, rejectUrl).catch((err) => {
-      console.error('sendApprovalEmail error:', err);
-    });
+    try {
+      await sendApprovalEmail(userCode, approveUrl, rejectUrl);
+    } catch {
+      await query('DELETE FROM approval_tokens WHERE token = $1', [token]);
+      return res.status(503).json({ error: 'Onay e-postası gönderilemedi. Lütfen tekrar deneyin.' });
+    }
 
     res.json({ success: true, token, message: 'Merkez onayı bekleniyor — bqi@boldas.com.tr adresine onay maili gönderildi.' });
   } catch (err) {

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { logger } from '../lib/logger.js';
 import { Resend } from 'resend';
 import { escapeHtml } from '../lib/escapeHtml.js';
 
@@ -6,15 +8,50 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const FROM = 'BQI <bqi@boldas.com.tr>';
 const TO_CENTER = process.env.CENTER_EMAIL || 'bqi@boldas.com.tr';
 
+// A successful HTTP promise is not a successful Resend submission: the SDK
+// returns { error } for provider and network failures. Never log message bodies,
+// recipient addresses, approval links or credentials here.
+async function sendMail(payload) {
+  if (!resend) {
+    logger.error({ code: 'MAIL_NOT_CONFIGURED' }, '[Mail] Submission failed');
+    throw new Error('E-posta servisi yapılandırılmamış.');
+  }
+  const idempotencyKey = randomUUID();
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await resend.emails.send(payload, { idempotencyKey });
+      if (result?.error || !result?.data?.id) {
+        const error = new Error('E-posta servisi gönderimi kabul etmedi.');
+        error.code = result?.error?.name || 'MAIL_INVALID_RESPONSE';
+        error.retryable = ['application_error', 'internal_server_error', 'rate_limit_exceeded'].includes(error.code);
+        throw error;
+      }
+      logger.info({ messageId: result.data.id }, '[Mail] Submission accepted');
+      return result;
+    } catch (error) {
+      // SDK network failures are normally returned as application_error.
+      const retryable = error.retryable ?? true;
+      logger.warn({ code: error.code || 'MAIL_NETWORK_ERROR', attempt }, '[Mail] Submission failed');
+      if (attempt === 2 || !retryable) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+async function sendMany(payloads) {
+  const results = await Promise.allSettled(payloads.map(sendMail));
+  const failed = results.filter((result) => result.status === 'rejected');
+  if (failed.length) {
+    logger.error({ failed: failed.length, total: results.length }, '[Mail] Broadcast incomplete');
+    throw new AggregateError(failed.map((result) => result.reason), 'Bazı e-postalar gönderilemedi.');
+  }
+  return results;
+}
+
 /**
  * Sends an approval button email to the central mailbox for login approval.
  */
 export async function sendApprovalEmail(userCode, approveUrl, rejectUrl) {
-  if (!resend) {
-    console.warn('⚠️ RESEND_API_KEY missing — approval email cannot be sent');
-    return { skipped: true };
-  }
-
   const html = `
 <!DOCTYPE html>
 <html>
@@ -56,7 +93,7 @@ export async function sendApprovalEmail(userCode, approveUrl, rejectUrl) {
 </body>
 </html>`;
 
-  return resend.emails.send({
+  return sendMail({
     from: FROM,
     to: TO_CENTER,
     subject: `[BQI] Giriş Onayı — ${userCode}`,
@@ -68,8 +105,6 @@ export async function sendApprovalEmail(userCode, approveUrl, rejectUrl) {
  * Sends the generated analysis report to the central mailbox as a .docx attachment.
  */
 export async function sendAnalysisReport(userCode, category, title, docxBuffer) {
-  if (!resend) return { skipped: true };
-
   const html = `
 <!DOCTYPE html>
 <html><body style="margin:0;background:#0a0e1a;font-family:'Times New Roman',serif;color:#e8e8e8;">
@@ -88,7 +123,7 @@ export async function sendAnalysisReport(userCode, category, title, docxBuffer) 
   </div>
 </body></html>`;
 
-  const send = () => resend.emails.send({
+  const send = () => sendMail({
     from: FROM,
     to: TO_CENTER,
     subject: `[BQI] ${category.toUpperCase()} Analizi — ${title}`,
@@ -99,24 +134,13 @@ export async function sendAnalysisReport(userCode, category, title, docxBuffer) 
     }]
   });
 
-  // The caller (routes/analysis.js) fires this off without awaiting it, so a
-  // transient Resend outage would otherwise silently drop a report meant to
-  // reach the compliance mailbox with no second chance. One retry after a
-  // short delay covers that without holding up the analysis response.
-  try {
-    return await send();
-  } catch {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    return send();
-  }
+  return send();
 }
 
 /**
  * Emergency notification (from the center or a regional pin).
  */
 export async function sendEmergencyAlert(userCode, message, region = null) {
-  if (!resend) return { skipped: true };
-
   const regionText = region ? `<tr><td><strong>Bölge:</strong></td><td style="color:#ff4444;">${escapeHtml(region)}</td></tr>` : '';
 
   const html = `
@@ -139,7 +163,7 @@ export async function sendEmergencyAlert(userCode, message, region = null) {
   </div>
 </body></html>`;
 
-  return resend.emails.send({
+  return sendMail({
     from: FROM,
     to: TO_CENTER,
     subject: `🚨 [ACİL] BQI ${region ? `— ${String(region).slice(0, 100)}` : ''}`,
@@ -155,7 +179,7 @@ export async function sendEmergencyAlert(userCode, message, region = null) {
  * list) so recipients don't see each other's addresses.
  */
 export async function sendEmergencyBroadcastEmail(fromUserCode, message, recipients) {
-  if (!resend || !recipients?.length) return { skipped: true };
+  if (!recipients?.length) return { skipped: true };
   const now = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
 
   const html = (nickname) => `
@@ -182,8 +206,8 @@ export async function sendEmergencyBroadcastEmail(fromUserCode, message, recipie
   </div>
 </body></html>`;
 
-  return Promise.allSettled(
-    recipients.map((r) => resend.emails.send({
+  return sendMany(
+    recipients.map((r) => ({
       from: FROM,
       to: r.email,
       subject: '🚨 [ACİL] BQI — Kullanıcılara Bildirim',
@@ -198,7 +222,7 @@ export async function sendEmergencyBroadcastEmail(fromUserCode, message, recipie
  * email them instead so they know to check the messaging panel.
  */
 export async function sendDirectMessageEmail(toEmail, toNickname, fromNickname, message) {
-  if (!resend || !toEmail) return { skipped: true };
+  if (!toEmail) return { skipped: true };
   const now = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
 
   const html = `
@@ -218,7 +242,7 @@ export async function sendDirectMessageEmail(toEmail, toNickname, fromNickname, 
   </div>
 </body></html>`;
 
-  return resend.emails.send({
+  return sendMail({
     from: FROM,
     to: toEmail,
     subject: `[BQI] ${fromNickname} size mesaj gönderdi`,
@@ -232,7 +256,7 @@ export async function sendDirectMessageEmail(toEmail, toNickname, fromNickname, 
  * mailbox) but reaches everyone who might want to join.
  */
 export async function sendVideoMeetingStartedToUsers(hostNickname, recipients) {
-  if (!resend || !recipients?.length) return { skipped: true };
+  if (!recipients?.length) return { skipped: true };
   const now = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
 
   const html = (nickname) => `
@@ -249,8 +273,8 @@ export async function sendVideoMeetingStartedToUsers(hostNickname, recipients) {
   </div>
 </body></html>`;
 
-  return Promise.allSettled(
-    recipients.map((r) => resend.emails.send({
+  return sendMany(
+    recipients.map((r) => ({
       from: FROM,
       to: r.email,
       subject: `[BQI] Görüntülü Toplantı Başlatıldı — ${hostNickname || 'BOLD'}`,
@@ -260,7 +284,6 @@ export async function sendVideoMeetingStartedToUsers(hostNickname, recipients) {
 }
 
 export async function sendVideoMeetingStartedAlert(hostUserCode) {
-  if (!resend) return { skipped: true };
   const now = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
   const html = `
 <!DOCTYPE html>
@@ -275,7 +298,7 @@ export async function sendVideoMeetingStartedAlert(hostUserCode) {
   </div>
 </body></html>`;
 
-  return resend.emails.send({
+  return sendMail({
     from: FROM,
     to: TO_CENTER,
       subject: `[BQI] Görüntülü Toplantı Başlatıldı - ${hostUserCode || 'BOLD'}`,
@@ -290,7 +313,6 @@ export async function sendVideoMeetingStartedAlert(hostUserCode) {
  * until a domain is verified.
  */
 export async function sendSfreReportEmail({ subject, text, html, attachments = [] }) {
-  if (!resend) return { skipped: true, reason: 'RESEND_API_KEY not set' };
   const to = (process.env.SFRE_ALERT_EMAILS || TO_CENTER).split(',').map((x) => x.trim()).filter(Boolean);
-  return resend.emails.send({ from: FROM, to, subject: String(subject).slice(0, 200), text, html, attachments });
+  return sendMail({ from: FROM, to, subject: String(subject).slice(0, 200), text, html, attachments });
 }

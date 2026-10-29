@@ -12,7 +12,7 @@ const registry = { list: () => [{ model_id: 'M21', state: 'DEVELOPMENT' }] };
 
 describe('report notification', () => {
   it('records a baseline at NORMAL without mailing, and mails when the level changes', async () => {
-    const db = fakeDb(); const sent = []; const send = async (m) => sent.push(m);
+    const db = fakeDb(); const sent = []; const send = async (m) => { sent.push(m); return { data: { id: 'test-mail' } }; };
     db.set('breadth-trial-tefas', trial(0.04));
     expect(await notifyIfChanged({ db, pg, registry, send, now: NOW })).toMatchObject({ sent: false, reason: 'baseline recorded' });
     db.set('breadth-trial-tefas', trial(0.12));
@@ -21,7 +21,7 @@ describe('report notification', () => {
     expect(sent[0].subject).toContain('NORMAL → ALARM'); expect(sent[0].attachments[0].filename).toMatch(/^BFI-Durum-Raporu-.*\.html$/); expect(sent[0].attachments[0].content.toString()).toContain('ALARM');
   });
   it('does not repeat the same level, and mails again when it drops', async () => {
-    const db = fakeDb(); const sent = []; const send = async (m) => sent.push(m);
+    const db = fakeDb(); const sent = []; const send = async (m) => { sent.push(m); return { data: { id: 'test-mail' } }; };
     db.set('breadth-trial-tefas', trial(0.12));
     await notifyIfChanged({ db, pg, registry, send, now: NOW });
     expect(await notifyIfChanged({ db, pg, registry, send, now: new Date(NOW.getTime() + 1000) })).toMatchObject({ sent: false, reason: 'level unchanged' });
@@ -32,6 +32,13 @@ describe('report notification', () => {
     const db = fakeDb([{ id: 'a', level: 0, at: 'x' }]); db.set('breadth-trial-tefas', trial(0.12));
     await expect(notifyIfChanged({ db, pg, registry, send: async () => { throw new Error('smtp down'); }, now: NOW })).rejects.toThrow('smtp down');
     expect(db.col.alert_state).toHaveLength(1);
+  });
+  it.each([{ error: { name: 'validation_error' } }, { skipped: true }, undefined])('does not save a rejected or skipped submission: %j', async (delivery) => {
+    const db = fakeDb([{ id: 'a', level: 0, at: 'x' }]); db.set('breadth-trial-tefas', trial(0.12));
+    await expect(notifyIfChanged({ db, pg, registry, send: async () => delivery, now: NOW })).rejects.toThrow('alarm durumu kaydedilmedi');
+    expect(db.col.alert_state).toHaveLength(1);
+    expect((await notifyIfChanged({ db, pg, registry, send: async () => ({ data: { id: 'retry-success' } }), now: NOW })).sent).toBe(true);
+    expect(db.col.alert_state).toHaveLength(2);
   });
   it('builds a report without any database', () => { expect(buildReport({ breadth: null, fx: null, coverage: [], models: [], now: NOW }).html).toContain('Değerlendirilecek veri yok'); });
 });

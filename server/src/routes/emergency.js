@@ -111,7 +111,7 @@ router.post('/users', authMiddleware, requireRole(ROLES.ADMIN), publicActionLimi
     sendPushToUsers({ title: 'BQI — Acil Yayın', body: `${userCode}: ${message}`, tag: 'emergency' })
       .catch((err) => logger.warn({ err }, '[Emergency] Push broadcast failed'));
 
-    res.json({ success: true, message: 'Tüm kullanıcılara iletildi.' });
+    res.json({ success: true, message: 'Canlı bildirim yayınlandı; e-posta ve push gönderimi başlatıldı.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

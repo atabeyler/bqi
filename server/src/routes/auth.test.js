@@ -155,6 +155,9 @@ function makeFakeTransactionClient() {
 }
 const getPoolMock = vi.fn(() => ({ connect: async () => makeFakeTransactionClient() }));
 
+const mailMock = vi.fn(async () => ({ data: { id: 'test-approval' } }));
+vi.mock('../services/email.js', () => ({ sendApprovalEmail: (...args) => mailMock(...args) }));
+
 vi.mock('../services/database.js', () => ({
   query: (...args) => queryMock(...args),
   logAuditEvent: (...args) => logAuditEventMock(...args),
@@ -197,6 +200,15 @@ describe('POST /api/auth/login-request', () => {
     const app = buildApp();
     const res = await request(app).post('/api/auth/login-request').send({ userCode: 'X' });
     expect(res.status).toBe(400);
+  });
+
+  it('returns 503 and removes the pending token when approval mail fails', async () => {
+    await seedUser({ userCode: 'MAIL-FAIL', password: 'correct-horse', nickname: 'MAIL-FAIL' });
+    mailMock.mockRejectedValueOnce(new Error('provider rejected'));
+    const res = await request(buildApp()).post('/api/auth/login-request').send({ userCode: 'MAIL-FAIL', password: 'correct-horse' });
+    expect(res.status).toBe(503);
+    expect(res.body.success).not.toBe(true);
+    expect(approvalTokens.size).toBe(0);
   });
 
   it('rejects an unknown user code', async () => {
