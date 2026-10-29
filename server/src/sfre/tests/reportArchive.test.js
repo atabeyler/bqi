@@ -36,7 +36,7 @@ describe('report archive', () => {
     expect(await archiveDailyIfDue(db, { report: mk(0.04, '2026-09-27T08:00:00Z'), now: new Date('2026-09-27T08:00:00Z') })).not.toBeNull();
   });
   it('a sync round archives the daily snapshot and a level change archives too', async () => {
-    const db = fakeDb(); const sent = []; const send = async (m) => sent.push(m); const registry = { list: () => [] };
+    const db = fakeDb(); const sent = []; const send = async (m) => { sent.push(m); return { data: { id: 'archive-test-mail' } }; }; const registry = { list: () => [] };
     db.col.federated = [{ title: 'breadth-trial-tefas', payload: trial(0.04) }];
     await dailyArchiveAndNotify({ db, pg, registry, send, now: new Date('2026-09-26T08:00:00Z') });
     db.col.federated = [{ title: 'breadth-trial-tefas', payload: trial(0.12) }];
