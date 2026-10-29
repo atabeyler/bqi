@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from './db/client.js';
 import { logger } from './logger.js';
+import { processNextVerification } from './services/verificationQueue.js';
 import { claimNextJob, completeJob, markNoCoverage, failJob, sweepTimedOutJobs, heartbeatWorker, getJobExecutionStatus } from './services/jobQueue.js';
 import { runAnalysisPipeline } from './services/analysisPipeline.js';
 import { recordAssetRiskSnapshotsForTarget } from './services/assetRiskHistory.js';
@@ -41,6 +42,12 @@ export function decideJobOutcome(result) {
 
 async function workerLoop(workerId, signal) {
   while (!signal.stopped) {
+    // Finding re-checks queued by the API (it has no scanner binaries); a failure here must never stop scans.
+    try {
+      if (await processNextVerification(workerId)) continue;
+    } catch (err) {
+      logger.warn({ err, workerId }, 'Verification queue poll failed');
+    }
     let job;
     try {
       job = await claimNextJob(workerId);

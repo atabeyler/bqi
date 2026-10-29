@@ -6,6 +6,8 @@ import { requirePermission } from '../lib/rbac.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { createRemediation, listRemediationsForFinding, updateRemediationStatus } from '../services/remediation.js';
 import { verifyFix } from '../services/verify.js';
+import { enqueueVerification, waitForVerification } from '../services/verificationQueue.js';
+import { config } from '../config.js';
 import { explainFinding } from '../services/decisionSupport.js';
 
 export const findingsRouter = Router();
@@ -144,6 +146,12 @@ findingsRouter.post('/:id/verify-fix', requirePermission('finding:verify'), asyn
   const finding = await loadOwnedFinding(req.auth.orgId, req.params.id);
   if (!finding) return res.status(404).json({ error: 'finding_not_found', requestId: req.id });
 
+  // The API image has no scanner binaries: in the split deployment the isolated worker runs the re-check.
+  if (config.engineHealthMode === 'WORKER') {
+    const jobId = await enqueueVerification({ orgId: req.auth.orgId, actorUserId: req.auth.userId, findingId: req.params.id });
+    const queued = await waitForVerification(jobId);
+    return res.json(queued || { result: 'INCONCLUSIVE', detail: 'the scanner worker did not answer in time; try again in a minute' });
+  }
   const outcome = await verifyFix(req.auth.orgId, req.auth.userId, req.params.id);
   res.json(outcome);
 });
