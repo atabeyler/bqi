@@ -1,4 +1,6 @@
 {
+  "serviceStarting": "Préparation du serveur ; le premier démarrage peut prendre environ 1 à 2 minutes.",
+  "serviceNotReady": "Le serveur n’est pas encore prêt. Veuillez réessayer dans un instant.",
   "systemActive": "Système Actif",
   "userCode": "Code Utilisateur",
   "password": "Mot de passe",

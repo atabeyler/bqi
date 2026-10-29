@@ -1,4 +1,6 @@
 export default {
+  serviceStarting: "Preparing the server; the first start may take about 1–2 minutes.",
+  serviceNotReady: "The server is not ready yet. Please try again shortly.",
   navDashboard: 'Dashboard',
   navAssets: 'Assets',
   navScans: 'Scans',

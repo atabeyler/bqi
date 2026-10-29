@@ -18,7 +18,7 @@ import PentestPage from './pages/PentestPage.jsx';
 function RequireAuth({ children }) {
   const { user } = useAuth();
   const { t } = useLang();
-  if (user === undefined) return <div className="login-screen">{t('loadingEllipsis')}</div>;
+  if (user === undefined) return <div className="login-screen" role="status">{t('serviceStarting')}</div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }

@@ -1,4 +1,6 @@
 export default {
+  serviceStarting: "جارٍ تجهيز الخادم؛ قد يستغرق التشغيل الأول نحو دقيقة إلى دقيقتين.",
+  serviceNotReady: "الخادم ليس جاهزًا بعد. يرجى المحاولة مجددًا بعد قليل.",
   navDashboard: 'لوحة التحكم',
   navAssets: 'الأصول',
   navScans: 'الفحوصات',

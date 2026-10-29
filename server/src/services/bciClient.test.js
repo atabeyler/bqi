@@ -15,6 +15,7 @@ describe('BCI gateway client', () => {
     let gatewayCalls = 0;
     let gatewayRole;
     const fetchMock = vi.fn(async (url, options = {}) => {
+      if (url.endsWith('/health/ready')) return { ok: true, status: 200, json: async () => ({ status: 'ok', database: 'up' }) };
       if (url.endsWith('/api/v1/gateway/session')) {
         gatewayCalls += 1;
         gatewayRole = jwt.decode(options.headers.authorization.slice('Bearer '.length)).role;
@@ -35,6 +36,17 @@ describe('BCI gateway client', () => {
     expect(results.every((result) => result.ok)).toBe(true);
     expect(gatewayCalls).toBe(1);
     expect(gatewayRole).toBe('system_admin');
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
+  it('never submits a scan when readiness is misconfigured', async () => {
+    vi.stubEnv('BCI_BASE_URL', 'https://bci.internal');
+    vi.stubEnv('BCI_GATEWAY_SECRET', 'test-gateway-secret-with-enough-entropy');
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: 'not_found' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { callBci } = await import('./bciClient.js');
+    expect(await callBci({ userCode: 'test', role: 'admin' }, '/api/v1/scans', { method: 'POST', body: { test: true } })).toMatchObject({ ok: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'GET', credentials: 'omit' });
+  });
+
 });

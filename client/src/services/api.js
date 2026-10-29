@@ -1,3 +1,5 @@
+import { waitForService } from './serviceReady.js';
+
 // On the web, the page's own origin *is* the cloud server (server/src/index.js
 // serves the built SPA and the API from the same origin), so a same-origin
 // relative fetch just works. Desktop (Electron) and mobile (Capacitor) load
@@ -140,14 +142,17 @@ async function reqText(path) {
 }
 
 export const api = {
+  // Readiness waits separately (safe GET only), then the login POST gets
   // 25s, not a snappier few seconds: this endpoint's own bcrypt.compare()
   // has been observed taking 7-12s under real server load, and a timeout
   // that fires while a normal online login is still legitimately in
   // flight is worse than one that waits a bit longer -- it wrongly routes
   // an online device into the offline-login fallback (see LoginPage.jsx),
   // which then fails for a device that was never meant to need it.
-  loginRequest: (userCode, password) =>
-    req('/api/auth/login-request', { method: 'POST', body: JSON.stringify({ userCode, password }), timeoutMs: 25000 }),
+  loginRequest: async (userCode, password) => {
+    await waitForService(`${baseFor()}/api/health/ready`);
+    return req('/api/auth/login-request', { method: 'POST', body: JSON.stringify({ userCode, password }), timeoutMs: 25000 });
+  },
 
   checkApproval: (token) => req(`/api/auth/check/${token}`),
 

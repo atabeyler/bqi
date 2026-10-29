@@ -19,6 +19,7 @@
  * permissions directly, only identity.
  */
 import jwt from 'jsonwebtoken';
+import { waitForService } from '../lib/serviceReady.js';
 import { logger } from '../lib/logger.js';
 import { ROLES, resolveRole } from '../lib/rbac.js';
 
@@ -29,11 +30,27 @@ const BCI_GATEWAY_SECRET = process.env.BCI_GATEWAY_SECRET;
 // itself warns of "50 seconds or more"). A shorter timeout here made every
 // cold-start request fail as bci_unavailable before BCI ever got a chance
 // to wake up and respond, even though it was perfectly healthy once warm.
-const COLD_START_TIMEOUT_MS = 60_000;
+// Allow the free instance to start and reconnect to its DB. Never replay
+// gateway/session or a mutating API request after a timeout.
+const COLD_START_TIMEOUT_MS = 120_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = COLD_START_TIMEOUT_MS;
 
 export function isBciConfigured() {
   return Boolean(BCI_BASE_URL && BCI_GATEWAY_SECRET);
+}
+
+// Shared, short-lived readiness: concurrent dashboard calls wake the API
+// once, without submitting user identity or replaying scans/reports.
+let readinessUntil = 0;
+let readinessRequest = null;
+function ensureBciReady() {
+  if (Date.now() < readinessUntil) return Promise.resolve();
+  if (!readinessRequest) {
+    readinessRequest = waitForService(`${BCI_BASE_URL}/api/v1/health/ready`)
+      .then(() => { readinessUntil = Date.now() + 30000; })
+      .finally(() => { readinessRequest = null; });
+  }
+  return readinessRequest;
 }
 
 // BQI's 3-role model maps onto BCI's 6-role catalog at the
@@ -107,6 +124,7 @@ export async function callBci(user, path, { method = 'GET', body, timeoutMs = DE
   }
 
   try {
+    await ensureBciReady();
     const token = await getBciToken(user);
     const res = await fetch(`${BCI_BASE_URL}${path}`, {
       method,

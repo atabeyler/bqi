@@ -15,8 +15,9 @@ export function AuthProvider({ children }) {
     try {
       const me = await api.me();
       setUser(me);
-    } catch {
-      setToken(null);
+    } catch (error) {
+      // A sleeping API or transient network failure does not invalidate a token.
+      if (error.status === 401) setToken(null);
       setUser(null);
     }
   }, []);

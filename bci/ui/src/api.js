@@ -1,3 +1,5 @@
+import { waitForService } from './serviceReady.js';
+
 const BASE_URL = import.meta.env.VITE_BCI_API_URL || 'http://localhost:8081/api/v1';
 const TOKEN_KEY = 'bci_token';
 
@@ -53,8 +55,14 @@ export const api = {
   revokePentestEngagement: (id) => request(`/pentest/engagements/${id}`, { method: 'DELETE' }),
   pentestResults: (id) => request(`/pentest/results/${id}`),
   pentestReport: (scanJobId) => request('/reports', { method: 'POST', body: { reportType: 'TECHNICAL', scanJobId } }),
-  login: (orgSlug, email, password) => request('/auth/login', { method: 'POST', body: { orgSlug, email, password } }),
-  me: () => request('/auth/me'),
+  login: async (orgSlug, email, password) => {
+    await waitForService(`${BASE_URL}/health/ready`);
+    return request('/auth/login', { method: 'POST', body: { orgSlug, email, password } });
+  },
+  me: async () => {
+    await waitForService(`${BASE_URL}/health/ready`);
+    return request('/auth/me');
+  },
 
   securityScore: () => request('/risk/security-score'),
   coverageScore: () => request('/risk/coverage-score'),

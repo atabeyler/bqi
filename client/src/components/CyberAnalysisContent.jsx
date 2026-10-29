@@ -221,6 +221,7 @@ function DashboardTab({ t, lang, onNewAnalysis }) {
     <div className="space-y-4">
       <PageTitle>{t('cyberCommandCenter')}</PageTitle>
       <ErrorNote error={error} />
+      {!security && !error && <p role="status" className="text-sm text-cyan-100/70">{t('serviceStarting')}</p>}
 
       {offlineEngineCount === 0 ? (
         <div className="hud-panel rounded-xl p-3 text-emerald-300 text-[13px] tracking-wide text-center">{t('cyberSystemOperational')}</div>

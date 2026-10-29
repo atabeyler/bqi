@@ -233,7 +233,7 @@ export default function LoginPage({ onLogin }) {
         await attemptOfflineLogin();
         return;
       }
-      setError(err.message);
+      setError(err.code === 'SERVICE_NOT_READY' ? t('serviceNotReady') : err.message);
     } finally {
       setLoading(false);
     }
@@ -381,6 +381,7 @@ export default function LoginPage({ onLogin }) {
                       )}
                     </AnimatePresence>
 
+                    {loading && <p role="status" className="text-xs text-cyan-100/70 mb-3">{t('serviceStarting')}</p>}
                     <motion.button type="submit" disabled={loading}
                       whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                       className="w-full py-3 sm:py-3.5 rounded-sm font-serif tracking-[0.28em] uppercase text-sm relative overflow-hidden transition disabled:opacity-50"

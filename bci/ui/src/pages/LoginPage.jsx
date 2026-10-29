@@ -21,7 +21,7 @@ export default function LoginPage() {
       await login(orgSlug, email, password);
       navigate('/');
     } catch (err) {
-      setError(err.message || t('loginFailed'));
+      setError(err.code === 'SERVICE_NOT_READY' ? t('serviceNotReady') : err.message || t('loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -43,6 +43,7 @@ export default function LoginPage() {
           <label htmlFor="password">{t('loginPassword')}</label>
           <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
+        {loading && <p role="status">{t('serviceStarting')}</p>}
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? t('loginSigningIn') : t('loginSignIn')}

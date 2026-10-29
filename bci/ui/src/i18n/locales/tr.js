@@ -1,4 +1,6 @@
 export default {
+  serviceStarting: "Sunucu hazırlanıyor; ilk açılış yaklaşık 1–2 dakika sürebilir.",
+  serviceNotReady: "Sunucu henüz hazır değil. Biraz sonra tekrar deneyin.",
   navDashboard: 'Panel',
   navAssets: 'Varlıklar',
   navScans: 'Taramalar',
