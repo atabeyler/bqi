@@ -365,7 +365,7 @@ describe('InfoModal', () => {
 
   it('renders the "contact" panel with the contact email', () => {
     render(<InfoModal panel="contact" t={t} onClose={vi.fn()} />);
-    expect(screen.getByText(/info@boldkimya\.com\.tr/)).toBeInTheDocument();
+    expect(screen.getByText(/info@boldas\.com\.tr/)).toBeInTheDocument();
   });
 
   it('renders nothing for an unrecognized panel', () => {

@@ -3,8 +3,8 @@ import { escapeHtml } from '../lib/escapeHtml.js';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM = 'BQI <onboarding@resend.dev>'; // Resend default until the domain is verified
-const TO_CENTER = process.env.CENTER_EMAIL || 'info@boldkimya.com.tr';
+const FROM = 'BQI <bqi@boldas.com.tr>';
+const TO_CENTER = process.env.CENTER_EMAIL || 'bqi@boldas.com.tr';
 
 /**
  * Sends an approval button email to the central mailbox for login approval.

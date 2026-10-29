@@ -17,7 +17,7 @@ export function isPushConfigured() {
   if (configured) return true;
   const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = process.env;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
-  webpush.setVapidDetails(VAPID_SUBJECT || 'mailto:info@boldkimya.com.tr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  webpush.setVapidDetails(VAPID_SUBJECT || 'mailto:info@boldas.com.tr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   configured = true;
   return true;
 }

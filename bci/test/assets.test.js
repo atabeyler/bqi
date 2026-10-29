@@ -120,15 +120,15 @@ describe('asset inventory', () => {
     const create = await request(app)
       .post('/api/v1/assets')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Bold Kimya Web', assetType: 'DOMAIN' });
+      .send({ name: 'Bold AŞ Web', assetType: 'DOMAIN' });
     await request(app)
       .post(`/api/v1/assets/${create.body.asset.id}/identifiers`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ identifierType: 'DOMAIN', value: 'www.boldkimya.com.tr' });
+      .send({ identifierType: 'DOMAIN', value: 'www.boldas.com.tr' });
 
     const found = await request(app)
       .get('/api/v1/assets/find-by-target')
-      .query({ value: 'WWW.BOLDKIMYA.COM.TR' })
+      .query({ value: 'WWW.BOLDAS.COM.TR' })
       .set('Authorization', `Bearer ${token}`);
     expect(found.status).toBe(200);
     expect(found.body.asset.id).toBe(create.body.asset.id);

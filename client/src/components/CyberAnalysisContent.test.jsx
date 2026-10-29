@@ -304,7 +304,7 @@ describe('CyberAnalysisContent', () => {
 
   it('renders a scan with NO_COVERAGE status distinctly from COMPLETED, never as a clean zero-finding result', async () => {
     cyberAnalysisApi.listScans.mockResolvedValue({
-      jobs: [{ id: 's1', target: 'boldkimya.com.tr', requested_class: 'PASSIVE', status: 'NO_COVERAGE', attempts: 1 }],
+      jobs: [{ id: 's1', target: 'boldas.com.tr', requested_class: 'PASSIVE', status: 'NO_COVERAGE', attempts: 1 }],
     });
     renderContent();
     await waitFor(() => screen.getByText('82'));

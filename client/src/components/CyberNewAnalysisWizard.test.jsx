@@ -101,12 +101,12 @@ describe('CyberNewAnalysisWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New Asset' }));
 
     fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Bold Web' } });
-    fireEvent.change(screen.getByPlaceholderText(/Target/), { target: { value: 'www.boldkimya.com.tr' } });
+    fireEvent.change(screen.getByPlaceholderText(/Target/), { target: { value: 'www.boldas.com.tr' } });
     fireEvent.click(screen.getByRole('button', { name: /Add asset/i }));
 
     await waitFor(() => expect(cyberAnalysisApi.createAsset).toHaveBeenCalledWith({ name: 'Bold Web', assetType: 'DOMAIN', criticality: 'MEDIUM' }));
-    await waitFor(() => expect(cyberAnalysisApi.addAssetIdentifier).toHaveBeenCalledWith('asset-1', { identifierType: 'DOMAIN', value: 'www.boldkimya.com.tr' }));
-    await waitFor(() => expect(screen.getByText('www.boldkimya.com.tr')).toBeInTheDocument());
+    await waitFor(() => expect(cyberAnalysisApi.addAssetIdentifier).toHaveBeenCalledWith('asset-1', { identifierType: 'DOMAIN', value: 'www.boldas.com.tr' }));
+    await waitFor(() => expect(screen.getByText('www.boldas.com.tr')).toBeInTheDocument());
   });
 
   it('detects a duplicate target and offers the existing asset instead of creating a second one', async () => {
